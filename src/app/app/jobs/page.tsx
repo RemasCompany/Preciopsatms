@@ -1,39 +1,46 @@
-import { revalidatePath } from 'next/cache';
-import { requirePageContext, logActivity } from '@/lib/tenant';
-import { JobInput } from '@/lib/schemas';
+import { requirePageContext, canEdit } from '@/lib/tenant';
+import { labelFor } from '@/lib/records';
+import ListToolbar, { pickFilters } from '@/components/ListToolbar';
+import { OpenRecord, Pill } from '@/components/Records';
 
-async function createJob(form: FormData) {
-  'use server';
-  const { tdb, org, user } = await requirePageContext('RECRUITER');
-  const data = JobInput.parse({ title: form.get('title'), location: form.get('location') || undefined, type: form.get('type'), payRate: form.get('payRate') || undefined, billRate: form.get('billRate') || undefined, openings: form.get('openings') || 1, skills: String(form.get('skills') ?? '').split(',').map((s) => s.trim()).filter(Boolean), description: form.get('description') || undefined });
-  const job = await tdb.job.create({ data: data as never });
-  await logActivity(org.id, `Added job ${job.title}`, user.id);
-  revalidatePath('/app/jobs');
-}
+const FILTERS = ['status', 'sector', 'type'];
+const money = (n: number) => `$${n.toFixed(2)}`;
 
-export default async function Jobs() {
-  const { tdb, org } = await requirePageContext();
-  const jobs = await tdb.job.findMany({ include: { client: true, _count: { select: { applications: true } } }, orderBy: [{ hot: 'desc' }, { createdAt: 'desc' }] });
+export default async function Jobs({ searchParams }: { searchParams: Record<string, string | undefined> }) {
+  const ctx = await requirePageContext();
+  const { tdb, org } = ctx;
+  const q = searchParams.q?.trim();
+  const active = pickFilters('jobs', FILTERS, searchParams);
+  const jobs = await tdb.job.findMany({
+    where: { ...active, ...(q ? { OR: [{ title: { contains: q, mode: 'insensitive' } }, { location: { contains: q, mode: 'insensitive' } }, { client: { name: { contains: q, mode: 'insensitive' } } }] } : {}) } as never,
+    include: { client: { select: { name: true } }, applications: { select: { stage: true } } },
+    orderBy: [{ hot: 'desc' }, { createdAt: 'desc' }],
+  });
   return (
     <>
       <h1>Jobs</h1>
+      <p className="lede">Every open requisition, its pipeline, and the spread you earn per hour.</p>
       <p className="muted">Public careers page: <a href={`/careers/${org.slug}`}>/careers/{org.slug}</a> · Job board feed: <code>/api/public/{org.slug}/feed.xml</code></p>
-      <table><thead><tr><th>Job</th><th>Location</th><th>Pipeline</th><th>Spread</th><th>Status</th></tr></thead><tbody>
-        {jobs.map((j) => <tr key={j.id}><td><b>{j.title}</b><br /><span className="muted">{j.client?.name}</span></td><td>{j.location}</td><td>{j._count.applications}</td>
-          <td>{j.billRate && j.payRate ? `$${(Number(j.billRate) - Number(j.payRate)).toFixed(2)}/hr` : '—'}</td><td>{j.status.replace('_', ' ').toLowerCase()}</td></tr>)}
-      </tbody></table>
-      <form className="card" action={createJob}>
-        <h2>Add a job</h2>
-        <label>Title<input name="title" required /></label>
-        <label>Location<input name="location" placeholder="City, ST" /></label>
-        <label>Type<select name="type" defaultValue="CONTRACT"><option value="CONTRACT">Contract</option><option value="CONTRACT_TO_HIRE">Contract-to-hire</option><option value="DIRECT_HIRE">Direct hire</option><option value="TEMP">Temp</option><option value="PER_DIEM">Per diem</option></select></label>
-        <label>Openings<input name="openings" type="number" min={1} defaultValue={1} /></label>
-        <label>Pay rate ($/hr)<input name="payRate" type="number" step="0.01" /></label>
-        <label>Bill rate ($/hr)<input name="billRate" type="number" step="0.01" /></label>
-        <label>Skills (comma separated)<input name="skills" /></label>
-        <label>Description<textarea name="description" rows={4} /></label>
-        <button className="btn">Add job</button>
-      </form>
+      <ListToolbar kind="jobs" q={q} filters={FILTERS} active={active} canEdit={canEdit(ctx)} placeholder="Search title, location or client…" />
+      {jobs.length ? (
+        <div className="tablewrap"><table><thead><tr><th>Job</th><th>Sector</th><th>Location</th><th>Openings</th><th>Pipeline</th><th>Spread</th><th>Status</th></tr></thead><tbody>
+          {jobs.map((j) => {
+            const pay = Number(j.payRate ?? 0), bill = Number(j.billRate ?? 0), spread = bill - pay;
+            const live = j.applications.filter((a) => a.stage !== 'REJECTED').length, placed = j.applications.filter((a) => a.stage === 'PLACED').length;
+            return (
+              <tr key={j.id}>
+                <td><OpenRecord kind="jobs" id={j.id}><b>{j.title}</b>{j.hot && <span className="pill hot">Hot</span>}</OpenRecord><div className="muted">{j.client?.name ?? 'No client'}</div></td>
+                <td>{j.sector ?? '—'}</td>
+                <td>{j.location ?? '—'}<div className="muted">{labelFor('jobs', 'type', j.type)}</div></td>
+                <td>{placed} / {j.openings} filled</td>
+                <td>{live ? <a href={`/app/pipeline?job=${j.id}`}>{live} in pipeline</a> : <span className="muted">No candidates</span>}</td>
+                <td>{j.billRate ? <>{money(spread)}/hr<div className="muted">{Math.round((spread / bill) * 100)}% margin</div></> : '—'}</td>
+                <td><Pill s={labelFor('jobs', 'status', j.status)} /></td>
+              </tr>
+            );
+          })}
+        </tbody></table></div>
+      ) : <div className="card empty"><b>{q || Object.keys(active).length ? 'No jobs match' : 'No jobs yet'}</b>{q || Object.keys(active).length ? 'Try a different search or filter.' : 'Add a requisition to start sourcing.'}</div>}
     </>
   );
 }

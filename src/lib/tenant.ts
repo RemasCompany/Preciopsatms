@@ -85,3 +85,7 @@ export function withApi<T extends unknown[]>(fn: (...args: T) => Promise<Respons
 export async function logActivity(orgId: string, text: string, actorId?: string) {
   await db.activity.create({ data: { organizationId: orgId, text, actorId } });
 }
+
+/** Whether the signed-in user may make changes (role above viewer and an active subscription). */
+export const canEdit = (ctx: { role: Role; org: { subscriptionStatus: string } }) =>
+  ctx.role !== 'VIEWER' && ['trialing', 'active'].includes(ctx.org.subscriptionStatus);

@@ -1,16 +1,38 @@
-import { requirePageContext } from '@/lib/tenant';
+import { requirePageContext, canEdit } from '@/lib/tenant';
+import ListToolbar, { pickFilters } from '@/components/ListToolbar';
+import { OpenRecord, Pill } from '@/components/Records';
 
-export default async function Candidates({ searchParams }: { searchParams: { q?: string } }) {
-  const { tdb } = await requirePageContext();
+const FILTERS = ['status', 'sector', 'availability', 'source'];
+
+export default async function Candidates({ searchParams }: { searchParams: Record<string, string | undefined> }) {
+  const ctx = await requirePageContext();
   const q = searchParams.q?.trim();
-  const list = await tdb.candidate.findMany({ where: q ? { OR: [{ name: { contains: q, mode: 'insensitive' } }, { title: { contains: q, mode: 'insensitive' } }, { skills: { has: q } }] } : {}, orderBy: { updatedAt: 'desc' }, take: 100 });
+  const active = pickFilters('candidates', FILTERS, searchParams);
+  const list = await ctx.tdb.candidate.findMany({
+    where: { ...active, ...(q ? { OR: [{ name: { contains: q, mode: 'insensitive' } }, { title: { contains: q, mode: 'insensitive' } }, { email: { contains: q, mode: 'insensitive' } }, { skills: { has: q } }] } : {}) },
+    include: { vendor: { select: { name: true } }, _count: { select: { applications: true } } },
+    orderBy: { updatedAt: 'desc' }, take: 200,
+  });
   return (
     <>
       <h1>Candidates</h1>
-      <form><input name="q" defaultValue={q} placeholder="Search name, title or exact skill" /> <button className="btn ghost">Search</button></form>
-      <table style={{ marginTop: 14 }}><thead><tr><th>Name</th><th>Title</th><th>Skills</th><th>Source</th><th>Status</th></tr></thead><tbody>
-        {list.map((c) => <tr key={c.id}><td><b>{c.name}</b><br /><span className="muted">{c.email}</span></td><td>{c.title}</td><td>{c.skills.slice(0, 4).join(', ')}</td><td>{c.source}</td><td>{c.status}</td></tr>)}
-      </tbody></table>
+      <p className="lede">Your talent database. Add candidates, then submit them straight to a job.</p>
+      <ListToolbar kind="candidates" q={q} filters={FILTERS} active={active} canEdit={canEdit(ctx)} placeholder="Search name, title, email or exact skill…" />
+      {list.length ? (
+        <div className="tablewrap"><table><thead><tr><th>Candidate</th><th>Skills</th><th>Sector</th><th>Submissions</th><th>Availability</th><th>Source</th><th>Status</th></tr></thead><tbody>
+          {list.map((c) => (
+            <tr key={c.id}>
+              <td><OpenRecord kind="candidates" id={c.id}><b>{c.name}</b></OpenRecord><div className="muted">{c.title}</div></td>
+              <td><span className="tags">{c.skills.slice(0, 4).map((s) => <span key={s}>{s}</span>)}</span></td>
+              <td>{c.sector ?? '—'}<div className="muted">{c.location}</div></td>
+              <td>{c._count.applications}</td>
+              <td>{c.availability ?? '—'}<div className="muted">{c.desiredRate ? `$${Number(c.desiredRate).toFixed(2)}/hr` : ''}</div></td>
+              <td>{c.source ?? '—'}<div className="muted">{c.vendor?.name}</div></td>
+              <td><Pill s={c.status} /></td>
+            </tr>
+          ))}
+        </tbody></table></div>
+      ) : <div className="card empty"><b>{q || Object.keys(active).length ? 'No candidates match' : 'No candidates yet'}</b>{q || Object.keys(active).length ? 'Try a different search or filter.' : 'Add your first candidate, or share your careers page to start collecting applicants.'}</div>}
     </>
   );
 }

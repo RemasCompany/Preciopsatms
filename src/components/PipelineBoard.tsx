@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Stage } from '@prisma/client';
 import Drawer from './Drawer';
+import { useRecords } from './Records';
 import { BOARD_STAGES, START_STAGES, REJECTION_REASONS, stageLabel, type RejectionReason } from '@/lib/pipeline';
 
 export type BoardApp = {
@@ -19,6 +20,7 @@ export default function PipelineBoard({ apps: initial, jobs, candidates, initial
   apps: BoardApp[]; jobs: JobOpt[]; candidates: CandOpt[]; initialJob: string; canEdit: boolean;
 }) {
   const router = useRouter();
+  const { open } = useRecords();
   const [apps, setApps] = useState(initial);
   const [q, setQ] = useState('');
   const [job, setJob] = useState(initialJob);
@@ -56,6 +58,7 @@ export default function PipelineBoard({ apps: initial, jobs, candidates, initial
   }
 
   function onKey(e: React.KeyboardEvent, a: BoardApp) {
+    if (e.key === 'Enter') { open('candidates', a.candidateId); return; }
     if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
     e.preventDefault();
     const i = BOARD_STAGES.indexOf(a.stage) + (e.key === 'ArrowRight' ? 1 : -1);
@@ -89,9 +92,9 @@ export default function PipelineBoard({ apps: initial, jobs, candidates, initial
                   const d = daysIn(a.stageChangedAt);
                   return (
                     <div key={a.id} className="cardk" tabIndex={0} draggable={canEdit}
-                      aria-label={`${a.candidate}, ${a.job}. ${canEdit ? 'Use left and right arrow keys to change stage.' : ''}`}
+                      aria-label={`${a.candidate}, ${a.job}. ${canEdit ? 'Enter opens the candidate; left and right arrow keys change stage.' : 'Enter opens the candidate.'}`}
                       onDragStart={(e) => { e.dataTransfer.setData('text/plain', a.id); e.dataTransfer.effectAllowed = 'move'; }}
-                      onKeyDown={(e) => onKey(e, a)}>
+                      onKeyDown={(e) => onKey(e, a)} onClick={() => open('candidates', a.candidateId)}>
                       <b>{a.candidate}</b>
                       <span className="muted">{a.job}{a.client ? ` · ${a.client}` : ''}</span>
                       <div className="meta"><span>{a.matchScore ? `Match ${a.matchScore}` : a.availability ?? ''}</span><span>{d ? `${d}d in stage` : 'today'}</span></div>
