@@ -39,7 +39,8 @@ export type TenantDb = ReturnType<typeof tenantDb>;
 
 const RANK: Record<Role, number> = { VIEWER: 0, RECRUITER: 1, ADMIN: 2, OWNER: 3 };
 
-export class HttpError extends Error { constructor(public status: number, message: string) { super(message); } }
+import { HttpError } from './http-error';
+export { HttpError };
 
 /** For server components/pages: redirects to /login when signed out. */
 export async function requirePageContext(minRole: Role = 'VIEWER') {
