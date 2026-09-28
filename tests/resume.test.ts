@@ -103,7 +103,7 @@ afterAll(async () => {
 });
 
 describe('parse-resume API', () => {
-  const upload = async (buf: Buffer, name: string) => { const fd = new FormData(); fd.set('file', new File([buf], name)); return fd; };
+  const upload = async (buf: Buffer, name: string) => { const fd = new FormData(); fd.set("file", new File([new Uint8Array(buf)], name)); return fd; };
   it('parses an uploaded PDF without sending contact details to the model', async () => {
     const res = await PARSE(new Request('http://x', { method: 'POST', body: await upload(await pdf(RESUME), 'maria.pdf') }));
     expect(res.status).toBe(200);
