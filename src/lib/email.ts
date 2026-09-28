@@ -3,7 +3,12 @@ import { Resend } from 'resend';
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
 export async function sendEmail(opts: { to: string | string[]; subject: string; text: string; replyTo?: string; fromName?: string; attachments?: { filename: string; content: Buffer }[] }) {
-  if (!resend) { console.warn('[email] RESEND_API_KEY not set — email not sent:', opts.subject); return { id: 'dev-noop' }; }
+  if (!resend) {
+    console.warn('[email] RESEND_API_KEY not set — email not sent:', opts.subject);
+    // In development, print the message so links (signing, invites) can still be followed.
+    if (process.env.NODE_ENV !== 'production') console.warn(`[email] to ${opts.to}:\n${opts.text}`);
+    return { id: 'dev-noop' };
+  }
   const from = opts.fromName ? `${opts.fromName} <${(process.env.EMAIL_FROM ?? '').replace(/.*</, '').replace('>', '')}>` : process.env.EMAIL_FROM!;
   const { data, error } = await resend.emails.send({
     from, to: opts.to, subject: opts.subject, text: opts.text, replyTo: opts.replyTo,

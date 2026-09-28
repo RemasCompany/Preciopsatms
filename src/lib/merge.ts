@@ -8,3 +8,6 @@ export function orgContext(org: { name: string; shortName: string | null; ownerN
     signature: [org.ownerName, org.name].filter(Boolean).join('\n'),
   };
 }
+
+/** True while a document still has template blanks: [like this] or an unfilled {{field}}. */
+export const hasBlanks = (body: string) => /\[[a-z %]+\]/i.test(body) || /\{\{\w+\}\}/.test(body);

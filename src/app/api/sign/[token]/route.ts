@@ -47,8 +47,11 @@ export async function POST(req: Request, { params }: { params: { token: string }
     data: { status: 'SIGNED', tokenHash: null, signerName: parsed.data.name, signerSignature: parsed.data.signature, signedAt: at, signerIp: ip, signerUserAgent: ua, audit, pdfFileId: file.id },
   });
   await db.activity.create({ data: { organizationId: doc.organizationId, text: `${parsed.data.name} signed ${doc.title}` } });
+  // The signature is recorded; the copies below are courtesy emails, so a delivery failure must not fail the signing.
   const attach = [{ filename: `${doc.title}.pdf`, content: Buffer.from(pdf) }];
-  await sendEmail({ to: doc.signerEmail, subject: `Signed copy: ${doc.title}`, text: `Thank you for signing. Your copy is attached.\n\n${doc.organization.name}`, attachments: attach });
-  if (doc.organization.applyEmail) await sendEmail({ to: doc.organization.applyEmail, subject: `Signed: ${doc.title}`, text: `${parsed.data.name} signed "${doc.title}". The signed PDF with audit trail is attached. Countersign it in Preciops if required.`, attachments: attach });
+  await sendEmail({ to: doc.signerEmail, subject: `Signed copy: ${doc.title}`, text: `Thank you for signing. Your copy is attached.\n\n${doc.organization.name}`, attachments: attach })
+    .catch((e) => console.error('[sign] signer copy email failed', e));
+  if (doc.organization.applyEmail) await sendEmail({ to: doc.organization.applyEmail, subject: `Signed: ${doc.title}`, text: `${parsed.data.name} signed "${doc.title}". The signed PDF with audit trail is attached. Countersign it in Preciops if required.`, attachments: attach })
+    .catch((e) => console.error('[sign] company copy email failed', e));
   return Response.json({ ok: true });
 }
