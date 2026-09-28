@@ -1,0 +1,443 @@
+// Preciops data model. Every business table carries organizationId (tenant key).
+// Tenant isolation is enforced in code by src/lib/tenant.ts (tenantDb), never by trusting client input.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------- Tenancy, users, billing ----------------
+
+enum Role {
+  OWNER
+  ADMIN
+  RECRUITER
+  VIEWER
+}
+
+enum PlanId {
+  starter
+  growth
+  enterprise
+}
+
+model Organization {
+  id                   String    @id @default(cuid())
+  name                 String
+  slug                 String    @unique // used in public careers URLs
+  shortName            String?
+  ownerName            String?
+  ownerTitle           String?
+  city                 String?
+  website              String?
+  services             String?
+  pitch                String?
+  logoUrl              String?
+  brandColor           String    @default("#0E7A6E")
+  applyEmail           String?
+  careersHeadline      String    @default("Find your next role")
+  careersIntro         String?
+  showPayOnCareers     Boolean   @default(true)
+  showClientOnCareers  Boolean   @default(false)
+  // Billing
+  plan                 PlanId    @default(starter)
+  stripeCustomerId     String?   @unique
+  stripeSubscriptionId String?   @unique
+  subscriptionStatus   String    @default("trialing") // mirrors Stripe: trialing|active|past_due|canceled|unpaid|incomplete
+  trialEndsAt          DateTime?
+  currentPeriodEnd     DateTime?
+  seats                Int       @default(1)
+  aiCreditsUsed        Int       @default(0) // reset each billing period by webhook
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  members      Membership[]
+  invites      Invite[]
+  jobs         Job[]
+  candidates   Candidate[]
+  applications Application[]
+  clients      Client[]
+  contacts     Contact[]
+  deals        Deal[]
+  leads        Lead[]
+  vendors      Vendor[]
+  tasks        Task[]
+  timesheets   Timesheet[]
+  documents    SignDocument[]
+  messages     Message[]
+  eeo          EeoSelfId[]
+  activity     Activity[]
+  files        StoredFile[]
+}
+
+model User {
+  id           String       @id @default(cuid())
+  email        String       @unique
+  name         String?
+  passwordHash String
+  createdAt    DateTime     @default(now())
+  memberships  Membership[]
+}
+
+model Membership {
+  id             String       @id @default(cuid())
+  userId         String
+  organizationId String
+  role           Role         @default(RECRUITER)
+  createdAt      DateTime     @default(now())
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+}
+
+model Invite {
+  id             String       @id @default(cuid())
+  organizationId String
+  email          String
+  role           Role         @default(RECRUITER)
+  tokenHash      String       @unique
+  expiresAt      DateTime
+  acceptedAt     DateTime?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+// ---------------- Recruiting ----------------
+
+enum JobStatus {
+  OPEN
+  ON_HOLD
+  FILLED
+  CLOSED
+}
+
+enum EmploymentType {
+  CONTRACT
+  CONTRACT_TO_HIRE
+  DIRECT_HIRE
+  TEMP
+  PER_DIEM
+}
+
+model Job {
+  id             String         @id @default(cuid())
+  organizationId String
+  clientId       String?
+  title          String
+  sector         String?
+  location       String?
+  type           EmploymentType @default(CONTRACT)
+  openings       Int            @default(1)
+  payRate        Decimal?       @db.Decimal(10, 2)
+  billRate       Decimal?       @db.Decimal(10, 2)
+  status         JobStatus      @default(OPEN)
+  hot            Boolean        @default(false)
+  startDate      DateTime?
+  skills         String[]
+  description    String?
+  posting        String?        // public-facing posting text
+  applyUrl       String?        // optional external apply link; default is the built-in apply form
+  publish        Boolean        @default(true) // show on public careers page / feeds
+  postedTo       Json?          // { "Indeed": "2026-09-27", ... }
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client         Client?        @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  applications   Application[]
+
+  @@index([organizationId, status])
+}
+
+model Candidate {
+  id             String        @id @default(cuid())
+  organizationId String
+  vendorId       String?
+  name           String
+  email          String?
+  phone          String?
+  title          String?
+  location       String?
+  sector         String?
+  yearsExp       Int?
+  desiredRate    Decimal?      @db.Decimal(10, 2)
+  availability   String?
+  source         String?
+  status         String        @default("Active")
+  skills         String[]
+  certs          String[]
+  summary        String?
+  resumeFileId   String?
+  emailOptOut    Boolean       @default(false)
+  smsOptOut      Boolean       @default(false) // set by Twilio STOP webhook (TCPA)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  vendor         Vendor?       @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  applications   Application[]
+
+  @@index([organizationId, email])
+  @@index([organizationId, phone])
+}
+
+enum Stage {
+  APPLIED
+  SOURCED
+  SCREENED
+  SUBMITTED
+  INTERVIEW
+  OFFER
+  PLACED
+  REJECTED
+}
+
+model Application {
+  id               String       @id @default(cuid())
+  organizationId   String
+  candidateId      String
+  jobId            String
+  stage            Stage        @default(SOURCED)
+  maxStage         Stage        @default(SOURCED) // furthest stage reached, for EEO applicant-flow reporting
+  rejectionReason  String?      // required when stage = REJECTED
+  matchScore       Int?
+  stageChangedAt   DateTime     @default(now())
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  candidate        Candidate    @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  job              Job          @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  timesheets       Timesheet[]
+
+  @@unique([candidateId, jobId])
+  @@index([organizationId, stage])
+}
+
+// Voluntary self-identification. Separate table; readable only by OWNER/ADMIN.
+model EeoSelfId {
+  id             String       @id @default(cuid())
+  organizationId String
+  candidateId    String       @unique
+  gender         String?
+  race           String?
+  veteran        String?
+  disability     String?
+  collectedAt    DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+// ---------------- Sales / CRM ----------------
+
+model Client {
+  id             String       @id @default(cuid())
+  organizationId String
+  name           String
+  industry       String?
+  status         String       @default("Active")
+  city           String?
+  website        String?
+  markupPct      Decimal?     @db.Decimal(5, 2)
+  msaSignedAt    DateTime?
+  paymentTerms   String       @default("Net 30")
+  notes          String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contacts       Contact[]
+  jobs           Job[]
+  deals          Deal[]
+}
+
+model Contact {
+  id             String       @id @default(cuid())
+  organizationId String
+  clientId       String
+  name           String
+  title          String?
+  email          String?
+  phone          String?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client         Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+}
+
+model Deal {
+  id             String       @id @default(cuid())
+  organizationId String
+  clientId       String?
+  title          String
+  value          Decimal?     @db.Decimal(12, 2)
+  stage          String       @default("Prospect") // Prospect|Qualified|Proposal|Negotiation|Won|Lost
+  closeDate      DateTime?
+  service        String?
+  notes          String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client         Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
+}
+
+model Lead {
+  id             String       @id @default(cuid())
+  organizationId String
+  company        String
+  contact        String?
+  role           String?
+  email          String?
+  phone          String?
+  industry       String?
+  size           String?
+  city           String?
+  source         String?
+  status         String       @default("New")
+  score          Int?
+  nextStepAt     DateTime?
+  notes          String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+// ---------------- Operations ----------------
+
+model Vendor {
+  id                 String       @id @default(cuid())
+  organizationId     String
+  name               String
+  category           String?
+  status             String       @default("Pending")
+  contact            String?
+  email              String?
+  phone              String?
+  sectors            String[]
+  feePct             Decimal?     @db.Decimal(5, 2)
+  rating             Decimal?     @db.Decimal(2, 1)
+  coiExpiresAt       DateTime?
+  w9ReceivedAt       DateTime?
+  agreementExpiresAt DateTime?
+  notes              String?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  candidates         Candidate[]
+}
+
+model Task {
+  id             String       @id @default(cuid())
+  organizationId String
+  title          String
+  dueAt          DateTime?
+  priority       String       @default("Normal")
+  related        String?
+  done           Boolean      @default(false)
+  assigneeId     String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+enum TimesheetStatus {
+  DRAFT
+  APPROVED
+  PAID
+}
+
+model Timesheet {
+  id             String          @id @default(cuid())
+  organizationId String
+  applicationId  String
+  weekEnding     DateTime        @db.Date
+  regularHours   Decimal         @default(0) @db.Decimal(6, 2)
+  overtimeHours  Decimal         @default(0) @db.Decimal(6, 2)
+  payRate        Decimal         @db.Decimal(10, 2) // snapshot at entry
+  billRate       Decimal         @db.Decimal(10, 2) // snapshot at entry
+  status         TimesheetStatus @default(DRAFT)
+  approvedAt     DateTime?
+  approvedById   String?
+  paidAt         DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  application    Application     @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@unique([applicationId, weekEnding])
+  @@index([organizationId, weekEnding])
+}
+
+enum SignStatus {
+  DRAFT
+  SENT
+  SIGNED
+  COUNTERSIGNED
+  VOID
+}
+
+model SignDocument {
+  id              String       @id @default(cuid())
+  organizationId  String
+  type            String       // offer|assignment|vendor|client|custom
+  title           String
+  body            String
+  relatedType     String       // candidate|vendor|client
+  relatedId       String
+  signerName      String
+  signerEmail     String
+  status          SignStatus   @default(DRAFT)
+  tokenHash       String?      @unique // sha256 of the one-time signing token; raw token only ever lives in the emailed link
+  tokenExpiresAt  DateTime?
+  bodySha256      String?      // fingerprint of the exact text signed
+  signerSignature String?      // PNG data URL
+  signedAt        DateTime?
+  signerIp        String?
+  signerUserAgent String?
+  counterName     String?
+  counterSignature String?
+  counterSignedAt DateTime?
+  pdfFileId       String?
+  audit           Json         @default("[]")
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  organizationId String
+  channel        String       // email|sms
+  toAddress      String
+  subject        String?
+  body           String
+  relatedType    String?
+  relatedId      String?
+  status         String       @default("queued") // queued|sent|failed|blocked_opt_out
+  providerId     String?
+  error          String?
+  sentById       String?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, relatedType, relatedId])
+}
+
+model Activity {
+  id             String       @id @default(cuid())
+  organizationId String
+  text           String
+  actorId        String?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+}
+
+model StoredFile {
+  id             String       @id @default(cuid())
+  organizationId String
+  key            String       @unique // S3 object key, always prefixed by organizationId
+  filename       String
+  contentType    String
+  size           Int
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
