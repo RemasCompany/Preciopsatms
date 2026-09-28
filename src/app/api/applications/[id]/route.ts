@@ -1,11 +1,10 @@
 import { z } from 'zod';
 import { Stage } from '@prisma/client';
 import { requireApiContext, withApi, logActivity, HttpError } from '@/lib/tenant';
+import { STAGE_ORDER as ORDER } from '@/lib/eeo';
+import { REJECTION_REASONS } from '@/lib/pipeline';
 
-const ORDER: Stage[] = ['APPLIED', 'SOURCED', 'SCREENED', 'SUBMITTED', 'INTERVIEW', 'OFFER', 'PLACED'];
-const REASONS = ['Did not meet minimum qualifications', 'Less qualified than selected candidate', 'Rate or pay mismatch', 'Withdrew / not interested', 'No-show or unresponsive', 'Failed background or drug screen', 'Client declined', 'Position filled or cancelled', 'Other'] as const;
-
-const Body = z.object({ stage: z.nativeEnum(Stage), rejectionReason: z.enum(REASONS).optional() });
+const Body = z.object({ stage: z.nativeEnum(Stage), rejectionReason: z.enum(REJECTION_REASONS).optional() });
 
 /** Move an application through the pipeline. Placing someone auto-fills the job when every opening is filled. */
 export const PATCH = withApi(async (req: Request, { params }: { params: { id: string } }) => {
@@ -14,6 +13,7 @@ export const PATCH = withApi(async (req: Request, { params }: { params: { id: st
   if (stage === 'REJECTED' && !rejectionReason) throw new HttpError(400, 'A rejection reason is required for EEO record-keeping');
   const app = await tdb.application.findFirst({ where: { id: params.id }, include: { candidate: true, job: true } });
   if (!app) throw new HttpError(404, 'Not found');
+  if (app.stage === stage) return Response.json({ ok: true });
 
   const maxStage = stage !== 'REJECTED' && ORDER.indexOf(stage) > ORDER.indexOf(app.maxStage) ? stage : app.maxStage;
   await tdb.application.updateMany({ where: { id: app.id }, data: { stage, maxStage, rejectionReason: stage === 'REJECTED' ? rejectionReason : null, stageChangedAt: new Date() } });

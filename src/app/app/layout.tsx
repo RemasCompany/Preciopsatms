@@ -5,7 +5,7 @@ import { hasFeature } from '@/lib/plans';
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const { org } = await requirePageContext();
   const nav: [string, string, boolean][] = [
-    ['/app', 'Dashboard', true], ['/app/jobs', 'Jobs', true], ['/app/candidates', 'Candidates', true],
+    ['/app', 'Dashboard', true], ['/app/pipeline', 'Pipeline', true], ['/app/jobs', 'Jobs', true], ['/app/candidates', 'Candidates', true],
     ['/app/timesheets', 'Timesheets & payroll', hasFeature(org, 'timesheets')], ['/app/documents', 'E-signatures', hasFeature(org, 'esign')],
     ['/app/eeo', 'EEO reporting', hasFeature(org, 'eeo')], ['/app/team', 'Team', true], ['/app/billing', 'Billing', true],
   ];
