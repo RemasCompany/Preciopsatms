@@ -56,7 +56,8 @@ Covers tenant isolation and API gating (`tests/tenant.test.ts`, needs the test D
 | Timesheets, approvals, payroll CSV, client invoice PDF | `api/timesheets*`, `api/payroll/export`, `api/invoices/pdf` |
 | Public careers pages (one page per job, JSON-LD), apply form with resume upload + voluntary self-ID | `app/careers/[slug]`, `api/public/[slug]/apply` |
 | Live job API, embeddable widget, auto-updating XML feed for job boards | `api/public/[slug]/jobs`, `public/embed.js`, `api/public/[slug]/feed.xml` |
-| AI candidate matching + resume parsing (protected traits excluded) | `api/ai/*` |
+| AI candidate matching + resume parsing from PDF / Word / text or the resume on file; name, email, phone, links and street address are extracted locally and redacted before anything reaches the model | `api/ai/*`, `src/lib/resume.ts` |
+| Resume attach / download per candidate (ownership-checked) | `api/candidates/[id]/resume` |
 | EEO applicant flow + four-fifths report (admin, Enterprise) | `api/eeo/report` |
 | Marketing page with pricing, signup, login, app shell, dashboard, jobs, candidates, billing, team | `src/app` |
 

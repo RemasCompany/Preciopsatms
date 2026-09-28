@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import { useRouter } from 'next/navigation';
 import type { Stage } from '@prisma/client';
 import Drawer from './Drawer';
+import ResumePanel from './ResumePanel';
 import { ComposeDrawer, MessageHistory, type Recipient, type SentMessage } from './Compose';
 import RecordForm, { invalidateRefs } from './RecordForm';
 import { RECORDS, defaultsFor, labelFor, vendorCompliance, HOURS_PER_WEEK, type RecordKind, type RecordValues } from '@/lib/records';
@@ -54,8 +55,9 @@ type Extras = Record<string, unknown>;
 
 function RecordDrawer({ kind, id, preset, onClose }: Open & { onClose: () => void }) {
   const router = useRouter();
-  const { open, toast, canEdit } = useRecords();
+  const { open, toast, canEdit, ai } = useRecords();
   const spec = RECORDS[kind];
+  const [pendingResume, setPendingResume] = useState<File | null>(null);
   const [values, setValues] = useState<RecordValues | null>(id ? null : defaultsFor(kind, preset));
   const [extras, setExtras] = useState<Extras>({});
   const [error, setError] = useState('');
@@ -76,7 +78,15 @@ function RecordDrawer({ kind, id, preset, onClose }: Open & { onClose: () => voi
     if (missing) return setError(`${missing.label} is required.`);
     setBusy(true); setError('');
     try {
-      if (id) await api(`/api/records/${kind}/${id}`, 'PATCH', values); else await api(`/api/records/${kind}`, 'POST', values);
+      if (id) await api(`/api/records/${kind}/${id}`, 'PATCH', values);
+      else {
+        const created = await api(`/api/records/${kind}`, 'POST', values);
+        if (kind === 'candidates' && pendingResume) {
+          const fd = new FormData(); fd.set('file', pendingResume);
+          const up = await fetch(`/api/candidates/${created.id}/resume`, { method: 'POST', body: fd });
+          if (!up.ok) toast(`Candidate added, but the resume wasn’t attached: ${(await up.json().catch(() => ({}))).error ?? 'upload failed'}`, true);
+        }
+      }
       toast(id ? 'Saved.' : 'Added.'); changed(); onClose();
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
@@ -98,6 +108,10 @@ function RecordDrawer({ kind, id, preset, onClose }: Open & { onClose: () => voi
     </> : undefined}>
       {!values ? <p className="muted">Loading…</p> : <>
         {error && <p className="error" role="alert">{error}</p>}
+        {kind === 'candidates' && (canEdit || (id && extras.resume)) && (
+          <ResumePanel candidateId={id} resume={extras.resume as { filename: string } | null | undefined} ai={ai && canEdit} values={values} setValues={setValues}
+            onPendingFile={setPendingResume} reload={() => { load(); router.refresh(); }} toast={toast} />
+        )}
         <RecordForm kind={kind} values={values} onChange={setValues} readOnly={!canEdit} />
         {id && <Extras kind={kind} id={id} values={values} extras={extras} reload={() => { load(); router.refresh(); }} open={open} toast={toast} canEdit={canEdit} />}
       </>}

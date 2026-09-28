@@ -21,6 +21,7 @@
     "@aws-sdk/s3-request-presigner": "^3.600.0",
     "@prisma/client": "^5.17.0",
     "bcryptjs": "^2.4.3",
+    "mammoth": "^1.13.0",
     "next": "14.2.15",
     "next-auth": "^4.24.8",
     "pdf-lib": "^1.17.1",
@@ -29,6 +30,7 @@
     "resend": "^4.0.0",
     "stripe": "^16.12.0",
     "twilio": "^5.3.0",
+    "unpdf": "^1.8.1",
     "zod": "^3.23.8"
   },
   "devDependencies": {

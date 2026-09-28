@@ -130,8 +130,10 @@ async function loadRelated(tdb: TenantDb, kind: RecordKind, id: string) {
       const apps = await tdb.application.findMany({ where: { candidateId: id }, include: { job: { select: { title: true, billRate: true, client: { select: { name: true } } } } }, orderBy: { createdAt: 'desc' } });
       const taken = apps.map((a) => a.jobId);
       const open = await tdb.job.findMany({ where: { status: 'OPEN', id: { notIn: taken } }, select: { id: true, title: true, client: { select: { name: true } } }, orderBy: { createdAt: 'desc' } });
-      const c = await tdb.candidate.findFirst({ where: { id }, select: { emailOptOut: true, smsOptOut: true } });
+      const c = await tdb.candidate.findFirst({ where: { id }, select: { emailOptOut: true, smsOptOut: true, resumeFileId: true } });
+      const resume = c?.resumeFileId ? await tdb.storedFile.findFirst({ where: { id: c.resumeFileId }, select: { filename: true, size: true, createdAt: true } }) : null;
       return {
+        resume,
         optOut: { email: !!c?.emailOptOut, sms: !!c?.smsOptOut },
         applications: apps.map((a) => ({ id: a.id, jobId: a.jobId, job: a.job.title, client: a.job.client?.name ?? null, billRate: num(a.job.billRate), stage: a.stage })),
         openJobs: open.map((j) => ({ id: j.id, label: jobLabel(j) })),

@@ -88,3 +88,4 @@ td .muted{font-size:13px}
 details.msg{display:block}details.msg summary{display:flex;justify-content:space-between;align-items:center;gap:10px;cursor:pointer;list-style:none}details.msg summary::-webkit-details-marker{display:none}
 .feedurl{display:block;font-size:12.5px;background:var(--soft);border-radius:6px;padding:4px 8px;margin-top:4px;word-break:break-all;color:var(--text)}
 button.link.inline{display:inline;width:auto;border:0;background:none;padding:0;text-decoration:underline;font-weight:600}
+.resume{background:var(--soft);border-radius:10px;padding:12px 14px;margin-bottom:14px}.resume .filepick{margin:0}.resume textarea{font-size:14px}
