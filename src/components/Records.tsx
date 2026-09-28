@@ -8,7 +8,7 @@ import { RECORDS, defaultsFor, labelFor, vendorCompliance, HOURS_PER_WEEK, type 
 import { BOARD_STAGES, REJECTION_REASONS, stageLabel } from '@/lib/pipeline';
 
 type Open = { kind: RecordKind; id?: string; preset?: RecordValues };
-type Ctx = { open: (kind: RecordKind, id?: string, preset?: RecordValues) => void; toast: (text: string, error?: boolean) => void; canEdit: boolean };
+type Ctx = { open: (kind: RecordKind, id?: string, preset?: RecordValues) => void; toast: (text: string, error?: boolean) => void; canEdit: boolean; ai: boolean };
 const RecordsCtx = createContext<Ctx | null>(null);
 export const useRecords = () => {
   const c = useContext(RecordsCtx);
@@ -17,7 +17,7 @@ export const useRecords = () => {
 };
 
 /** Hosts the record drawer and toast for every page under /app. */
-export function RecordsProvider({ canEdit, children }: { canEdit: boolean; children: React.ReactNode }) {
+export function RecordsProvider({ canEdit, ai, children }: { canEdit: boolean; ai: boolean; children: React.ReactNode }) {
   const [current, setCurrent] = useState<Open | null>(null);
   const [toastMsg, setToastMsg] = useState<{ text: string; error?: boolean } | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>();
@@ -26,7 +26,7 @@ export function RecordsProvider({ canEdit, children }: { canEdit: boolean; child
   }, []);
   const open = useCallback((kind: RecordKind, id?: string, preset?: RecordValues) => setCurrent({ kind, id, preset }), []);
   return (
-    <RecordsCtx.Provider value={{ open, toast, canEdit }}>
+    <RecordsCtx.Provider value={{ open, toast, canEdit, ai }}>
       {children}
       {current && <RecordDrawer key={`${current.kind}:${current.id ?? 'new'}`} {...current} onClose={() => setCurrent(null)} />}
       {toastMsg && <div className={`toast${toastMsg.error ? ' bad' : ''}`} role="status">{toastMsg.text}</div>}
@@ -183,17 +183,7 @@ function Extras({ kind, id, values, extras, reload, open, toast, canEdit }: {
           {!deals.length && <p className="muted">No deals yet.</p>}</div></section>
     </>;
   }
-  if (kind === 'leads') {
-    const convert = async () => {
-      try { await api(`/api/records/leads/${id}/convert`, 'POST'); toast('Converted. Client and deal created.'); invalidateRefs('clients'); reload(); }
-      catch (e) { toast((e as Error).message, true); }
-    };
-    return (
-      <section className="sec"><h3>Work this lead</h3>
-        <div className="row">{values.status === 'Converted' ? <Pill s="Converted" /> : canEdit && <button className="btn" onClick={convert}>Convert to client + deal</button>}</div>
-      </section>
-    );
-  }
+  if (kind === 'leads') return <LeadWork id={id} values={values} reload={reload} />;
   if (kind === 'vendors') {
     const issues = vendorCompliance(values as never);
     const cands = (extras.candidates ?? []) as { id: string; name: string; title: string | null; status: string }[];
@@ -206,6 +196,56 @@ function Extras({ kind, id, values, extras, reload, open, toast, canEdit }: {
     </>;
   }
   return null;
+}
+
+type LeadAi = { score: number; why: string; nextStep: string; subject: string; body: string };
+function LeadWork({ id, values, reload }: { id: string; values: RecordValues; reload: () => void }) {
+  const { toast, canEdit, ai } = useRecords();
+  const [out, setOut] = useState<LeadAi | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const first = String(values.contact ?? '').trim().split(/\s+/)[0];
+  const body = out ? out.body.replace(/\[First name\]/g, first || 'there') : '';
+  async function score() {
+    setBusy(true); setErr('');
+    try { setOut(await api('/api/ai/lead-score', 'POST', { leadId: id })); } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
+  }
+  async function saveScore() {
+    if (!out) return;
+    const patch: RecordValues = { score: out.score };
+    if (values.status === 'New' && out.score >= 60) patch.status = 'Qualified';
+    try { await api(`/api/records/leads/${id}`, 'PATCH', patch); toast('Score saved.'); reload(); } catch (e) { toast((e as Error).message, true); }
+  }
+  async function copy() {
+    try { await navigator.clipboard.writeText(`Subject: ${out!.subject}\n\n${body}`); toast('Email copied.'); }
+    catch { toast('Copy isn’t available here. Select the text and copy it instead.', true); }
+  }
+  async function convert() {
+    try { await api(`/api/records/leads/${id}/convert`, 'POST'); toast('Converted. Client and deal created.'); invalidateRefs('clients'); reload(); }
+    catch (e) { toast((e as Error).message, true); }
+  }
+  return (
+    <section className="sec"><h3>Work this lead</h3>
+      <div className="row">
+        {ai && canEdit && <button className="btn ghost" onClick={score} disabled={busy}>{busy ? 'Thinking…' : 'Score & draft outreach'}</button>}
+        {values.status === 'Converted' ? <Pill s="Converted" /> : canEdit && <button className="btn" onClick={convert}>Convert to client + deal</button>}
+      </div>
+      {err && <p className="warn" role="alert">{err}</p>}
+      {out && (
+        <div className="aiout">
+          <div className="row" style={{ marginTop: 0 }}><span className="score" style={{ fontSize: 22, color: 'var(--accent)' }}>{out.score}</span><span>{out.why}</span></div>
+          <p><b>Next step:</b> {out.nextStep}</p>
+          <p style={{ marginBottom: 4 }}><b>Subject:</b> {out.subject}</p>
+          <div style={{ whiteSpace: 'pre-wrap' }}>{body}</div>
+          <div className="row">
+            {canEdit && <button className="btn sm" onClick={saveScore}>Save score</button>}
+            <button className="btn ghost sm" onClick={copy}>Copy email</button>
+            {values.email && <a className="btn ghost sm" href={`mailto:${values.email}?subject=${encodeURIComponent(out.subject)}&body=${encodeURIComponent(body)}`}>Open in mail</a>}
+          </div>
+        </div>
+      )}
+    </section>
+  );
 }
 
 function Contacts({ clientId, contacts, reload, canEdit }: { clientId: string; contacts: (RecordValues & { id: string })[]; reload: () => void; canEdit: boolean }) {

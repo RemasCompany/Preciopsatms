@@ -14,9 +14,19 @@ async function spendCredit(org: { id: string; plan: keyof typeof PLANS; aiCredit
 }
 
 export async function aiText(org: Parameters<typeof spendCredit>[0], prompt: string, maxTokens = 1200) {
+  if (!process.env.ANTHROPIC_API_KEY) throw new HttpError(503, 'AI isn’t set up on this server yet (ANTHROPIC_API_KEY is missing).');
   await spendCredit(org);
-  const res = await anthropic.messages.create({ model: MODEL, max_tokens: maxTokens, messages: [{ role: 'user', content: prompt }] });
-  return res.content.map((b) => (b.type === 'text' ? b.text : '')).join('');
+  try {
+    const res = await anthropic.messages.create({ model: MODEL, max_tokens: maxTokens, messages: [{ role: 'user', content: prompt }] });
+    return res.content.map((b) => (b.type === 'text' ? b.text : '')).join('');
+  } catch (e) {
+    // The request didn't produce anything useful, so give the credit back.
+    await db.organization.updateMany({ where: { id: org.id, aiCreditsUsed: { gt: 0 } }, data: { aiCreditsUsed: { decrement: 1 } } });
+    if (e instanceof Anthropic.AuthenticationError || e instanceof Anthropic.PermissionDeniedError) throw new HttpError(503, 'AI isn’t set up correctly on this server (the API key was rejected).');
+    if (e instanceof Anthropic.RateLimitError) throw new HttpError(429, 'AI is busy right now. Wait a minute and try again.');
+    if (e instanceof Anthropic.APIError) throw new HttpError(502, 'AI couldn’t finish that. Try again.');
+    throw e;
+  }
 }
 
 export async function aiJson<T>(org: Parameters<typeof spendCredit>[0], prompt: string, maxTokens = 1500): Promise<T> {

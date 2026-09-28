@@ -5,8 +5,8 @@ import { RecordsProvider } from '@/components/Records';
 
 const NAV: [string, [href: string, label: string, feature?: Feature][]][] = [
   ['Recruiting', [['/app', 'Dashboard'], ['/app/pipeline', 'Pipeline'], ['/app/jobs', 'Jobs'], ['/app/candidates', 'Candidates'], ['/app/timesheets', 'Timesheets & payroll', 'timesheets']]],
-  ['Sales', [['/app/leads', 'Lead generation', 'leads'], ['/app/clients', 'Clients & contacts', 'crm']]],
-  ['Operations', [['/app/vendors', 'Vendors', 'vendors'], ['/app/documents', 'E-signatures', 'esign'], ['/app/eeo', 'EEO reporting', 'eeo'], ['/app/team', 'Team'], ['/app/billing', 'Billing']]],
+  ['Sales', [['/app/leads', 'Lead generation', 'leads'], ['/app/clients', 'Clients & contacts', 'crm'], ['/app/deals', 'Deals', 'crm']]],
+  ['Operations', [['/app/vendors', 'Vendors', 'vendors'], ['/app/documents', 'E-signatures', 'esign'], ['/app/eeo', 'EEO reporting', 'eeo'], ['/app/tasks', 'Tasks'], ['/app/team', 'Team'], ['/app/billing', 'Billing']]],
 ];
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -24,7 +24,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <div className="main">
         {org.subscriptionStatus === 'trialing' && trialDays > 0 && <p className="card" style={{ margin: '0 0 16px' }}>{trialDays} days left in your trial. <Link href="/app/billing">Choose a plan</Link></p>}
         {!['trialing', 'active'].includes(org.subscriptionStatus) && <p className="card error" style={{ margin: '0 0 16px' }}>Your subscription is {org.subscriptionStatus.replace('_', ' ')}. Your data is safe but read-only. <Link href="/app/billing">Update billing</Link></p>}
-        <RecordsProvider canEdit={canEdit(ctx)}>{children}</RecordsProvider>
+        <RecordsProvider canEdit={canEdit(ctx)} ai={hasFeature(org, 'ai')}>{children}</RecordsProvider>
       </div>
     </div>
   );

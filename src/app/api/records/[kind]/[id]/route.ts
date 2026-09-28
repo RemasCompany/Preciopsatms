@@ -18,10 +18,19 @@ export const GET = withApi(async (_req: Request, { params }: Ctx) => {
 
 export const PATCH = withApi(async (req: Request, { params }: Ctx) => {
   const kind = kindOf(params.kind);
-  const { tdb } = await requireApiContext({ minRole: 'RECRUITER', feature: RECORDS[kind].feature, write: true });
+  const { tdb, org, user } = await requireApiContext({ minRole: 'RECRUITER', feature: RECORDS[kind].feature, write: true });
   const data = await parseRecord(tdb, kind, await req.json().catch(() => ({})), 'update');
-  const { count } = await delegate(tdb, kind).updateMany({ where: { id: params.id }, data });
-  if (!count) throw new HttpError(404, 'That record was deleted.');
+  const before = await delegate(tdb, kind).findFirst({ where: { id: params.id } });
+  if (!before) throw new HttpError(404, 'That record was deleted.');
+  await delegate(tdb, kind).updateMany({ where: { id: params.id }, data });
+
+  // Side effects from the prototype: winning a deal activates its client; deal moves and finished tasks are logged.
+  if (kind === 'deals' && data.stage && data.stage !== before.stage) {
+    await logActivity(org.id, `Deal “${before.title}” moved to ${data.stage}`, user.id);
+    const clientId = (data.clientId ?? before.clientId) as string | null;
+    if (data.stage === 'Won' && clientId) await tdb.client.updateMany({ where: { id: clientId, status: { not: 'Active' } }, data: { status: 'Active' } });
+  }
+  if (kind === 'tasks' && data.done === true && !before.done) await logActivity(org.id, `Completed: ${before.title}`, user.id);
   return Response.json({ ok: true });
 });
 
