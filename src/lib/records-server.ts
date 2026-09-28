@@ -105,8 +105,22 @@ export async function parseRecord(tdb: TenantDb, kind: RecordKind, body: unknown
 const num = (d: Prisma.Decimal | null | undefined) => (d == null ? null : Number(d));
 const jobLabel = (j: { title: string; client?: { name: string } | null }) => (j.client ? `${j.title} — ${j.client.name}` : j.title);
 
+const recentMessages = (tdb: TenantDb, relatedType: string, ids: string[]) =>
+  tdb.message.findMany({ where: { relatedType, relatedId: { in: ids } }, orderBy: { createdAt: 'desc' }, take: 20,
+    select: { id: true, channel: true, toAddress: true, subject: true, body: true, status: true, error: true, createdAt: true } });
+
 /** Related data shown under the form in each drawer. */
 export async function loadExtras(tdb: TenantDb, kind: RecordKind, id: string) {
+  const extras = await loadRelated(tdb, kind, id);
+  if (kind === 'candidates' || kind === 'leads' || kind === 'vendors') return { ...extras, messages: await recentMessages(tdb, kind.slice(0, -1), [id]) };
+  if (kind === 'clients') {
+    const contacts = (extras as { contacts: { id: string }[] }).contacts;
+    return { ...extras, messages: await recentMessages(tdb, 'contact', contacts.map((c) => c.id)) };
+  }
+  return extras;
+}
+
+async function loadRelated(tdb: TenantDb, kind: RecordKind, id: string) {
   switch (kind) {
     case 'jobs': {
       const apps = await tdb.application.findMany({ where: { jobId: id }, include: { candidate: { select: { name: true, title: true } } }, orderBy: { stageChangedAt: 'desc' } });
@@ -116,7 +130,9 @@ export async function loadExtras(tdb: TenantDb, kind: RecordKind, id: string) {
       const apps = await tdb.application.findMany({ where: { candidateId: id }, include: { job: { select: { title: true, billRate: true, client: { select: { name: true } } } } }, orderBy: { createdAt: 'desc' } });
       const taken = apps.map((a) => a.jobId);
       const open = await tdb.job.findMany({ where: { status: 'OPEN', id: { notIn: taken } }, select: { id: true, title: true, client: { select: { name: true } } }, orderBy: { createdAt: 'desc' } });
+      const c = await tdb.candidate.findFirst({ where: { id }, select: { emailOptOut: true, smsOptOut: true } });
       return {
+        optOut: { email: !!c?.emailOptOut, sms: !!c?.smsOptOut },
         applications: apps.map((a) => ({ id: a.id, jobId: a.jobId, job: a.job.title, client: a.job.client?.name ?? null, billRate: num(a.job.billRate), stage: a.stage })),
         openJobs: open.map((j) => ({ id: j.id, label: jobLabel(j) })),
       };

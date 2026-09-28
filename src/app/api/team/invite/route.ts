@@ -19,9 +19,15 @@ export const POST = withApi(async (req: Request) => {
 
   const token = newToken();
   await tdb.invite.deleteMany({ where: { email, acceptedAt: null } }); // re-inviting replaces the old link
-  await tdb.invite.create({ data: { email, role: parsed.data.role, tokenHash: sha256(token), expiresAt: new Date(Date.now() + 7 * 864e5) } as never });
-  await sendEmail({ to: email, replyTo: user.email, subject: `${user.name ?? 'A teammate'} invited you to ${org.shortName ?? org.name} on Preciops`,
-    text: `You've been invited to join ${org.name} on Preciops.\n\nAccept: ${process.env.APP_URL}/invite/${token}\n\nThis link expires in 7 days.` });
+  const invite = await tdb.invite.create({ data: { email, role: parsed.data.role, tokenHash: sha256(token), expiresAt: new Date(Date.now() + 7 * 864e5) } as never });
+  try {
+    await sendEmail({ to: email, replyTo: user.email, fromName: org.shortName ?? org.name, subject: `${user.name ?? 'A teammate'} invited you to ${org.shortName ?? org.name} on Preciops`,
+      text: `You've been invited to join ${org.name} on Preciops.\n\nAccept: ${process.env.APP_URL}/invite/${token}\n\nThis link expires in 7 days.` });
+  } catch (e) {
+    await tdb.invite.deleteMany({ where: { id: invite.id } }); // nobody received the link
+    console.error('[invite] email failed', e);
+    throw new HttpError(502, 'The invite email couldn’t be sent. Check the address and try again.');
+  }
   await logActivity(org.id, `Invited ${email} as ${parsed.data.role.toLowerCase()}`, user.id);
   return Response.json({ ok: true });
 });

@@ -85,3 +85,4 @@ td .muted{font-size:13px}
 .careers-logo{display:block;max-height:56px;max-width:220px;margin-bottom:18px}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .form label.check{flex-direction:row;align-items:center}.form label.check input{width:auto;flex:none}
+details.msg{display:block}details.msg summary{display:flex;justify-content:space-between;align-items:center;gap:10px;cursor:pointer;list-style:none}details.msg summary::-webkit-details-marker{display:none}

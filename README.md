@@ -19,6 +19,16 @@ npm run stripe:listen           # separate terminal, forwards webhooks (Stripe C
 ```
 In Stripe (test mode) create three recurring prices and put their IDs in `STRIPE_PRICE_*`. Enable Stripe Tax and the Customer Portal.
 
+## Email (Resend)
+1. In Resend, add and verify the sending domain `mail.preciopsatms.com` (the SPF, DKIM and DMARC records it shows go in DNS).
+2. Set `RESEND_API_KEY` and `EMAIL_FROM` (an address on that domain). Emails go out as “<Company> <EMAIL_FROM address>” with replies going to the recruiter, company or applicant as appropriate.
+3. Without `RESEND_API_KEY`, email is a no-op that prints each message (including signing and invite links) to the server log — handy for local development.
+
+What sends email: team invites, e-signature links and signed/countersigned copies (PDF attached), careers-page application notices and applicant confirmations, and the **Email / text** button on candidate, lead, vendor and client-contact records. Every recruiter message is logged per recipient (sent, failed with the provider’s reason, or blocked by opt-out) and shown on the record. Messages that still contain an unfilled `{{field}}` are held back.
+
+## Customer websites
+Each company gets a hosted careers page (`/careers/<slug>`, one page per job with Google for Jobs markup), an embeddable widget (copy the snippet from **Settings & data**) and an XML job feed for Indeed, ZipRecruiter, Talent.com and other aggregators. The widget and job API allow cross-origin requests, so the snippet works on any domain.
+
 ## Tests
 ```bash
 createdb -O preci preciops_test                                              # once (or via psql)

@@ -50,8 +50,8 @@ export async function POST(req: Request, { params }: { params: { slug: string } 
     if (prev) await tdb.eeoSelfId.updateMany({ where: { id: prev.id }, data }); else await tdb.eeoSelfId.create({ data: { candidateId: cand.id, ...data } as never });
   }
   await db.activity.create({ data: { organizationId: org.id, text: `${f.name} applied to ${job.title} from the careers page` } });
-  if (org.applyEmail) await sendEmail({ to: org.applyEmail, subject: `New applicant: ${f.name} for ${job.title}`, text: `${f.name} (${email}${f.phone ? ', ' + f.phone : ''}) applied to ${job.title}.\n\nOpen Preciops to review: ${process.env.APP_URL}/app/candidates` }).catch(() => {});
-  await sendEmail({ to: email, subject: `We received your application — ${job.title}`, text: `Hi ${f.name.split(' ')[0]},\n\nThanks for applying for ${job.title} with ${org.shortName ?? org.name}. A recruiter will review your background and reach out if it's a fit.\n\n${org.name}` }).catch(() => {});
+  if (org.applyEmail) await sendEmail({ to: org.applyEmail, subject: `New applicant: ${f.name} for ${job.title}`, replyTo: email, text: `${f.name} (${email}${f.phone ? ', ' + f.phone : ''}) applied to ${job.title}.\n\nOpen Preciops to review: ${process.env.APP_URL}/app/candidates` }).catch((e) => console.error('[apply] notification email failed', e));
+  await sendEmail({ to: email, fromName: org.shortName ?? org.name, replyTo: org.applyEmail ?? undefined, subject: `We received your application — ${job.title}`, text: `Hi ${f.name.split(' ')[0]},\n\nThanks for applying for ${job.title} with ${org.shortName ?? org.name}. A recruiter will review your background and reach out if it's a fit.\n\n${org.name}` }).catch((e) => console.error('[apply] confirmation email failed', e));
   return Response.json({ ok: true });
 }
 export function OPTIONS() { return new Response(null, { status: 204 }); }

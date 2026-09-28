@@ -35,21 +35,29 @@ export const POST = withApi(async (req: Request) => {
     const ctx = { ...base, first_name: r.name.split(' ')[0] || 'there', company: r.company };
     const to = b.channel === 'email' ? r.email : r.phone;
     const optedOut = b.channel === 'email' ? r.emailOptOut : r.smsOptOut;
+    const text = merge(b.body, ctx);
+    const subject = b.subject ? merge(b.subject, ctx) : undefined;
     if (!to || optedOut) {
       results.skipped++;
-      await tdb.message.create({ data: { channel: b.channel, toAddress: to ?? '(none)', subject: b.subject, body: b.body, relatedType: b.recipientType, relatedId: r.id, status: optedOut ? 'blocked_opt_out' : 'failed', error: to ? 'Opted out' : 'No address', sentById: user.id } as never });
+      await tdb.message.create({ data: { channel: b.channel, toAddress: to ?? '(none)', subject, body: text, relatedType: b.recipientType, relatedId: r.id, status: optedOut ? 'blocked_opt_out' : 'failed', error: to ? 'Opted out' : 'No address', sentById: user.id } as never });
       continue;
     }
-    const text = merge(b.body, ctx);
+    const blank = `${subject ?? ''} ${text}`.match(/\{\{(\w+)\}\}/);
+    if (blank) {
+      // Never send a message with a raw {{field}} in it.
+      results.failed++;
+      await tdb.message.create({ data: { channel: b.channel, toAddress: to, subject, body: text, relatedType: b.recipientType, relatedId: r.id, status: 'failed', error: `No value for {{${blank[1]}}} — edit the message or fill in the record first.`, sentById: user.id } as never });
+      continue;
+    }
     try {
       const res = b.channel === 'email'
-        ? await sendEmail({ to, subject: merge(b.subject!, ctx), text, replyTo: user.email, fromName: `${user.name ?? ''} at ${org.shortName ?? org.name}`.trim() })
+        ? await sendEmail({ to, subject: subject!, text, replyTo: user.email, fromName: `${user.name ?? ''} at ${org.shortName ?? org.name}`.trim() })
         : await sendSms(to, text);
-      await tdb.message.create({ data: { channel: b.channel, toAddress: to, subject: b.subject, body: text, relatedType: b.recipientType, relatedId: r.id, status: 'sent', providerId: res.id, sentById: user.id } as never });
+      await tdb.message.create({ data: { channel: b.channel, toAddress: to, subject, body: text, relatedType: b.recipientType, relatedId: r.id, status: 'sent', providerId: res.id, sentById: user.id } as never });
       results.sent++;
     } catch (e) {
       results.failed++;
-      await tdb.message.create({ data: { channel: b.channel, toAddress: to, subject: b.subject, body: text, relatedType: b.recipientType, relatedId: r.id, status: 'failed', error: String((e as Error).message).slice(0, 300), sentById: user.id } as never });
+      await tdb.message.create({ data: { channel: b.channel, toAddress: to, subject, body: text, relatedType: b.recipientType, relatedId: r.id, status: 'failed', error: String((e as Error).message).slice(0, 300), sentById: user.id } as never });
     }
   }
   await logActivity(org.id, `${b.channel === 'email' ? 'Emailed' : 'Texted'} ${results.sent} ${b.recipientType}${results.sent === 1 ? '' : 's'}`, user.id);

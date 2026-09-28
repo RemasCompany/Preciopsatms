@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import { useRouter } from 'next/navigation';
 import type { Stage } from '@prisma/client';
 import Drawer from './Drawer';
+import { ComposeDrawer, MessageHistory, type Recipient, type SentMessage } from './Compose';
 import RecordForm, { invalidateRefs } from './RecordForm';
 import { RECORDS, defaultsFor, labelFor, vendorCompliance, HOURS_PER_WEEK, type RecordKind, type RecordValues } from '@/lib/records';
 import { BOARD_STAGES, REJECTION_REASONS, stageLabel } from '@/lib/pipeline';
@@ -104,6 +105,23 @@ function RecordDrawer({ kind, id, preset, onClose }: Open & { onClose: () => voi
   );
 }
 
+function Extras(props: { kind: RecordKind; id: string; values: RecordValues; extras: Extras; reload: () => void; open: Ctx['open']; toast: Ctx['toast']; canEdit: boolean }) {
+  const { kind, id, values, extras, reload, canEdit } = props;
+  const [to, setTo] = useState<Recipient | null>(null);
+  const type = ({ candidates: 'candidate', leads: 'lead', vendors: 'vendor' } as const)[kind as 'candidates' | 'leads' | 'vendors'];
+  const optOut = extras.optOut as { email: boolean; sms: boolean } | undefined;
+  const self: Recipient | null = type ? {
+    type, id, name: String((kind === 'candidates' ? values.name : values.contact) || values.name || values.company || ''),
+    email: (values.email as string) || null, phone: (values.phone as string) || null, emailOptOut: optOut?.email, smsOptOut: optOut?.sms,
+  } : null;
+  return <>
+    {self && canEdit && <div className="row"><button className="btn ghost" onClick={() => setTo(self)}>Email / text</button></div>}
+    <RelatedExtras {...props} compose={setTo} />
+    <MessageHistory messages={(extras.messages ?? []) as SentMessage[]} />
+    {to && <ComposeDrawer to={to} onClose={() => setTo(null)} onSent={reload} />}
+  </>;
+}
+
 function StageSelect({ appId, stage, onMoved, canEdit }: { appId: string; stage: Stage; onMoved: () => void; canEdit: boolean }) {
   const { toast } = useRecords();
   const [pending, setPending] = useState<Stage | null>(null);
@@ -124,8 +142,8 @@ function StageSelect({ appId, stage, onMoved, canEdit }: { appId: string; stage:
   );
 }
 
-function Extras({ kind, id, values, extras, reload, open, toast, canEdit }: {
-  kind: RecordKind; id: string; values: RecordValues; extras: Extras; reload: () => void; open: Ctx['open']; toast: Ctx['toast']; canEdit: boolean;
+function RelatedExtras({ kind, id, values, extras, reload, open, toast, canEdit, compose }: {
+  kind: RecordKind; id: string; values: RecordValues; extras: Extras; reload: () => void; open: Ctx['open']; toast: Ctx['toast']; canEdit: boolean; compose: (r: Recipient) => void;
 }) {
   const [pick, setPick] = useState('');
   if (kind === 'candidates') {
@@ -174,7 +192,7 @@ function Extras({ kind, id, values, extras, reload, open, toast, canEdit }: {
     const jobs = (extras.jobs ?? []) as { id: string; title: string; location: string | null; status: string }[];
     const deals = (extras.deals ?? []) as { id: string; title: string; value: number | null; stage: string }[];
     return <>
-      <Contacts clientId={id} contacts={contacts} reload={reload} canEdit={canEdit} />
+      <Contacts clientId={id} contacts={contacts} reload={reload} canEdit={canEdit} compose={compose} />
       <section className="sec"><h3>Jobs {canEdit && <button className="btn ghost sm" onClick={() => open('jobs', undefined, { clientId: id })}>+ New job</button>}</h3>
         <div className="list">{jobs.map((j) => <button key={j.id} className="li link" onClick={() => open('jobs', j.id)}><span className="x"><b>{j.title}</b><span className="muted">{j.location}</span></span><Pill s={labelFor('jobs', 'status', j.status)} /></button>)}
           {!jobs.length && <p className="muted">No jobs yet.</p>}</div></section>
@@ -248,7 +266,7 @@ function LeadWork({ id, values, reload }: { id: string; values: RecordValues; re
   );
 }
 
-function Contacts({ clientId, contacts, reload, canEdit }: { clientId: string; contacts: (RecordValues & { id: string })[]; reload: () => void; canEdit: boolean }) {
+function Contacts({ clientId, contacts, reload, canEdit, compose }: { clientId: string; contacts: (RecordValues & { id: string })[]; reload: () => void; canEdit: boolean; compose: (r: Recipient) => void }) {
   const { toast } = useRecords();
   const [draft, setDraft] = useState<RecordValues | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
@@ -269,7 +287,7 @@ function Contacts({ clientId, contacts, reload, canEdit }: { clientId: string; c
         {contacts.map((c) => (
           <div key={c.id} className="li"><span className="x"><b>{c.name}</b><span className="muted">{c.title}</span></span>
             <span className="muted">{c.email && <a href={`mailto:${c.email}`}>{c.email}</a>} {c.phone}</span>
-            {canEdit && <span className="row"><button className="btn ghost sm" onClick={() => { setEditing(c.id); setDraft(c); }}>Edit</button><button className="btn ghost sm" onClick={() => remove(c.id)} aria-label={`Remove ${c.name}`}>✕</button></span>}
+            {canEdit && <span className="row"><button className="btn ghost sm" onClick={() => compose({ type: 'contact', id: c.id, name: String(c.name), email: (c.email as string) || null, phone: (c.phone as string) || null })}>Message</button><button className="btn ghost sm" onClick={() => { setEditing(c.id); setDraft(c); }}>Edit</button><button className="btn ghost sm" onClick={() => remove(c.id)} aria-label={`Remove ${c.name}`}>✕</button></span>}
           </div>
         ))}
         {!contacts.length && !draft && <p className="muted">No contacts yet.</p>}
