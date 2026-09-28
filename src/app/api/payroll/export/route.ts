@@ -1,5 +1,6 @@
 import { requireApiContext, withApi } from '@/lib/tenant';
-import { parseWeek, ymd, OT_MULTIPLIER } from '@/lib/weeks';
+import { parseWeek, ymd } from '@/lib/weeks';
+import { hoursAmount, overtimeRate } from '@/lib/payroll';
 
 const cell = (v: unknown) => { const s = String(v ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
 
@@ -12,7 +13,7 @@ export const GET = withApi(async (req: Request) => {
   const rows = ts.map((t) => {
     const c = t.application.candidate; const [first, ...last] = c.name.split(' ');
     const pay = Number(t.payRate), reg = Number(t.regularHours), ot = Number(t.overtimeHours);
-    return [c.name, first, last.join(' '), c.email, c.phone, ymd(week), reg.toFixed(2), ot.toFixed(2), pay.toFixed(2), (pay * OT_MULTIPLIER).toFixed(2), (reg * pay + ot * pay * OT_MULTIPLIER).toFixed(2), t.application.job.client?.name, t.application.job.title, t.application.jobId];
+    return [c.name, first, last.join(' '), c.email, c.phone, ymd(week), reg.toFixed(2), ot.toFixed(2), pay.toFixed(2), overtimeRate(pay).toFixed(2), hoursAmount(reg, ot, pay).toFixed(2), t.application.job.client?.name, t.application.job.title, t.application.jobId];
   });
   const csv = [header, ...rows].map((r) => r.map(cell).join(',')).join('\n');
   return new Response(csv, { headers: { 'Content-Type': 'text/csv', 'Content-Disposition': `attachment; filename="payroll-${ymd(week)}.csv"` } });

@@ -19,6 +19,14 @@ npm run stripe:listen           # separate terminal, forwards webhooks (Stripe C
 ```
 In Stripe (test mode) create three recurring prices and put their IDs in `STRIPE_PRICE_*`. Enable Stripe Tax and the Customer Portal.
 
+## Tests
+```bash
+createdb -O preci preciops_test                                              # once (or via psql)
+DATABASE_URL=postgresql://preci:preci@localhost:5432/preciops_test npx prisma migrate deploy
+npm test                                                                     # Vitest; override the DB with TEST_DATABASE_URL
+```
+Covers tenant isolation and API gating (`tests/tenant.test.ts`, needs the test DB), plan feature gating, payroll/overtime math and the four-fifths rule.
+
 ## What's built
 | Area | Where |
 |---|---|

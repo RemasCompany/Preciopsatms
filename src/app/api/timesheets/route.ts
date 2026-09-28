@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { requireApiContext, withApi, HttpError } from '@/lib/tenant';
-import { parseWeek, OT_MULTIPLIER } from '@/lib/weeks';
+import { parseWeek } from '@/lib/weeks';
+import { hoursAmount } from '@/lib/payroll';
 
 /** Active assignments (placed on non-direct-hire jobs) with their timesheet for the week. */
 export const GET = withApi(async (req: Request) => {
@@ -14,7 +15,7 @@ export const GET = withApi(async (req: Request) => {
     const t = a.timesheets[0]; const pay = Number(t?.payRate ?? a.job.payRate ?? 0), bill = Number(t?.billRate ?? a.job.billRate ?? 0);
     const reg = Number(t?.regularHours ?? 0), ot = Number(t?.overtimeHours ?? 0);
     return { applicationId: a.id, worker: a.candidate.name, email: a.candidate.email, job: a.job.title, client: a.job.client, status: t?.status ?? 'NOT_ENTERED', reg, ot, pay, bill,
-      gross: reg * pay + ot * pay * OT_MULTIPLIER, billable: reg * bill + ot * bill * OT_MULTIPLIER };
+      gross: hoursAmount(reg, ot, pay), billable: hoursAmount(reg, ot, bill) };
   });
   return Response.json({ week: week.toISOString().slice(0, 10), rows });
 });
