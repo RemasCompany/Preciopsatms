@@ -18,13 +18,14 @@ export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
       name: 'Email and password',
-      credentials: { email: { type: 'email' }, password: { type: 'password' } },
+      credentials: { email: { type: 'email' }, password: { type: 'password' }, orgId: { type: 'text' } },
       async authorize(creds) {
         const email = creds?.email?.toLowerCase().trim();
         if (!email || !creds?.password) return null;
-        const user = await db.user.findUnique({ where: { email }, include: { memberships: { orderBy: { createdAt: 'asc' }, take: 1 } } });
+        const user = await db.user.findUnique({ where: { email }, include: { memberships: { orderBy: { createdAt: 'asc' } } } });
         if (!user || !(await bcrypt.compare(creds.password, user.passwordHash))) return null;
-        const m = user.memberships[0];
+        // Sign in to the requested company (e.g. right after accepting an invite), else the first one joined.
+        const m = user.memberships.find((x) => x.organizationId === creds.orgId) ?? user.memberships[0];
         if (!m) return null;
         return { id: user.id, email: user.email, name: user.name, orgId: m.organizationId, role: m.role } as never;
       },

@@ -9,7 +9,7 @@ export async function publicJobs(slug: string) {
   const jobs = await db.job.findMany({ where: { organizationId: org.id, status: 'OPEN', publish: true }, include: { client: { select: { name: true } } }, orderBy: [{ hot: 'desc' }, { createdAt: 'desc' }] });
   const base = `${process.env.APP_URL}/careers/${org.slug}`;
   return {
-    company: org.name, website: org.website, headline: org.careersHeadline, intro: org.careersIntro, accent: org.brandColor, email: org.applyEmail,
+    company: org.name, website: org.website, logo: org.logoUrl, headline: org.careersHeadline, intro: org.careersIntro, accent: org.brandColor, email: org.applyEmail,
     jobs: jobs.map((j) => ({
       id: j.id, title: j.title, location: j.location ?? '', type: TYPE_LABEL[j.type], sector: j.sector ?? '',
       pay: org.showPayOnCareers && j.payRate ? `$${Number(j.payRate).toFixed(2).replace(/\.00$/, '')}/hr` : '',

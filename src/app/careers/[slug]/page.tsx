@@ -15,6 +15,10 @@ export default async function Careers({ params }: { params: { slug: string } }) 
   if (!d) notFound();
   return (
     <main className="public" style={{ ['--accent' as string]: d.accent }}>
+      {d.logo && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={d.logo} alt={d.company} className="careers-logo" />
+      )}
       <h1>{d.headline}</h1>
       {d.intro && <p className="lede">{d.intro}</p>}
       <p className="muted">{d.jobs.length} open {d.jobs.length === 1 ? 'role' : 'roles'} at {d.company}</p>

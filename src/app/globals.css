@@ -79,3 +79,9 @@ td .muted{font-size:13px}
 .audit{padding-left:18px;margin:0;font-size:13px;display:flex;flex-direction:column;gap:4px}
 .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,480px),1fr));gap:0 16px}.warnnum{color:var(--red)}
 .grid2 td:first-child{min-width:150px}
+.form.wide{grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr))}
+.savebar{position:sticky;bottom:12px;display:flex;gap:12px;align-items:center;justify-content:flex-end;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin:16px 0;box-shadow:0 6px 20px rgba(10,16,28,.08)}
+.card label input[readonly],.card label textarea[readonly]{background:var(--soft)}
+.careers-logo{display:block;max-height:56px;max-width:220px;margin-bottom:18px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.form label.check{flex-direction:row;align-items:center}.form label.check input{width:auto;flex:none}
