@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { cleanEeoAnswer } from '@/lib/eeo';
 import { db } from '@/lib/db';
 import { tenantDb } from '@/lib/tenant';
 import { putFile } from '@/lib/storage';
@@ -45,7 +46,7 @@ export async function POST(req: Request, { params }: { params: { slug: string } 
 
   if (f.gender || f.race || f.veteran || f.disability) {
     const prev = await tdb.eeoSelfId.findFirst({ where: { candidateId: cand.id } });
-    const data = { gender: f.gender, race: f.race, veteran: f.veteran, disability: f.disability, collectedAt: new Date() };
+    const data = { gender: cleanEeoAnswer('gender', f.gender), race: cleanEeoAnswer('race', f.race), veteran: cleanEeoAnswer('veteran', f.veteran), disability: cleanEeoAnswer('disability', f.disability), collectedAt: new Date() };
     if (prev) await tdb.eeoSelfId.updateMany({ where: { id: prev.id }, data }); else await tdb.eeoSelfId.create({ data: { candidateId: cand.id, ...data } as never });
   }
   await db.activity.create({ data: { organizationId: org.id, text: `${f.name} applied to ${job.title} from the careers page` } });

@@ -77,3 +77,5 @@ td .muted{font-size:13px}
 .docview{background:var(--soft);border-radius:10px;padding:12px 14px;max-height:340px;overflow:auto;font-size:14px}
 .sigs{display:flex;gap:16px;flex-wrap:wrap}.sigs figure{margin:0;background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 12px;color:#152238}.sigs img{display:block;height:60px;max-width:220px}.sigs figcaption{font-size:13px}
 .audit{padding-left:18px;margin:0;font-size:13px;display:flex;flex-direction:column;gap:4px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,480px),1fr));gap:0 16px}.warnnum{color:var(--red)}
+.grid2 td:first-child{min-width:150px}

@@ -1,12 +1,8 @@
 'use client';
 import { useState } from 'react';
+import { EEO_OPTIONS } from '@/lib/eeo';
 
-const EEO = {
-  gender: ['Female', 'Male', 'Non-binary / another gender', 'Decline to self-identify'],
-  race: ['Hispanic or Latino', 'White', 'Black or African American', 'Asian', 'Native Hawaiian or Other Pacific Islander', 'American Indian or Alaska Native', 'Two or more races', 'Decline to self-identify'],
-  veteran: ['Protected veteran', 'Not a protected veteran', 'Decline to self-identify'],
-  disability: ['Yes, I have a disability', 'No, I do not have a disability', 'Decline to self-identify'],
-};
+const EEO = EEO_OPTIONS;
 
 export default function ApplyForm({ slug, jobId, company }: { slug: string; jobId: string; company: string }) {
   const [state, setState] = useState<'idle' | 'sending' | 'done'>('idle');
