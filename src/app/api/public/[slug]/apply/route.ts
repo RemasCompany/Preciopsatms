@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { cleanEeoAnswer } from '@/lib/eeo';
+import { sourceFor } from '@/lib/job-boards';
 import { db } from '@/lib/db';
 import { tenantDb } from '@/lib/tenant';
 import { putFile } from '@/lib/storage';
@@ -10,6 +11,7 @@ const Fields = z.object({
   message: z.string().max(3000).optional(), website: z.string().max(0).optional(), // honeypot: must stay empty
   gender: z.string().max(60).optional(), race: z.string().max(80).optional(), veteran: z.string().max(60).optional(), disability: z.string().max(60).optional(),
   smsConsent: z.enum(['on']).optional(),
+  src: z.string().max(40).optional(), // job board the applicant came from (?src= on the apply link)
 });
 
 // Simple per-instance rate limit. Replace with Upstash/Redis in production (see CLAUDE.md).
@@ -38,7 +40,7 @@ export async function POST(req: Request, { params }: { params: { slug: string } 
   }
   const email = f.email.toLowerCase();
   let cand = await tdb.candidate.findFirst({ where: { email } });
-  if (!cand) cand = await tdb.candidate.create({ data: { name: f.name, email, phone: f.phone, source: 'Careers page', summary: f.message, resumeFileId, smsOptOut: !f.smsConsent } as never });
+  if (!cand) cand = await tdb.candidate.create({ data: { name: f.name, email, phone: f.phone, source: sourceFor(f.src), summary: f.message, resumeFileId, smsOptOut: !f.smsConsent } as never });
   else await tdb.candidate.updateMany({ where: { id: cand.id }, data: { ...(resumeFileId ? { resumeFileId } : {}), ...(f.phone ? { phone: f.phone } : {}) } });
 
   const existing = await tdb.application.findFirst({ where: { candidateId: cand.id, jobId: job.id } });
@@ -49,7 +51,7 @@ export async function POST(req: Request, { params }: { params: { slug: string } 
     const data = { gender: cleanEeoAnswer('gender', f.gender), race: cleanEeoAnswer('race', f.race), veteran: cleanEeoAnswer('veteran', f.veteran), disability: cleanEeoAnswer('disability', f.disability), collectedAt: new Date() };
     if (prev) await tdb.eeoSelfId.updateMany({ where: { id: prev.id }, data }); else await tdb.eeoSelfId.create({ data: { candidateId: cand.id, ...data } as never });
   }
-  await db.activity.create({ data: { organizationId: org.id, text: `${f.name} applied to ${job.title} from the careers page` } });
+  await db.activity.create({ data: { organizationId: org.id, text: `${f.name} applied to ${job.title} via ${sourceFor(f.src) === 'Careers page' ? 'the careers page' : sourceFor(f.src)}` } });
   if (org.applyEmail) await sendEmail({ to: org.applyEmail, subject: `New applicant: ${f.name} for ${job.title}`, replyTo: email, text: `${f.name} (${email}${f.phone ? ', ' + f.phone : ''}) applied to ${job.title}.\n\nOpen Preciops to review: ${process.env.APP_URL}/app/candidates` }).catch((e) => console.error('[apply] notification email failed', e));
   await sendEmail({ to: email, fromName: org.shortName ?? org.name, replyTo: org.applyEmail ?? undefined, subject: `We received your application — ${job.title}`, text: `Hi ${f.name.split(' ')[0]},\n\nThanks for applying for ${job.title} with ${org.shortName ?? org.name}. A recruiter will review your background and reach out if it's a fit.\n\n${org.name}` }).catch((e) => console.error('[apply] confirmation email failed', e));
   return Response.json({ ok: true });

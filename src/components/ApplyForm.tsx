@@ -10,6 +10,7 @@ export default function ApplyForm({ slug, jobId, company }: { slug: string; jobI
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault(); setState('sending'); setError('');
     const fd = new FormData(e.currentTarget); fd.set('jobId', jobId);
+    const src = new URLSearchParams(window.location.search).get('src'); if (src) fd.set('src', src);
     const res = await fetch(`/api/public/${slug}/apply`, { method: 'POST', body: fd });
     if (res.ok) setState('done'); else { setError((await res.json().catch(() => ({}))).error ?? 'Something went wrong. Try again.'); setState('idle'); }
   }

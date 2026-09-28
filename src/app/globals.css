@@ -86,3 +86,5 @@ td .muted{font-size:13px}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .form label.check{flex-direction:row;align-items:center}.form label.check input{width:auto;flex:none}
 details.msg{display:block}details.msg summary{display:flex;justify-content:space-between;align-items:center;gap:10px;cursor:pointer;list-style:none}details.msg summary::-webkit-details-marker{display:none}
+.feedurl{display:block;font-size:12.5px;background:var(--soft);border-radius:6px;padding:4px 8px;margin-top:4px;word-break:break-all;color:var(--text)}
+button.link.inline{display:inline;width:auto;border:0;background:none;padding:0;text-decoration:underline;font-weight:600}

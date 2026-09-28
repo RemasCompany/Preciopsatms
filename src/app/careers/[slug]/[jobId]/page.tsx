@@ -24,7 +24,9 @@ export default async function JobPage({ params }: { params: { slug: string; jobI
   const ld = {
     '@context': 'https://schema.org/', '@type': 'JobPosting', title: job.title, description: job.description.replace(/\n/g, '<br>'), datePosted: job.posted,
     employmentType: EMP[job.type] ?? 'OTHER', hiringOrganization: { '@type': 'Organization', name: d.company, sameAs: d.website ?? undefined },
-    jobLocation: { '@type': 'Place', address: { '@type': 'PostalAddress', addressLocality: city, addressRegion: region, addressCountry: 'US' } },
+    ...(job.remote
+      ? { jobLocationType: 'TELECOMMUTE', applicantLocationRequirements: { '@type': 'Country', name: 'USA' } }
+      : { jobLocation: { '@type': 'Place', address: { '@type': 'PostalAddress', addressLocality: city, addressRegion: region, ...(job.postalCode ? { postalCode: job.postalCode } : {}), addressCountry: 'US' } } }),
     identifier: { '@type': 'PropertyValue', name: d.company, value: job.id }, directApply: true,
     ...(job.payRate ? { baseSalary: { '@type': 'MonetaryAmount', currency: 'USD', value: { '@type': 'QuantitativeValue', value: job.payRate, unitText: 'HOUR' } } } : {}),
   };
@@ -33,7 +35,7 @@ export default async function JobPage({ params }: { params: { slug: string; jobI
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(ld).replace(/</g, '\\u003c') }} />
       <p className="muted"><a href={`/careers/${params.slug}`}>← All jobs at {d.company}</a></p>
       <h1>{job.title}</h1>
-      <p className="muted">{[job.location, job.type, job.pay, job.client].filter(Boolean).join(' · ')}</p>
+      <p className="muted">{[job.remote ? 'Remote' : job.location, job.type, job.pay, job.client].filter(Boolean).join(' · ')}</p>
       <div className="desc">{job.description.split('\n').map((l, i) => <p key={i}>{l}</p>)}</div>
       {job.skills.length > 0 && <p className="tags">{job.skills.map((s) => <span key={s}>{s}</span>)}</p>}
       {job.url.startsWith(process.env.APP_URL ?? '') ? <ApplyForm slug={params.slug} jobId={job.id} company={d.company} /> : <a className="btn" href={job.url}>Apply now</a>}

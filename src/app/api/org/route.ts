@@ -13,6 +13,9 @@ const Settings = z.object({
   applyEmail: z.string().trim().max(200).refine((s) => !s || z.string().email().safeParse(s).success, 'Enter a valid apply-by-email address.').transform((s) => s || null).nullable().optional(),
   careersHeadline: z.string().trim().min(2, 'Add a headline for your careers page.').max(120).optional(),
   careersIntro: text(2000), showPayOnCareers: z.boolean().optional(), showClientOnCareers: z.boolean().optional(),
+  // Indeed Apply credentials from Indeed's partner console. The secret is write-only (never sent back to the browser).
+  indeedApplyApiToken: z.string().trim().max(200).regex(/^[\w-]*$/, 'That doesn’t look like an Indeed Apply API token.').transform((s) => s || null).nullable().optional(),
+  indeedApplySecret: z.string().trim().max(500).transform((s) => s || null).nullable().optional(),
 }).strict();
 
 export const PATCH = withApi(async (req: Request) => {

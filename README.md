@@ -29,6 +29,13 @@ What sends email: team invites, e-signature links and signed/countersigned copie
 ## Customer websites
 Each company gets a hosted careers page (`/careers/<slug>`, one page per job with Google for Jobs markup), an embeddable widget (copy the snippet from **Settings & data**) and an XML job feed for Indeed, ZipRecruiter, Talent.com and other aggregators. The widget and job API allow cross-origin requests, so the snippet works on any domain.
 
+## Job boards
+**Settings & data → Job boards** lists one feed URL per board (`/api/public/<slug>/feed.xml?board=indeed|ziprecruiter|talent|jooble|careerjet|adzuna`). The feed follows Indeed's Job Sync XML format, which those boards and most aggregators read: unique `referencenumber`, city/state/country/postal code, HTML description, hourly salary, Indeed job types, and `remotetype` for fully remote jobs. Apply links carry `?src=<board>`, so applicants are tagged with the board they came from. The card also lists jobs that boards would hide (no "City, ST", very short descriptions).
+
+**Indeed Apply:** enter the API token and secret from Indeed's partner console, then give Indeed the application URL shown (`/api/public/<slug>/indeed-apply`). The feed then carries `<indeed-apply-data>` for jobs that use the built-in apply form, and applications arrive signed (`X-Indeed-Signature`, HMAC-SHA1). Each one is verified, then creates the candidate (source "Indeed") with the resume attached, adds them to the job at Applied, and emails the apply inbox.
+
+Google for Jobs reads the JobPosting markup on each job page (remote jobs use `TELECOMMUTE`). LinkedIn job slots and Limited Listings go through a LinkedIn partner, which can use the same feed.
+
 ## Tests
 ```bash
 createdb -O preci preciops_test                                              # once (or via psql)

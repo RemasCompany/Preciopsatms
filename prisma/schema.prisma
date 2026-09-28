@@ -52,6 +52,9 @@ model Organization {
   currentPeriodEnd     DateTime?
   seats                Int       @default(1)
   aiCreditsUsed        Int       @default(0) // reset each billing period by webhook
+  // Indeed Apply (candidates apply on Indeed; Indeed POSTs applications to /api/public/<slug>/indeed-apply)
+  indeedApplyApiToken  String?
+  indeedApplySecret    String?   // shared secret for X-Indeed-Signature; never returned to the browser
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
@@ -129,7 +132,9 @@ model Job {
   clientId       String?
   title          String
   sector         String?
-  location       String?
+  location       String?        // "City, ST" — job boards need city and state for organic visibility
+  postalCode     String?
+  remote         Boolean        @default(false) // fully remote: Google for Jobs TELECOMMUTE
   type           EmploymentType @default(CONTRACT)
   openings       Int            @default(1)
   payRate        Decimal?       @db.Decimal(10, 2)

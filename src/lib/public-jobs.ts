@@ -9,14 +9,14 @@ export async function publicJobs(slug: string) {
   const jobs = await db.job.findMany({ where: { organizationId: org.id, status: 'OPEN', publish: true }, include: { client: { select: { name: true } } }, orderBy: [{ hot: 'desc' }, { createdAt: 'desc' }] });
   const base = `${process.env.APP_URL}/careers/${org.slug}`;
   return {
-    company: org.name, website: org.website, logo: org.logoUrl, headline: org.careersHeadline, intro: org.careersIntro, accent: org.brandColor, email: org.applyEmail,
+    company: org.name, website: org.website, logo: org.logoUrl, slug: org.slug, indeedApplyApiToken: org.indeedApplyApiToken && org.indeedApplySecret ? org.indeedApplyApiToken : null, headline: org.careersHeadline, intro: org.careersIntro, accent: org.brandColor, email: org.applyEmail,
     jobs: jobs.map((j) => ({
-      id: j.id, title: j.title, location: j.location ?? '', type: TYPE_LABEL[j.type], sector: j.sector ?? '',
+      id: j.id, title: j.title, location: j.location ?? '', postalCode: j.postalCode, remote: j.remote, type: TYPE_LABEL[j.type], rawType: j.type, sector: j.sector ?? '',
       pay: org.showPayOnCareers && j.payRate ? `$${Number(j.payRate).toFixed(2).replace(/\.00$/, '')}/hr` : '',
       payRate: org.showPayOnCareers && j.payRate ? Number(j.payRate) : 0,
       client: org.showClientOnCareers ? j.client?.name ?? '' : '',
       description: j.posting ?? j.description ?? '', skills: j.skills, posted: j.createdAt.toISOString().slice(0, 10), hot: j.hot,
-      url: j.applyUrl || `${base}/${j.id}`,
+      url: j.applyUrl || `${base}/${j.id}`, external: !!j.applyUrl,
     })),
   };
 }

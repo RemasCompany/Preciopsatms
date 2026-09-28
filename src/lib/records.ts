@@ -14,7 +14,7 @@ const f = (key: string, label: string, type: FieldType = 'text', extra: Partial<
 export const RECORDS: Record<RecordKind, { one: string; titleKey: string; feature?: Feature; fields: Field[] }> = {
   jobs: { one: 'job', titleKey: 'title', feature: 'ats', fields: [
     f('title', 'Job title', 'text', { required: true }), f('clientId', 'Client', 'ref', { ref: 'clients' }), f('sector', 'Sector', 'sel', { options: SECTORS }),
-    f('location', 'Location'),
+    f('location', 'Location (City, ST)'), f('postalCode', 'ZIP code'), f('remote', 'Fully remote', 'chk'),
     f('type', 'Employment type', 'sel', { notNull: true, options: [['CONTRACT', 'Contract'], ['CONTRACT_TO_HIRE', 'Contract-to-hire'], ['DIRECT_HIRE', 'Direct hire'], ['TEMP', 'Temp'], ['PER_DIEM', 'Per diem']] }),
     f('openings', 'Openings', 'num', { min: 1, max: 999, int: true }), f('payRate', 'Pay rate ($/hr)', 'num', { min: 0 }), f('billRate', 'Bill rate ($/hr)', 'num', { min: 0 }),
     f('status', 'Status', 'sel', { notNull: true, options: [['OPEN', 'Open'], ['ON_HOLD', 'On hold'], ['FILLED', 'Filled'], ['CLOSED', 'Closed']] }),
