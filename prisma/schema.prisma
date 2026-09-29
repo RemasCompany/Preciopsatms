@@ -52,6 +52,7 @@ model Organization {
   currentPeriodEnd     DateTime?
   seats                Int       @default(1)
   salesTargets         SalesTarget[]
+  credentials          Credential[]
   aiCreditsUsed        Int       @default(0) // reset each billing period by webhook
   // Indeed Apply (candidates apply on Indeed; Indeed POSTs applications to /api/public/<slug>/indeed-apply)
   indeedApplyApiToken  String?
@@ -183,6 +184,7 @@ model Candidate {
   updatedAt      DateTime      @updatedAt
   organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   vendor         Vendor?       @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  credentials    Credential[]
   applications   Application[]
 
   @@index([organizationId, email])
@@ -463,4 +465,32 @@ model SalesTarget {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, userId, month])
+}
+
+// A license, certification, health record or screening on file for a candidate (healthcare compliance).
+// Verification is cleared whenever the number, state or dates change, so a renewal must be re-verified.
+model Credential {
+  id             String       @id @default(cuid())
+  organizationId String
+  candidateId    String
+  type           String
+  name           String?      // for type "Other", or a specialty (e.g. "Med-Surg")
+  number         String?
+  state          String?      // issuing state, two letters
+  issuedAt       DateTime?    @db.Date
+  expiresAt      DateTime?    @db.Date
+  verifiedAt     DateTime?
+  verifiedById   String?
+  verifyMethod   String?
+  verifyNote     String?
+  fileId         String?
+  alertedLevel   Int?         // smallest alert window already emailed (60, 30, 7, 0 = expired)
+  notes          String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  candidate      Candidate    @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, expiresAt])
+  @@index([candidateId])
 }

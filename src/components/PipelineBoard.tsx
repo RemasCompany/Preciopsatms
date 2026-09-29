@@ -32,7 +32,7 @@ export default function PipelineBoard({ apps: initial, jobs, candidates, initial
 
   useEffect(() => setApps(initial), [initial]);
   const say = (text: string, error = false) => {
-    setToast({ text, error }); clearTimeout(toastTimer.current); toastTimer.current = setTimeout(() => setToast(null), 3500);
+    setToast({ text, error }); clearTimeout(toastTimer.current); toastTimer.current = setTimeout(() => setToast(null), text.length > 90 ? 9000 : 3500);
   };
 
   const visible = useMemo(() => {
@@ -53,7 +53,8 @@ export default function PipelineBoard({ apps: initial, jobs, candidates, initial
     setApps((xs) => xs.map((x) => (x.id === a.id ? { ...x, stage, stageChangedAt: new Date().toISOString() } : x)));
     const res = await fetch(`/api/applications/${a.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stage, rejectionReason }) });
     if (!res.ok) { setApps(before); say((await res.json().catch(() => ({}))).error ?? 'Could not move this candidate. Try again.', true); return; }
-    if (stage === 'PLACED') { say(`${a.candidate} placed. Nice work.`); router.refresh(); }
+    const j = await res.json().catch(() => ({}));
+    if (stage === 'PLACED') { if (j.warning) say(j.warning, true); else say(`${a.candidate} placed. Nice work.`); router.refresh(); }
     else if (stage === 'REJECTED') say(`${a.candidate} rejected: ${rejectionReason}.`);
   }
 

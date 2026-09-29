@@ -5,12 +5,13 @@ import type { Stage } from '@prisma/client';
 import Drawer from './Drawer';
 import ResumePanel from './ResumePanel';
 import { ComposeDrawer, MessageHistory, type Recipient, type SentMessage } from './Compose';
+import Credentials from './Credentials';
 import RecordForm, { invalidateRefs } from './RecordForm';
 import { RECORDS, defaultsFor, labelFor, vendorCompliance, HOURS_PER_WEEK, type RecordKind, type RecordValues } from '@/lib/records';
 import { BOARD_STAGES, REJECTION_REASONS, stageLabel } from '@/lib/pipeline';
 
 type Open = { kind: RecordKind; id?: string; preset?: RecordValues };
-type Ctx = { open: (kind: RecordKind, id?: string, preset?: RecordValues) => void; toast: (text: string, error?: boolean) => void; canEdit: boolean; ai: boolean };
+type Ctx = { open: (kind: RecordKind, id?: string, preset?: RecordValues) => void; toast: (text: string, error?: boolean) => void; canEdit: boolean; ai: boolean; credentials?: boolean };
 const RecordsCtx = createContext<Ctx | null>(null);
 export const useRecords = () => {
   const c = useContext(RecordsCtx);
@@ -19,16 +20,16 @@ export const useRecords = () => {
 };
 
 /** Hosts the record drawer and toast for every page under /app. */
-export function RecordsProvider({ canEdit, ai, children }: { canEdit: boolean; ai: boolean; children: React.ReactNode }) {
+export function RecordsProvider({ canEdit, ai, credentials = false, children }: { canEdit: boolean; ai: boolean; credentials?: boolean; children: React.ReactNode }) {
   const [current, setCurrent] = useState<Open | null>(null);
   const [toastMsg, setToastMsg] = useState<{ text: string; error?: boolean } | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>();
   const toast = useCallback((text: string, error = false) => {
-    setToastMsg({ text, error }); clearTimeout(timer.current); timer.current = setTimeout(() => setToastMsg(null), 3500);
+    setToastMsg({ text, error }); clearTimeout(timer.current); timer.current = setTimeout(() => setToastMsg(null), text.length > 90 ? 9000 : 3500);
   }, []);
   const open = useCallback((kind: RecordKind, id?: string, preset?: RecordValues) => setCurrent({ kind, id, preset }), []);
   return (
-    <RecordsCtx.Provider value={{ open, toast, canEdit, ai }}>
+    <RecordsCtx.Provider value={{ open, toast, canEdit, ai, credentials }}>
       {children}
       {current && <RecordDrawer key={`${current.kind}:${current.id ?? 'new'}`} {...current} onClose={() => setCurrent(null)} />}
       {toastMsg && <div className={`toast${toastMsg.error ? ' bad' : ''}`} role="status">{toastMsg.text}</div>}
@@ -122,6 +123,7 @@ function RecordDrawer({ kind, id, preset, onClose }: Open & { onClose: () => voi
 
 function Extras(props: { kind: RecordKind; id: string; values: RecordValues; extras: Extras; reload: () => void; open: Ctx['open']; toast: Ctx['toast']; canEdit: boolean }) {
   const { kind, id, values, extras, reload, canEdit } = props;
+  const { credentials } = useRecords();
   const [to, setTo] = useState<Recipient | null>(null);
   const type = ({ candidates: 'candidate', leads: 'lead', vendors: 'vendor' } as const)[kind as 'candidates' | 'leads' | 'vendors'];
   const optOut = extras.optOut as { email: boolean; sms: boolean } | undefined;
@@ -132,6 +134,7 @@ function Extras(props: { kind: RecordKind; id: string; values: RecordValues; ext
   return <>
     {self && canEdit && <div className="row"><button className="btn ghost" onClick={() => setTo(self)}>Email / text from Preciops</button></div>}
     <RelatedExtras {...props} compose={setTo} />
+    {kind === 'candidates' && credentials && <Credentials candidateId={id} self={self} canEdit={canEdit} compose={setTo} />}
     <MessageHistory messages={(extras.messages ?? []) as SentMessage[]} />
     {to && <ComposeDrawer to={to} onClose={() => setTo(null)} onSent={reload} />}
   </>;
@@ -154,7 +157,7 @@ function StageSelect({ appId, stage, onMoved, canEdit }: { appId: string; stage:
   const { toast } = useRecords();
   const [pending, setPending] = useState<Stage | null>(null);
   async function move(to: Stage, rejectionReason?: string) {
-    try { await api(`/api/applications/${appId}`, 'PATCH', { stage: to, rejectionReason }); setPending(null); onMoved(); if (to === 'PLACED') toast('Placed. Nice work.'); }
+    try { const r = await api(`/api/applications/${appId}`, 'PATCH', { stage: to, rejectionReason }); setPending(null); onMoved(); if (to === 'PLACED') toast(r.warning ?? 'Placed. Nice work.', !!r.warning); }
     catch (e) { toast((e as Error).message, true); }
   }
   if (pending === 'REJECTED') return (

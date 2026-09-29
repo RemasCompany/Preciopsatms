@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import Drawer from './Drawer';
 import { useRecords } from './Records';
 
-export type Recipient = { type: 'candidate' | 'lead' | 'vendor' | 'contact'; id: string; name: string; email: string | null; phone: string | null; emailOptOut?: boolean; smsOptOut?: boolean };
+export type Recipient = { type: 'candidate' | 'lead' | 'vendor' | 'contact'; id: string; name: string; email: string | null; phone: string | null; emailOptOut?: boolean; smsOptOut?: boolean; subject?: string; body?: string };
 export type SentMessage = { id: string; channel: string; toAddress: string; subject: string | null; body: string; status: string; error: string | null; createdAt: string };
 
 const FIELDS = ['first_name', 'company', 'job_title', 'job_location', 'pay_rate', 'my_short', 'owner', 'signature'];
@@ -13,8 +13,8 @@ const STATUS: Record<string, string> = { sent: 'Sent', failed: 'Failed', blocked
 export function ComposeDrawer({ to, onClose, onSent }: { to: Recipient; onClose: () => void; onSent: () => void }) {
   const { toast } = useRecords();
   const [channel, setChannel] = useState<'email' | 'sms'>(to.email || !to.phone ? 'email' : 'sms');
-  const [subject, setSubject] = useState('');
-  const [body, setBody] = useState('Hi {{first_name}},\n\n\n\n{{signature}}');
+  const [subject, setSubject] = useState(to.subject ?? '');
+  const [body, setBody] = useState(to.body ?? 'Hi {{first_name}},\n\n\n\n{{signature}}');
   const [jobId, setJobId] = useState('');
   const [jobs, setJobs] = useState<{ id: string; label: string }[]>([]);
   const [busy, setBusy] = useState(false);

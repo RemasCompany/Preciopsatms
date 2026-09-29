@@ -180,3 +180,10 @@ a,button,select,summary,.cardk{-webkit-tap-highlight-color:transparent}
 .kpi .sub{display:block;font-size:12.5px;color:var(--muted);margin-top:2px}
 .targets input{width:100%;max-width:160px}
 @media (max-width:640px){.attention .li{flex-direction:column;align-items:flex-start}.attention .pill{white-space:normal}}
+
+/* ---------- credentials ---------- */
+a.kpi{text-decoration:none;color:inherit}a.kpi:hover{border-color:var(--accent)}
+.cred{border:1px solid var(--line);border-radius:9px;background:var(--card)}.cred>.li{border:0}
+.cred .credmeta{margin:-4px 12px 6px;font-size:13px}.cred .credacts{margin:0 12px 10px;gap:6px}
+.cred .subform{margin:0 12px 12px}
+h2 .btn.sm{margin-left:10px;vertical-align:middle}
