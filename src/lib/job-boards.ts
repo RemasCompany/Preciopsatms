@@ -1,15 +1,12 @@
 import { createHmac, timingSafeEqual } from 'crypto';
+import { BOARDS, isBoard, type Board } from './boards';
+export { BOARDS, isBoard, type Board };
 
 /**
  * Job-board syndication. One XML feed in Indeed's Job Sync format, which ZipRecruiter, Talent.com, Jooble,
  * Careerjet, Adzuna and most aggregators also accept. Each board gets its own feed URL (?board=…) so apply
  * links carry the board as a source and applicants are attributed to it.
  */
-export const BOARDS = {
-  indeed: 'Indeed', ziprecruiter: 'ZipRecruiter', talent: 'Talent.com', jooble: 'Jooble', careerjet: 'Careerjet', adzuna: 'Adzuna',
-} as const;
-export type Board = keyof typeof BOARDS;
-export const isBoard = (b: string | null | undefined): b is Board => !!b && b in BOARDS;
 /** Where an applicant came from, from the ?src= on the apply link. */
 export const sourceFor = (src: string | null | undefined) => (isBoard(src) ? BOARDS[src] : src === 'google' ? 'Google for Jobs' : 'Careers page');
 

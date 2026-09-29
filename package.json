@@ -2,7 +2,7 @@
   "name": "preciops",
   "version": "0.1.0",
   "private": true,
-  "description": "Preciops — workforce operations platform for staffing firms (multi-tenant SaaS)",
+  "description": "Preciops \u2014 workforce operations platform for staffing firms (multi-tenant SaaS)",
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
@@ -13,7 +13,10 @@
     "db:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
     "stripe:listen": "stripe listen --forward-to localhost:3000/api/stripe/webhook",
-    "test": "vitest run"
+    "test": "vitest run",
+    "postinstall": "prisma generate",
+    "vercel-build": "prisma generate && prisma migrate deploy && next build",
+    "build:next": "next build"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.30.0",
@@ -44,5 +47,8 @@
     "tsx": "^4.16.0",
     "typescript": "^5.5.0",
     "vitest": "^2.1.9"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

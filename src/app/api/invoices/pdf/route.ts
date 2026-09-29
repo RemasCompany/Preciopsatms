@@ -3,6 +3,9 @@ import { parseWeek, ymd } from '@/lib/weeks';
 import { hoursAmount } from '@/lib/payroll';
 import { renderInvoicePdf } from '@/lib/pdf';
 
+// Per-user data: never pre-render or cache.
+export const dynamic = 'force-dynamic';
+
 export const GET = withApi(async (req: Request) => {
   const { tdb, org, user } = await requireApiContext({ minRole: 'ADMIN', feature: 'timesheets' });
   const u = new URL(req.url); const week = parseWeek(u.searchParams.get('week')); const clientId = u.searchParams.get('client');

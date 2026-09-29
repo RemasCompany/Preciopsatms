@@ -7,6 +7,9 @@ This repository is the production foundation. `docs/prototype.html` is the worki
 ## Stack
 Next.js 14 (App Router, TypeScript) · PostgreSQL + Prisma · NextAuth (credentials, JWT) · Stripe Billing · Resend (email) · Twilio (SMS) · S3/R2 (files) · Anthropic API (AI) · pdf-lib (PDFs)
 
+## Deploy
+See **[DEPLOY.md](DEPLOY.md)**: Vercel + Neon/Supabase in about 20 minutes, a Dockerfile for container hosts, and a post-deploy checklist. `GET /api/health` reports database reachability, and the server logs which integrations are missing at startup.
+
 ## Run locally
 ```bash
 cp .env.example .env            # fill in keys; Stripe/Resend/Twilio/S3 can stay blank for first boot

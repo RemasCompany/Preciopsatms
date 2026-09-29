@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { db } from '@/lib/db';
-import { stripe } from '@/lib/stripe';
+import { stripe, stripeEnabled } from '@/lib/stripe';
 import { withApi, HttpError } from '@/lib/tenant';
 
 const Body = z.object({
@@ -22,12 +22,13 @@ export const POST = withApi(async (req: Request) => {
   for (let i = 2; await db.organization.findUnique({ where: { slug } }); i++) slug = `${slugify(b.company)}-${i}`;
 
   const trialDays = Number(process.env.TRIAL_DAYS ?? 14);
-  const customer = await stripe.customers.create({ email, name: b.company, metadata: { slug } });
+  // Without Stripe configured the account still starts on the trial; the customer is created at checkout.
+  const customer = stripeEnabled() ? await stripe.customers.create({ email, name: b.company, metadata: { slug } }) : null;
 
   const org = await db.$transaction(async (tx) => {
     const org = await tx.organization.create({
       data: { name: b.company, shortName: b.company.replace(/,?\s*(LLC|Inc\.?|Corp\.?)$/i, ''), slug, ownerName: b.name, applyEmail: email,
-        stripeCustomerId: customer.id, subscriptionStatus: 'trialing', trialEndsAt: new Date(Date.now() + trialDays * 864e5) },
+        stripeCustomerId: customer?.id ?? null, subscriptionStatus: 'trialing', trialEndsAt: new Date(Date.now() + trialDays * 864e5) },
     });
     const user = await tx.user.create({ data: { email, name: b.name, passwordHash: await bcrypt.hash(b.password, 12) } });
     await tx.membership.create({ data: { userId: user.id, organizationId: org.id, role: 'OWNER' } });

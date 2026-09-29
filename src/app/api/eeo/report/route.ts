@@ -2,6 +2,9 @@ import { requireApiContext, withApi } from '@/lib/tenant';
 import { buildEeoReport } from '@/lib/eeo';
 
 /** Applicant flow + adverse impact (four-fifths rule). OWNER/ADMIN only; Enterprise plan. */
+// Per-user data: never pre-render or cache.
+export const dynamic = 'force-dynamic';
+
 export const GET = withApi(async (req: Request) => {
   const { tdb } = await requireApiContext({ minRole: 'ADMIN', feature: 'eeo' });
   const u = new URL(req.url);

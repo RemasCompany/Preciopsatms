@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: { serverActions: { bodySizeLimit: '12mb' } },
+  output: 'standalone', // for Docker hosts; Vercel ignores it
+  experimental: { instrumentationHook: true, serverActions: { bodySizeLimit: '12mb' } },
   async headers() {
     return [
       {

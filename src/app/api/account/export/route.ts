@@ -6,6 +6,9 @@ import { publicDoc } from '@/lib/esign';
  * Full data export for the organization (GDPR / CCPA access and portability requests). Owner only.
  * Secrets are left out: password hashes, signing and invite token hashes, and stored-file keys.
  */
+// Per-user data: never pre-render or cache.
+export const dynamic = 'force-dynamic';
+
 export const GET = withApi(async () => {
   const { tdb, org, user } = await requireApiContext({ minRole: 'OWNER' });
   const [members, jobs, candidates, applications, eeoSelfIds, clients, contacts, deals, leads, vendors, tasks, timesheets, documents, messages, activity, files, invites] = await Promise.all([

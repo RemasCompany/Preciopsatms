@@ -6,6 +6,9 @@ const ymd = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : '');
 const label = (s: string) => s[0] + s.slice(1).toLowerCase();
 
 /** Applicant flow log (one row per application) for OFCCP / EEOC record-keeping. OWNER/ADMIN only; Enterprise plan. */
+// Per-user data: never pre-render or cache.
+export const dynamic = 'force-dynamic';
+
 export const GET = withApi(async (req: Request) => {
   const { tdb, org, user } = await requireApiContext({ minRole: 'ADMIN', feature: 'eeo' });
   const u = new URL(req.url); const jobId = u.searchParams.get('job') ?? undefined; const year = Number(u.searchParams.get('year')) || undefined;

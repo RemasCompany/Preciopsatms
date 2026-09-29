@@ -5,6 +5,9 @@ import { parseWeek } from '@/lib/weeks';
 import { timesheetRows } from '@/lib/timesheets';
 
 /** Active assignments (placed on non-direct-hire jobs) with their timesheet for the week. */
+// Per-user data: never pre-render or cache.
+export const dynamic = 'force-dynamic';
+
 export const GET = withApi(async (req: Request) => {
   const { tdb } = await requireApiContext({ feature: 'timesheets' });
   const week = parseWeek(new URL(req.url).searchParams.get('week'));

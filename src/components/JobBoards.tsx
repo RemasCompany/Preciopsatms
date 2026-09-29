@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useRecords, OpenRecord } from './Records';
-import { BOARDS, type Board } from '@/lib/job-boards';
+import { BOARDS, type Board } from '@/lib/boards';
 
 
 export default function JobBoards({ base, slug, readOnly, indeed, warnings }: {

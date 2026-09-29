@@ -5,6 +5,9 @@ import { hoursAmount, overtimeRate } from '@/lib/payroll';
 const cell = (v: unknown) => { const s = String(v ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
 
 /** Payroll CSV for approved/paid hours. Columns map cleanly into Gusto, ADP and QuickBooks Payroll imports. */
+// Per-user data: never pre-render or cache.
+export const dynamic = 'force-dynamic';
+
 export const GET = withApi(async (req: Request) => {
   const { tdb } = await requireApiContext({ minRole: 'ADMIN', feature: 'timesheets' });
   const week = parseWeek(new URL(req.url).searchParams.get('week'));

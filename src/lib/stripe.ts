@@ -3,6 +3,8 @@ import { db } from './db';
 import { PLANS, planFromPriceId } from './plans';
 
 export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? 'sk_test_missing', { typescript: true });
+/** Billing works only with a real Stripe key; without one, signups run on the free trial and checkout says billing isn't set up. */
+export const stripeEnabled = () => /^(sk|rk)_(test|live)_[A-Za-z0-9]{10,}/.test(process.env.STRIPE_SECRET_KEY ?? '');
 
 /** Mirror a Stripe subscription onto the organization. Called from the webhook. */
 export async function syncSubscription(sub: Stripe.Subscription) {
@@ -29,6 +31,7 @@ export async function syncSubscription(sub: Stripe.Subscription) {
 
 /** Keep per-seat quantity equal to the number of members. Call after invite acceptance / member removal. */
 export async function syncSeats(orgId: string) {
+  if (!stripeEnabled()) return;
   const org = await db.organization.findUniqueOrThrow({ where: { id: orgId } });
   if (!org.stripeSubscriptionId || !PLANS[org.plan].perSeat) return;
   const count = await db.membership.count({ where: { organizationId: orgId } });
