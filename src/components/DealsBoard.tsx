@@ -52,6 +52,13 @@ export default function DealsBoard({ deals: initial }: { deals: BoardDeal[] }) {
                 <b>{d.title}</b>
                 <span className="muted">{d.client ?? 'No client'}</span>
                 <div className="meta"><span>{money(d.value)}</span><span>{d.closeDate ? fmt(d.closeDate) : ''}</span></div>
+                {canEdit && (
+                  <select className="movesel" aria-label={`Move ${d.title} to stage`} value={d.stage}
+                    onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}
+                    onChange={(e) => move(d, e.target.value as DealStage)}>
+                    {DEAL_STAGES.map((st) => <option key={st} value={st}>{st === d.stage ? `In ${st}` : `Move to ${st}`}</option>)}
+                  </select>
+                )}
               </div>
             ))}
           </section>

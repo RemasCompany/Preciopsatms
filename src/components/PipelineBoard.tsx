@@ -98,6 +98,13 @@ export default function PipelineBoard({ apps: initial, jobs, candidates, initial
                       <b>{a.candidate}</b>
                       <span className="muted">{a.job}{a.client ? ` · ${a.client}` : ''}</span>
                       <div className="meta"><span>{a.matchScore ? `Match ${a.matchScore}` : a.availability ?? ''}</span><span>{d ? `${d}d in stage` : 'today'}</span></div>
+                      {canEdit && (
+                        <select className="movesel" aria-label={`Move ${a.candidate} to stage`} value={a.stage}
+                          onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}
+                          onChange={(e) => move(a, e.target.value as Stage)}>
+                          {BOARD_STAGES.map((st) => <option key={st} value={st}>{st === a.stage ? `In ${stageLabel(st)}` : `Move to ${stageLabel(st)}`}</option>)}
+                        </select>
+                      )}
                     </div>
                   );
                 })}

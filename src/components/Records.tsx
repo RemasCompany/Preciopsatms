@@ -108,6 +108,7 @@ function RecordDrawer({ kind, id, preset, onClose }: Open & { onClose: () => voi
     </> : undefined}>
       {!values ? <p className="muted">Loading…</p> : <>
         {error && <p className="error" role="alert">{error}</p>}
+        {id && (kind === 'candidates' || kind === 'leads' || kind === 'vendors') && <QuickContact phone={values.phone as string | null} email={values.email as string | null} optOut={extras.optOut as { email: boolean; sms: boolean } | undefined} />}
         {kind === 'candidates' && (canEdit || (id && extras.resume)) && (
           <ResumePanel candidateId={id} resume={extras.resume as { filename: string } | null | undefined} ai={ai && canEdit} values={values} setValues={setValues}
             onPendingFile={setPendingResume} reload={() => { load(); router.refresh(); }} toast={toast} />
@@ -129,11 +130,24 @@ function Extras(props: { kind: RecordKind; id: string; values: RecordValues; ext
     email: (values.email as string) || null, phone: (values.phone as string) || null, emailOptOut: optOut?.email, smsOptOut: optOut?.sms,
   } : null;
   return <>
-    {self && canEdit && <div className="row"><button className="btn ghost" onClick={() => setTo(self)}>Email / text</button></div>}
+    {self && canEdit && <div className="row"><button className="btn ghost" onClick={() => setTo(self)}>Email / text from Preciops</button></div>}
     <RelatedExtras {...props} compose={setTo} />
     <MessageHistory messages={(extras.messages ?? []) as SentMessage[]} />
     {to && <ComposeDrawer to={to} onClose={() => setTo(null)} onSent={reload} />}
   </>;
+}
+
+/** One-tap call, text and email on phones (and email/FaceTime/phone apps on desktops). */
+function QuickContact({ phone, email, optOut }: { phone: string | null; email: string | null; optOut?: { email: boolean; sms: boolean } }) {
+  const tel = phone?.replace(/[^\d+]/g, '');
+  if (!tel && !email) return null;
+  return (
+    <div className="row quick" style={{ marginTop: 0, marginBottom: 12 }}>
+      {tel && <a className="btn ghost sm" href={`tel:${tel}`}>Call</a>}
+      {tel && !optOut?.sms && <a className="btn ghost sm" href={`sms:${tel}`}>Text</a>}
+      {email && !optOut?.email && <a className="btn ghost sm" href={`mailto:${email}`}>Email</a>}
+    </div>
+  );
 }
 
 function StageSelect({ appId, stage, onMoved, canEdit }: { appId: string; stage: Stage; onMoved: () => void; canEdit: boolean }) {
@@ -300,7 +314,7 @@ function Contacts({ clientId, contacts, reload, canEdit, compose }: { clientId: 
       <div className="list">
         {contacts.map((c) => (
           <div key={c.id} className="li"><span className="x"><b>{c.name}</b><span className="muted">{c.title}</span></span>
-            <span className="muted">{c.email && <a href={`mailto:${c.email}`}>{c.email}</a>} {c.phone}</span>
+            <span className="muted">{c.email && <a href={`mailto:${c.email}`}>{c.email}</a>} {c.phone && <a href={`tel:${String(c.phone).replace(/[^\d+]/g, '')}`}>{c.phone}</a>}</span>
             {canEdit && <span className="row"><button className="btn ghost sm" onClick={() => compose({ type: 'contact', id: c.id, name: String(c.name), email: (c.email as string) || null, phone: (c.phone as string) || null })}>Message</button><button className="btn ghost sm" onClick={() => { setEditing(c.id); setDraft(c); }}>Edit</button><button className="btn ghost sm" onClick={() => remove(c.id)} aria-label={`Remove ${c.name}`}>✕</button></span>}
           </div>
         ))}

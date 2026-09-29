@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { requirePageContext, canEdit } from '@/lib/tenant';
 import { hasFeature, type Feature } from '@/lib/plans';
 import { RecordsProvider } from '@/components/Records';
+import AppNav, { type NavGroup } from '@/components/AppNav';
+import ResponsiveTables from '@/components/ResponsiveTables';
 
 const NAV: [string, [href: string, label: string, feature?: Feature][]][] = [
   ['Recruiting', [['/app', 'Dashboard'], ['/app/pipeline', 'Pipeline'], ['/app/jobs', 'Jobs'], ['/app/candidates', 'Candidates'], ['/app/timesheets', 'Timesheets & payroll', 'timesheets']]],
@@ -15,16 +17,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const trialDays = org.trialEndsAt ? Math.ceil((org.trialEndsAt.getTime() - Date.now()) / 864e5) : 0;
   return (
     <div className="shell">
-      <nav className="side" aria-label="Main"><b>Preciops ATMS<small style={{ display: 'block', fontSize: 12, fontWeight: 400, color: '#C9D3E3' }}>{org.shortName ?? org.name}</small></b>
-        {NAV.map(([group, items]) => {
-          const shown = items.filter(([, , f]) => !f || hasFeature(org, f));
-          return shown.length ? <div key={group} className="navgroup"><span>{group}</span>{shown.map(([href, label]) => <Link key={href} href={href}>{label}</Link>)}</div> : null;
-        })}
-      </nav>
+      <AppNav company={org.shortName ?? org.name} groups={NAV.map(([g, items]) => [g, items.filter(([, , f]) => !f || hasFeature(org, f)).map(([h, l]) => [h, l])] as NavGroup).filter(([, items]) => items.length)} />
       <div className="main">
-        {org.subscriptionStatus === 'trialing' && trialDays > 0 && <p className="card" style={{ margin: '0 0 16px' }}>{trialDays} days left in your trial. <Link href="/app/billing">Choose a plan</Link></p>}
-        {!['trialing', 'active'].includes(org.subscriptionStatus) && <p className="card error" style={{ margin: '0 0 16px' }}>Your subscription is {org.subscriptionStatus.replace('_', ' ')}. Your data is safe but read-only. <Link href="/app/billing">Update billing</Link></p>}
+        {org.subscriptionStatus === 'trialing' && trialDays > 0 && <p className="card banner">{trialDays} days left in your trial. <Link href="/app/billing">Choose a plan</Link></p>}
+        {!['trialing', 'active'].includes(org.subscriptionStatus) && <p className="card banner error">Your subscription is {org.subscriptionStatus.replace('_', ' ')}. Your data is safe but read-only. <Link href="/app/billing">Update billing</Link></p>}
         <RecordsProvider canEdit={canEdit(ctx)} ai={hasFeature(org, 'ai')}>{children}</RecordsProvider>
+        <ResponsiveTables />
       </div>
     </div>
   );

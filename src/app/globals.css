@@ -23,7 +23,6 @@ input,select,textarea{font:inherit;color:var(--text);background:var(--card);bord
 .main{padding:28px;min-width:0}.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}.kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}.kpi b{font-size:26px;display:block}
 table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--soft)}th{font-size:13px;color:var(--muted)}
 .plans{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}.plan{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}.plan .price{font-size:26px;font-weight:800;margin:8px 0}
-@media (max-width:820px){.shell{grid-template-columns:1fr}.side{display:flex;flex-wrap:wrap;gap:4px}.side b{width:100%}}
 
 /* ---------- boards, drawers, toasts (ported from docs/prototype.html) ---------- */
 :root{--blue:#2F5DA8;--s0:#A3ACBA;--s1:#8A96A8;--s2:#6C7FA0;--s3:#4D6A9C;--s4:#2F5DA8;--s5:#B7790A;--s6:#0E7A6E;--s7:#B3261E}
@@ -72,7 +71,7 @@ button.link{font:inherit;color:inherit;text-align:left;cursor:pointer;width:100%
 td button.link{border:0;background:none;padding:0;width:auto;font:inherit;color:inherit;cursor:pointer;text-align:left}td button.link:hover b{color:var(--accent);text-decoration:underline}
 td .muted{font-size:13px}
 .cardk{cursor:pointer}
-@media (max-width:820px){.form{grid-template-columns:1fr}.navgroup{display:contents}.navgroup>span{display:none}}
+@media (max-width:820px){.form{grid-template-columns:1fr}}
 .aiout{background:var(--soft);border-radius:10px;padding:12px 14px;margin-top:10px;font-size:14px}.aiout p{margin:8px 0}
 .docview{background:var(--soft);border-radius:10px;padding:12px 14px;max-height:340px;overflow:auto;font-size:14px}
 .sigs{display:flex;gap:16px;flex-wrap:wrap}.sigs figure{margin:0;background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 12px;color:#152238}.sigs img{display:block;height:60px;max-width:220px}.sigs figcaption{font-size:13px}
@@ -89,3 +88,72 @@ details.msg{display:block}details.msg summary{display:flex;justify-content:space
 .feedurl{display:block;font-size:12.5px;background:var(--soft);border-radius:6px;padding:4px 8px;margin-top:4px;word-break:break-all;color:var(--text)}
 button.link.inline{display:inline;width:auto;border:0;background:none;padding:0;text-decoration:underline;font-weight:600}
 .resume{background:var(--soft);border-radius:10px;padding:12px 14px;margin-bottom:14px}.resume .filepick{margin:0}.resume textarea{font-size:14px}
+
+/* ---------- navigation: sidebar on desktop, top bar + menu + tab bar on phones ---------- */
+.side small,.topbar small,.mobilemenu-head small{display:block;font-size:12px;font-weight:400;color:#C9D3E3}
+.side a[aria-current=page],.mobilemenu a[aria-current=page]{background:rgba(255,255,255,.12);color:#fff;font-weight:600}
+.topbar,.tabbar,.mobilemenu{display:none}
+.banner{margin:0 0 16px}
+.iconbtn{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border:0;border-radius:10px;background:transparent;color:inherit;cursor:pointer}
+.iconbtn:hover{background:rgba(255,255,255,.1)}
+
+@media (max-width:820px){
+  .shell{display:block;min-height:100dvh}
+  .side{display:none}
+  .topbar{display:flex;align-items:center;gap:6px;position:sticky;top:0;z-index:50;background:#152238;color:#fff;padding:calc(6px + env(safe-area-inset-top)) 10px 6px}
+  .topbar-title{display:flex;flex-direction:column;line-height:1.2;min-width:0}.topbar-title b{font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mobilemenu{display:block;position:fixed;inset:0;z-index:200;background:#152238;color:#C9D3E3;overflow-y:auto;padding:calc(10px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom))}
+  .mobilemenu-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}.mobilemenu-head b{color:#fff;font-size:19px}
+  .mobilemenu a{display:flex;align-items:center;min-height:48px;padding:0 12px;border-radius:10px;text-decoration:none;font-size:17px;color:#E4E9F1}
+  .mobilemenu .navgroup{margin-bottom:18px}
+  body.menu-open{overflow:hidden}
+  .tabbar{display:grid;grid-template-columns:repeat(6,1fr);position:fixed;left:0;right:0;bottom:0;z-index:60;background:var(--card);border-top:1px solid var(--line);padding:4px 4px calc(4px + env(safe-area-inset-bottom))}
+  .tabbar a,.tabbar button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:52px;border:0;background:none;color:var(--muted);font:inherit;font-size:11px;text-decoration:none;border-radius:10px;cursor:pointer}
+  .tabbar a[aria-current=page]{color:var(--accent);font-weight:700}
+  .main{padding:16px 16px calc(84px + env(safe-area-inset-bottom))}
+  .banner{padding:10px 14px;font-size:14px;margin-bottom:12px;border-radius:10px}
+  h1{font-size:26px}
+  .lede{font-size:15px}
+  /* 16px stops iOS zooming into focused fields; 44px is the minimum comfortable tap target */
+  input,select,textarea{font-size:16px}
+  input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=color]),select{min-height:44px}
+  .btn{min-height:44px;display:inline-flex;align-items:center;justify-content:center}
+  .btn.sm{min-height:40px;padding:8px 12px;font-size:14px}
+  .bar{gap:8px}.bar>*{flex:1 1 auto}.bar .grow{flex-basis:100%}.bar>span.grow{display:none}
+  .toast{bottom:calc(76px + env(safe-area-inset-bottom))}
+  .kpis{grid-template-columns:repeat(2,1fr);gap:8px}.kpi{padding:12px}.kpi b{font-size:21px}
+  .card{padding:16px;border-radius:12px}
+  .drawer .df{padding-bottom:calc(14px + env(safe-area-inset-bottom))}
+  .drawer .dh{padding-top:calc(14px + env(safe-area-inset-top))}
+  .drawer .kpis{grid-template-columns:repeat(3,1fr)}
+  /* boards: one column per swipe */
+  .board{grid-auto-columns:86%;scroll-snap-type:x mandatory;overscroll-behavior-x:contain;margin:0 -16px;padding:0 16px 10px;scroll-padding:0 16px}
+  .col{scroll-snap-align:start}
+}
+
+/* ---------- lists become cards on phones (labels come from ResponsiveTables) ---------- */
+@media (max-width:640px){
+  .tablewrap:not(.scroll){overflow:visible}
+  .tablewrap:not(.scroll) table{min-width:0 !important;background:none;border:0}
+  .tablewrap:not(.scroll) thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+  .tablewrap:not(.scroll) tbody{display:flex;flex-direction:column;gap:10px}
+  .tablewrap:not(.scroll) tr{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+  .tablewrap:not(.scroll) td{display:block;padding:0;border:0;min-width:0;overflow-wrap:anywhere}
+  .tablewrap:not(.scroll) td::before{content:attr(data-label);display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:2px}
+  .tablewrap:not(.scroll) td:first-child{grid-column:1/-1;font-size:16px}
+  .tablewrap:not(.scroll) td:first-child::before{display:none}
+  .tablewrap:not(.scroll) td[data-label=""]::before{display:none}
+  .tablewrap:not(.scroll) td:empty{display:none}
+}
+
+/* ---------- touch: boards can't be dragged with a finger, so each card gets a "Move to" menu ---------- */
+.movesel{display:none}
+@media (pointer:coarse){
+  .movesel{display:block;width:100%;margin-top:8px;font-size:16px;min-height:40px}
+  .cardk{padding:11px 12px}
+}
+@media (max-width:640px){td button.link{display:block;width:100%;min-height:40px;padding:6px 0}button.link.inline{padding:9px 0}}
+.touch-only{display:none}@media (pointer:coarse){.touch-only{display:inline}.mouse-only{display:none}}
+a,button,select,summary,.cardk{-webkit-tap-highlight-color:transparent}
+.btn:active,.iconbtn:active,.tabbar a:active,.tabbar button:active,.mobilemenu a:active{filter:brightness(.92);transform:scale(.98)}
+.quick .btn{flex:1 1 0;min-width:84px}

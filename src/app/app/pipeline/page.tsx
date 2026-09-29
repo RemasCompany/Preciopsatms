@@ -20,7 +20,7 @@ export default async function Pipeline({ searchParams }: { searchParams: { job?:
   return (
     <>
       <h1>Pipeline</h1>
-      <p className="lede">Drag candidates between stages. Moving someone to Placed marks them on assignment and closes the job once every seat is filled.</p>
+      <p className="lede"><span className="mouse-only">Drag candidates between stages.</span><span className="touch-only">Use “Move to” on a card to change its stage.</span> Moving someone to Placed marks them on assignment and closes the job once every seat is filled.</p>
       <PipelineBoard
         apps={rows}
         jobs={jobs.map((j) => ({ id: j.id, title: j.title, client: j.client?.name ?? null, open: j.status === 'OPEN' }))}

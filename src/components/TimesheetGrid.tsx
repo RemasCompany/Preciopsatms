@@ -107,7 +107,7 @@ export default function TimesheetGrid({ week, prev, next, rows: initial, canEdit
                 <td>{r.job}<div className="muted">{r.client?.name}</div></td>
                 <td>{money(r.pay)} / {money(r.bill)}</td>
                 {(['reg', 'ot'] as const).map((k) => (
-                  <td key={k}><input type="number" min={0} max={168} step={0.25} style={{ width: 84 }} value={val(k)} disabled={locked}
+                  <td key={k}><input type="number" inputMode="decimal" min={0} max={168} step={0.25} style={{ width: 84 }} value={val(k)} disabled={locked}
                     aria-label={`${k === 'reg' ? 'Regular' : 'Overtime'} hours for ${r.worker}`}
                     onChange={(e) => edit(r.applicationId, k, e.target.value)} onBlur={() => save(r)} onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} /></td>
                 ))}

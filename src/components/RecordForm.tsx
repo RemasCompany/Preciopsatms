@@ -52,6 +52,8 @@ export default function RecordForm({ kind, values, onChange, readOnly }: {
           const type = { num: 'number', date: 'date', email: 'email', tel: 'tel', url: 'url' }[fl.type as string] ?? 'text';
           input = (
             <input name={fl.key} type={type} step={fl.type === 'num' ? (fl.int ? 1 : 'any') : undefined} min={fl.min} max={fl.max}
+              inputMode={fl.type === 'num' ? (fl.int ? 'numeric' : 'decimal') : undefined}
+              autoComplete={fl.type === 'email' ? 'email' : fl.type === 'tel' ? 'tel' : undefined}
               value={v == null ? '' : String(v)} readOnly={readOnly} required={fl.required}
               onChange={(e) => set(fl.key, fl.type === 'num' ? (e.target.value === '' ? null : Number(e.target.value)) : e.target.value)} />
           );

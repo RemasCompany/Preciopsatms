@@ -19,6 +19,9 @@ npm run stripe:listen           # separate terminal, forwards webhooks (Stripe C
 ```
 In Stripe (test mode) create three recurring prices and put their IDs in `STRIPE_PRICE_*`. Enable Stripe Tax and the Customer Portal.
 
+## Mobile
+Below 820px the sidebar becomes a top bar with a full-screen menu plus a bottom tab bar (Home, Pipeline, Candidates, Jobs, Tasks, More); lists become labelled cards below 640px (add class `scroll` to a `.tablewrap` to keep a sideways-scrolling table instead). On touch screens, pipeline and deal cards get a “Move to” menu, since drag and drop doesn’t work with fingers, and board columns snap one per swipe. Fields use 16px text so iOS doesn’t zoom, controls are at least 44px tall, numeric fields open the number pad, and layouts respect the iPhone notch and home bar. Candidate, lead and vendor drawers have one-tap Call, Text and Email. A web app manifest and icons let people add Preciops to their home screen and open it full screen.
+
 ## Email (Resend)
 1. In Resend, add and verify the sending domain `mail.preciopsatms.com` (the SPF, DKIM and DMARC records it shows go in DNS).
 2. Set `RESEND_API_KEY` and `EMAIL_FROM` (an address on that domain). Emails go out as “<Company> <EMAIL_FROM address>” with replies going to the recruiter, company or applicant as appropriate.
