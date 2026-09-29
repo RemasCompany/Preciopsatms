@@ -5,7 +5,7 @@ import type { Feature } from './plans';
 export const SECTORS = ['IT & Software', 'Healthcare', 'Manufacturing', 'Warehouse', 'Logistics', 'Security', 'Other'];
 
 export type Opt = string | [value: string, label: string];
-export type FieldType = 'text' | 'email' | 'tel' | 'url' | 'num' | 'date' | 'sel' | 'ref' | 'chk' | 'tags' | 'area';
+export type FieldType = 'text' | 'email' | 'tel' | 'url' | 'num' | 'date' | 'sel' | 'ref' | 'user' | 'chk' | 'tags' | 'area';
 export type Field = { key: string; label: string; type: FieldType; options?: Opt[]; ref?: RecordKind; required?: boolean; notNull?: boolean; min?: number; max?: number; int?: boolean };
 export type RecordKind = 'jobs' | 'candidates' | 'clients' | 'contacts' | 'deals' | 'leads' | 'vendors' | 'tasks';
 
@@ -40,12 +40,12 @@ export const RECORDS: Record<RecordKind, { one: string; titleKey: string; featur
     f('name', 'Name', 'text', { required: true }), f('title', 'Title'), f('email', 'Email', 'email'), f('phone', 'Phone', 'tel'),
   ] },
   deals: { one: 'deal', titleKey: 'title', feature: 'crm', fields: [
-    f('title', 'Deal name', 'text', { required: true }), f('clientId', 'Client', 'ref', { ref: 'clients' }), f('value', 'Annual value ($)', 'num', { min: 0 }),
+    f('title', 'Deal name', 'text', { required: true }), f('clientId', 'Client', 'ref', { ref: 'clients' }), f('ownerId', 'Owner', 'user'), f('value', 'Annual value ($)', 'num', { min: 0 }),
     f('stage', 'Stage', 'sel', { notNull: true, options: ['Prospect', 'Qualified', 'Proposal', 'Negotiation', 'Won', 'Lost'] }), f('closeDate', 'Expected close', 'date'),
     f('service', 'Service line', 'sel', { options: ['Contract staffing', 'Direct hire', 'MSP / VMS', 'Managed IT', 'Security services', 'Other'] }), f('notes', 'Notes', 'area'),
   ] },
   leads: { one: 'lead', titleKey: 'company', feature: 'leads', fields: [
-    f('company', 'Company', 'text', { required: true }), f('contact', 'Contact name'), f('role', 'Contact title'), f('email', 'Email', 'email'), f('phone', 'Phone', 'tel'),
+    f('company', 'Company', 'text', { required: true }), f('ownerId', 'Owner', 'user'), f('contact', 'Contact name'), f('role', 'Contact title'), f('email', 'Email', 'email'), f('phone', 'Phone', 'tel'),
     f('industry', 'Industry', 'sel', { options: SECTORS }), f('size', 'Company size', 'sel', { options: ['1-50', '51-200', '201-1000', '1000+'] }), f('city', 'City / region'),
     f('source', 'Source', 'sel', { options: ['Referral', 'LinkedIn', 'Cold outreach', 'Website', 'Event', 'RFP / bid', 'Inbound call', 'Other'] }),
     f('status', 'Status', 'sel', { notNull: true, options: ['New', 'Contacted', 'Qualified', 'Converted', 'Disqualified'] }),
@@ -80,6 +80,7 @@ export type RecordValues = Record<string, string | number | boolean | string[] |
 export function defaultsFor(kind: RecordKind, preset: RecordValues = {}): RecordValues {
   const r: RecordValues = {};
   for (const fl of RECORDS[kind].fields) {
+    if (fl.type === 'user') continue; // left out: the server makes the creator the owner
     if (fl.type === 'sel' && fl.options?.length) r[fl.key] = optValue(fl.options[0]);
     else if (fl.type === 'chk') r[fl.key] = fl.key === 'publish';
     else if (fl.type === 'tags') r[fl.key] = [];
@@ -106,3 +107,6 @@ export function vendorCompliance(v: { coiExpiresAt?: string | null; agreementExp
 }
 
 export const HOURS_PER_WEEK = 40;
+
+/** Record kinds that belong to a sales rep; new ones default to the person creating them. */
+export const OWNED_KINDS: RecordKind[] = ['deals', 'leads'];

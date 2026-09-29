@@ -9,8 +9,8 @@ export const POST = withApi(async (_req: Request, { params }: { params: { kind: 
   if (lead.status === 'Converted') throw new HttpError(409, 'This lead is already converted.');
   const client = await tdb.client.create({ data: { name: lead.company, industry: lead.industry, city: lead.city, status: 'Prospect', notes: lead.notes } as never });
   if (lead.contact) await tdb.contact.create({ data: { clientId: client.id, name: lead.contact, title: lead.role, email: lead.email, phone: lead.phone } as never });
-  const deal = await tdb.deal.create({ data: { clientId: client.id, title: `${lead.company} — staffing`, stage: 'Qualified' } as never });
-  await tdb.lead.updateMany({ where: { id: lead.id }, data: { status: 'Converted' } });
+  const deal = await tdb.deal.create({ data: { clientId: client.id, title: `${lead.company} — staffing`, stage: 'Qualified', ownerId: lead.ownerId ?? user.id } as never });
+  await tdb.lead.updateMany({ where: { id: lead.id }, data: { status: 'Converted', convertedAt: new Date() } });
   await logActivity(org.id, `Converted lead ${lead.company} into a client and deal`, user.id);
   return Response.json({ clientId: client.id, dealId: deal.id });
 });

@@ -19,9 +19,18 @@ export const GET = withApi(async (_req: Request, { params }: Ctx) => {
 export const PATCH = withApi(async (req: Request, { params }: Ctx) => {
   const kind = kindOf(params.kind);
   const { tdb, org, user } = await requireApiContext({ minRole: 'RECRUITER', feature: RECORDS[kind].feature, write: true });
-  const data = await parseRecord(tdb, kind, await req.json().catch(() => ({})), 'update');
   const before = await delegate(tdb, kind).findFirst({ where: { id: params.id } });
   if (!before) throw new HttpError(404, 'That record was deleted.');
+  const body = await req.json().catch(() => ({}));
+  // An unchanged owner who has since left the team mustn't block saving other edits.
+  if (body && typeof body === 'object' && 'ownerId' in body && body.ownerId === before.ownerId) delete body.ownerId;
+  const data = await parseRecord(tdb, kind, body, 'update', org.id);
+  // Timestamps the sales metrics depend on: when a deal changed stage or closed, when a lead converted.
+  if (kind === 'deals' && data.stage && data.stage !== before.stage) {
+    data.stageChangedAt = new Date();
+    data.closedAt = data.stage === 'Won' || data.stage === 'Lost' ? new Date() : null;
+  }
+  if (kind === 'leads' && data.status && data.status !== before.status) data.convertedAt = data.status === 'Converted' ? new Date() : null;
   await delegate(tdb, kind).updateMany({ where: { id: params.id }, data });
 
   // Side effects from the prototype: winning a deal activates its client; deal moves and finished tasks are logged.

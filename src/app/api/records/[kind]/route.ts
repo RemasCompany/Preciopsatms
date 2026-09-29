@@ -1,5 +1,5 @@
 import { requireApiContext, withApi, logActivity, HttpError } from '@/lib/tenant';
-import { RECORDS, isRecordKind, type RecordKind } from '@/lib/records';
+import { RECORDS, OWNED_KINDS, isRecordKind, type RecordKind } from '@/lib/records';
 import { delegate, parseRecord } from '@/lib/records-server';
 
 function kindOf(k: string): RecordKind {
@@ -20,7 +20,10 @@ export const POST = withApi(async (req: Request, { params }: { params: { kind: s
   const kind = kindOf(params.kind);
   const { tdb, org, user } = await requireApiContext({ minRole: 'RECRUITER', feature: RECORDS[kind].feature, write: true });
   const body = await req.json().catch(() => ({}));
-  const data = await parseRecord(tdb, kind, body, 'create');
+  const data = await parseRecord(tdb, kind, body, 'create', org.id);
+  if (OWNED_KINDS.includes(kind) && data.ownerId === undefined) data.ownerId = user.id;
+  if (kind === 'deals' && (data.stage === 'Won' || data.stage === 'Lost')) data.closedAt = new Date();
+  if (kind === 'leads' && data.status === 'Converted') data.convertedAt = new Date();
   if (kind === 'contacts') {
     const client = typeof body.clientId === 'string' ? await tdb.client.findFirst({ where: { id: body.clientId }, select: { id: true } }) : null;
     if (!client) throw new HttpError(400, 'That client was not found.');

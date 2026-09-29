@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { Prisma } from '@prisma/client';
 import { HttpError, type TenantDb } from './tenant';
+import { db } from './db';
 import { RECORDS, optValue, type Field, type RecordKind, type RecordValues } from './records';
 
 export const MODEL: Record<RecordKind, 'job' | 'candidate' | 'client' | 'contact' | 'deal' | 'lead' | 'vendor' | 'task'> = {
@@ -64,6 +65,7 @@ function fieldSchema(fl: Field) {
       });
     }
     case 'ref':
+    case 'user':
       return z.union([z.string(), z.null()]).transform((v) => (blank(v) ? null : v!.trim()));
     default: {
       const max = fl.type === 'area' ? 20000 : 300;
@@ -83,7 +85,7 @@ function fieldSchema(fl: Field) {
  * Validates a create/update body against the kind's field spec. Unknown keys (including organizationId) are dropped.
  * Linked records (clientId, vendorId) must belong to the caller's org.
  */
-export async function parseRecord(tdb: TenantDb, kind: RecordKind, body: unknown, mode: 'create' | 'update') {
+export async function parseRecord(tdb: TenantDb, kind: RecordKind, body: unknown, mode: 'create' | 'update', orgId: string) {
   const fields = RECORDS[kind].fields;
   const shape = Object.fromEntries(fields.map((fl) => [fl.key, fieldSchema(fl).optional()]));
   const res = z.object(shape).strip().safeParse(body ?? {});
@@ -96,6 +98,11 @@ export async function parseRecord(tdb: TenantDb, kind: RecordKind, body: unknown
     if (fl.type === 'ref' && data[fl.key]) {
       const ok = await delegate(tdb, fl.ref!).findFirst({ where: { id: data[fl.key] }, select: { id: true } });
       if (!ok) throw new HttpError(400, `That ${RECORDS[fl.ref!].one} was not found.`);
+    }
+    if (fl.type === 'user' && data[fl.key]) {
+      // Owners must be members of the caller's company.
+      const m = await db.membership.findFirst({ where: { organizationId: orgId, userId: String(data[fl.key]) }, select: { id: true } });
+      if (!m) throw new HttpError(400, 'That person isn’t on your team.');
     }
   }
   for (const k of Object.keys(data)) if (data[k] === undefined) delete data[k];

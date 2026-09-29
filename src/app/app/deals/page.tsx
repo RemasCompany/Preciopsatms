@@ -1,4 +1,6 @@
+import Link from 'next/link';
 import { requirePageContext, canEdit } from '@/lib/tenant';
+import { db } from '@/lib/db';
 import { hasFeature } from '@/lib/plans';
 import { DEAL_STAGES, DEAL_PROBABILITY, dealKpis } from '@/lib/deals';
 import DealsBoard from '@/components/DealsBoard';
@@ -11,7 +13,9 @@ export default async function Deals() {
   const ctx = await requirePageContext();
   if (!hasFeature(ctx.org, 'crm')) return <Gate title="Deals" feature="CRM" />;
   const rows = await ctx.tdb.deal.findMany({ include: { client: { select: { name: true } } }, orderBy: [{ closeDate: { sort: 'asc', nulls: 'last' } }, { createdAt: 'desc' }] });
-  const deals = rows.map((d) => ({ id: d.id, title: d.title, client: d.client?.name ?? null, value: d.value == null ? null : Number(d.value), stage: d.stage, closeDate: d.closeDate?.toISOString().slice(0, 10) ?? null }));
+  const members = await db.membership.findMany({ where: { organizationId: ctx.org.id }, select: { user: { select: { id: true, name: true, email: true } } } });
+  const owners = new Map(members.map((m) => [m.user.id, m.user.name || m.user.email]));
+  const deals = rows.map((d) => ({ owner: d.ownerId ? owners.get(d.ownerId) ?? null : null, id: d.id, title: d.title, client: d.client?.name ?? null, value: d.value == null ? null : Number(d.value), stage: d.stage, closeDate: d.closeDate?.toISOString().slice(0, 10) ?? null }));
   const k = dealKpis(deals);
   return (
     <>
@@ -23,7 +27,7 @@ export default async function Deals() {
         <div className="kpi"><b>{money(k.won)}</b><span>Won</span></div>
         <div className="kpi"><b>{k.winRate == null ? '—' : `${Math.round(k.winRate * 100)}%`}</b><span>Win rate</span></div>
       </div>
-      {canEdit(ctx) && <div className="bar"><OpenRecord kind="deals" className="btn">+ Add deal</OpenRecord></div>}
+      <div className="bar">{canEdit(ctx) && <OpenRecord kind="deals" className="btn">+ Add deal</OpenRecord>}<Link className="btn ghost" href="/app/sales">Sales metrics</Link></div>
       {deals.length ? <DealsBoard deals={deals} /> : <div className="card empty"><b>No deals yet</b>Convert a qualified lead or add a deal for an existing client.</div>}
     </>
   );

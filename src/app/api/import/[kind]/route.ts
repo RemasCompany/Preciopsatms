@@ -9,7 +9,7 @@ export const POST = withApi(async (req: Request, { params }: { params: { kind: s
   if (!kind) throw new HttpError(404, 'Not found');
   const { tdb, org, user } = await requireApiContext({ minRole: 'RECRUITER', feature: RECORDS[kind].feature, write: true });
   const { csv } = z.object({ csv: z.string().max(5_000_000, 'That file is too large. Split it into smaller files.') }).parse(await req.json());
-  const result = await importCsv(tdb, kind, csv);
+  const result = await importCsv(tdb, kind, csv, org.id, user.id);
   if (result.created) await logActivity(org.id, `Imported ${result.created} ${kind}`, user.id);
   return Response.json(result);
 });

@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useRecords } from './Records';
 import { DEAL_STAGES, type DealStage } from '@/lib/deals';
 
-export type BoardDeal = { id: string; title: string; client: string | null; value: number | null; stage: string; closeDate: string | null };
+export type BoardDeal = { id: string; title: string; client: string | null; value: number | null; stage: string; closeDate: string | null; owner?: string | null };
 // Column colours follow the prototype: prospect → negotiation run cool to amber, won teal, lost red.
 const COLOR: Record<DealStage, string> = { Prospect: 'var(--s1)', Qualified: 'var(--s3)', Proposal: 'var(--s4)', Negotiation: 'var(--s5)', Won: 'var(--s6)', Lost: 'var(--s7)' };
 const money = (n: number | null) => (n == null ? '—' : n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }));
@@ -50,7 +50,7 @@ export default function DealsBoard({ deals: initial }: { deals: BoardDeal[] }) {
                 onDragStart={(e) => { e.dataTransfer.setData('text/plain', d.id); e.dataTransfer.effectAllowed = 'move'; }}
                 onKeyDown={(e) => onKey(e, d)} onClick={() => open('deals', d.id)}>
                 <b>{d.title}</b>
-                <span className="muted">{d.client ?? 'No client'}</span>
+                <span className="muted">{d.client ?? 'No client'}{d.owner ? ` · ${d.owner}` : ''}</span>
                 <div className="meta"><span>{money(d.value)}</span><span>{d.closeDate ? fmt(d.closeDate) : ''}</span></div>
                 {canEdit && (
                   <select className="movesel" aria-label={`Move ${d.title} to stage`} value={d.stage}

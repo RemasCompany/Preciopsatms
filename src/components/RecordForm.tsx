@@ -22,6 +22,24 @@ function RefSelect({ fl, value, onChange, disabled }: { fl: Field; value: string
   );
 }
 
+type Team = { me: string; options: { id: string; label: string }[] };
+let teamCache: Promise<Team> | null = null;
+const loadTeam = () => (teamCache ??= fetch('/api/team/options').then((r) => (r.ok ? r.json() : { me: '', options: [] })).catch(() => ({ me: '', options: [] })));
+
+/** Owner picker. A new record with no choice yet shows the current user, which is what the server assigns. */
+function UserSelect({ fl, value, onChange, disabled }: { fl: Field; value: string | null | undefined; onChange: (v: string | null) => void; disabled?: boolean }) {
+  const [team, setTeam] = useState<Team | null>(null);
+  useEffect(() => { let on = true; loadTeam().then((t) => on && setTeam(t)); return () => { on = false; }; }, []);
+  const shown = value === undefined ? team?.me ?? '' : value ?? '';
+  return (
+    <select name={fl.key} value={shown} onChange={(e) => onChange(e.target.value || null)} disabled={disabled}>
+      <option value="">— Unassigned —</option>
+      {team?.options.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+      {shown && !team?.options.some((o) => o.id === shown) && <option value={shown}>{team ? '(former team member)' : '(loading…)'}</option>}
+    </select>
+  );
+}
+
 export default function RecordForm({ kind, values, onChange, readOnly }: {
   kind: RecordKind; values: RecordValues; onChange: (v: RecordValues) => void; readOnly?: boolean;
 }) {
@@ -43,6 +61,7 @@ export default function RecordForm({ kind, values, onChange, readOnly }: {
           </select>
         );
         else if (fl.type === 'ref') input = <RefSelect fl={fl} value={(v as string) ?? null} onChange={(x) => set(fl.key, x)} disabled={readOnly} />;
+        else if (fl.type === 'user') input = <UserSelect fl={fl} value={v as string | null | undefined} onChange={(x) => set(fl.key, x)} disabled={readOnly} />;
         else if (fl.type === 'area') input = <textarea name={fl.key} rows={4} value={String(v ?? '')} readOnly={readOnly} onChange={(e) => set(fl.key, e.target.value)} />;
         else if (fl.type === 'tags') input = (
           <input name={fl.key} defaultValue={((v as string[]) ?? []).join(', ')} readOnly={readOnly}

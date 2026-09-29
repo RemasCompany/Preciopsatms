@@ -51,6 +51,7 @@ model Organization {
   trialEndsAt          DateTime?
   currentPeriodEnd     DateTime?
   seats                Int       @default(1)
+  salesTargets         SalesTarget[]
   aiCreditsUsed        Int       @default(0) // reset each billing period by webhook
   // Indeed Apply (candidates apply on Indeed; Indeed POSTs applications to /api/public/<slug>/indeed-apply)
   indeedApplyApiToken  String?
@@ -274,7 +275,10 @@ model Deal {
   title          String
   value          Decimal?     @db.Decimal(12, 2)
   stage          String       @default("Prospect") // Prospect|Qualified|Proposal|Negotiation|Won|Lost
-  closeDate      DateTime?
+  closeDate      DateTime?    // expected close
+  closedAt       DateTime?    // when it was actually marked Won or Lost
+  stageChangedAt DateTime     @default(now())
+  ownerId        String?      // sales rep (User); null = unassigned
   service        String?
   notes          String?
   createdAt      DateTime     @default(now())
@@ -296,6 +300,8 @@ model Lead {
   city           String?
   source         String?
   status         String       @default("New")
+  ownerId        String?      // sales rep (User); null = unassigned
+  convertedAt    DateTime?
   score          Int?
   nextStepAt     DateTime?
   notes          String?
@@ -445,4 +451,16 @@ model StoredFile {
   size           Int
   createdAt      DateTime     @default(now())
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+// Monthly revenue quota per sales rep. month is the first day of the month (UTC).
+model SalesTarget {
+  id             String       @id @default(cuid())
+  organizationId String
+  userId         String
+  month          DateTime     @db.Date
+  amount         Decimal      @db.Decimal(12, 2)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId, month])
 }
