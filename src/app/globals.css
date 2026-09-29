@@ -187,3 +187,36 @@ a.kpi{text-decoration:none;color:inherit}a.kpi:hover{border-color:var(--accent)}
 .cred .credmeta{margin:-4px 12px 6px;font-size:13px}.cred .credacts{margin:0 12px 10px;gap:6px}
 .cred .subform{margin:0 12px 12px}
 h2 .btn.sm{margin-left:10px;vertical-align:middle}
+
+/* ---------- schedule builder ---------- */
+.weeknav{gap:8px}.weeknav>b{font-size:16px;color:var(--ink)}
+.schedwrap table.sched{min-width:1040px;table-layout:fixed}
+.sched th,.sched td{vertical-align:top;padding:8px}.sched thead th{font-size:13px}.sched thead th small{display:block;font-weight:500}
+.sched thead th:first-child,.sched tbody th{width:190px}.sched thead th:last-child,.sched td.hrs{width:72px}
+.sched tbody th{text-align:left;font-weight:400;position:sticky;left:0;background:var(--card);z-index:1;border-bottom:1px solid var(--soft)}
+.sched tbody th b{display:block}.sched tbody th .muted,.sched tbody th .warn{display:block;font-size:12.5px;line-height:1.35}
+.sched .today{background:color-mix(in srgb,var(--accent) 6%,transparent)}
+.sched td.hrs b{display:block;font-size:16px}.sched td.hrs .soon{font-size:12px}
+.shift{display:flex;flex-direction:column;width:100%;text-align:left;font:inherit;font-size:12.5px;line-height:1.3;border:1px solid var(--line);border-left:3px solid var(--muted);border-radius:7px;background:var(--card);color:var(--text);padding:5px 7px;margin-bottom:5px;cursor:pointer}
+.shift:disabled{cursor:default}.shift:not(:disabled):hover{border-color:var(--accent)}
+.shift .t{font-weight:700;display:flex;justify-content:space-between;gap:4px}.shift .t i{font-style:normal}
+.shift .u{color:var(--muted)}.shift .st{color:var(--muted);font-size:11.5px}
+.shift.draft,.shift.changed{border-style:dashed;border-left-style:solid;border-left-color:var(--muted)}
+.shift.sent{border-left-color:var(--amber)}.shift.confirmed{border-left-color:var(--accent)}.shift.confirmed .t i{color:var(--accent)}
+.shift.declined{border-left-color:var(--red);background:color-mix(in srgb,var(--red) 7%,var(--card))}.shift.declined .t i,.shift.declined .st{color:var(--red)}
+.shift.cancelled,.shift.cancel-unsent{opacity:.75}.shift.cancelled .t,.shift.cancel-unsent .t{text-decoration:line-through}.shift.cancel-unsent{border-left-color:var(--red);border-style:dashed}
+.addshift{width:100%;min-height:28px;border:1px dashed var(--line);border-radius:7px;background:none;color:var(--muted);font:inherit;font-size:16px;cursor:pointer;opacity:.55}
+.addshift:hover,.addshift:focus-visible,td:hover .addshift{opacity:1;border-color:var(--accent);color:var(--accent)}
+.schedlegend{margin-top:10px}.shiftdot{display:inline-block;width:10px;height:10px;border-radius:3px;border:1px solid var(--line);border-left:3px solid var(--muted)}
+.shiftdot.draft{border-style:dashed}.shiftdot.sent{border-left-color:var(--amber)}.shiftdot.confirmed{border-left-color:var(--accent)}.shiftdot.declined{border-left-color:var(--red)}.shiftdot.cancelled{opacity:.6;background:var(--soft)}
+fieldset.days{border:0;padding:0;margin:8px 0;display:flex;flex-wrap:wrap;gap:6px 14px}fieldset.days legend{font-size:14px;color:var(--muted);margin-bottom:4px;padding:0}fieldset.days label{margin:0}
+.presets{margin:6px 0 2px;gap:6px}.presets .btn.on{border-color:var(--accent);color:var(--accent)}
+.daylist{display:none}
+.daylist .day h3{margin:0 0 8px;font-size:16px;display:flex;justify-content:space-between;align-items:baseline}.daylist .day h3 small{color:var(--muted);font-weight:500;font-size:13px}
+.daylist .day.today{border-color:var(--accent)}
+.dayrow{display:grid;grid-template-columns:1fr 150px;gap:10px;align-items:start;padding:8px 0;border-top:1px solid var(--soft)}.dayrow .shift{margin:0}
+@media (max-width:640px){.schedwrap{display:none}.daylist{display:block}}
+/* worker's own schedule page */
+.shiftlist{list-style:none;padding:0;margin:0}.shiftcard{margin:12px 0}.shiftcard.cancelled .shifttime{text-decoration:line-through}
+.shifthead{display:flex;justify-content:space-between;align-items:center;gap:10px}.shifttime{font-size:18px;font-weight:700;color:var(--ink);margin:6px 0 2px}
+.shiftcard p{margin:4px 0}.shiftcard .row .btn{flex:1 1 0}

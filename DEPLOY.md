@@ -30,7 +30,7 @@ Migrations run automatically on every Vercel deploy (`vercel-build` runs `prisma
 | `S3_BUCKET`, `S3_REGION`, `S3_ENDPOINT`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | AWS S3 or Cloudflare R2 (step 6) | resumes, signed PDFs |
 | `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` | console.anthropic.com | resume parsing, lead scoring |
 | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_MESSAGING_SERVICE_SID` | Twilio | text messages |
-| `CRON_SECRET` | output of `openssl rand -base64 32` | daily credential-expiration emails |
+| `CRON_SECRET` | output of `openssl rand -base64 32` | daily credential-expiration emails and shift reminders |
 
 Do **not** set `STORAGE_DRIVER=local` on Vercel: its disk is wiped between requests.
 
@@ -63,11 +63,12 @@ Files are only ever read by the server after an ownership check; the bucket must
 
 Create a Messaging Service, then set its **incoming message webhook** to `https://app.preciopsatms.com/api/sms/inbound` so STOP replies opt people out automatically.
 
-## 8. Credential expiration emails
+## 8. Daily jobs: credential alerts and shift reminders
 
 `vercel.json` schedules `/api/cron/credential-alerts` every day at 13:00 UTC. Vercel sends `CRON_SECRET` with the request automatically; without it the job refuses to run.
 Each recruiter, admin and owner gets one email listing credentials that reached 60, 30 or 7 days before expiring, or expired. Each credential is reported once per window, and every email is logged under Messages.
-On other hosts, call it daily yourself: `curl -H "Authorization: Bearer $CRON_SECRET" https://app.preciopsatms.com/api/cron/credential-alerts`.
+`/api/cron/shift-reminders` runs every day at 22:00 UTC (late afternoon in the US): each worker with a published shift tomorrow gets one text, or an email if they can't be texted. Declined and cancelled shifts are skipped.
+On other hosts, call both daily yourself: `curl -H "Authorization: Bearer $CRON_SECRET" https://app.preciopsatms.com/api/cron/credential-alerts` (and the same for `/api/cron/shift-reminders`).
 
 ## 9. Job boards and Indeed Apply
 

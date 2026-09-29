@@ -2,7 +2,7 @@
 export type PlanId = 'starter' | 'growth' | 'enterprise';
 export type Feature =
   | 'ats' | 'crm' | 'leads' | 'careers' | 'vendors' | 'messaging'
-  | 'timesheets' | 'esign' | 'ai' | 'eeo' | 'api' | 'sso' | 'whitelabel' | 'credentials';
+  | 'timesheets' | 'esign' | 'ai' | 'eeo' | 'api' | 'sso' | 'whitelabel' | 'credentials' | 'scheduling';
 
 export const PLANS: Record<PlanId, {
   name: string; priceEnv: string; perSeat: boolean; maxSeats: number | null;
@@ -15,12 +15,12 @@ export const PLANS: Record<PlanId, {
   },
   growth: {
     name: 'Growth', priceEnv: 'STRIPE_PRICE_GROWTH', perSeat: true, maxSeats: null, monthlyAiCredits: 2000,
-    features: ['ats', 'crm', 'leads', 'careers', 'messaging', 'vendors', 'timesheets', 'esign', 'ai', 'credentials'],
-    blurb: 'Everything to run a staffing desk: timesheets, payroll export, invoicing, e-signatures, credential tracking, vendors and AI.', displayPrice: '$79/user/mo',
+    features: ['ats', 'crm', 'leads', 'careers', 'messaging', 'vendors', 'timesheets', 'esign', 'ai', 'credentials', 'scheduling'],
+    blurb: 'Everything to run a staffing desk: timesheets, payroll export, invoicing, e-signatures, credential tracking, shift scheduling, vendors and AI.', displayPrice: '$79/user/mo',
   },
   enterprise: {
     name: 'Enterprise / MSP', priceEnv: 'STRIPE_PRICE_ENTERPRISE', perSeat: true, maxSeats: null, monthlyAiCredits: 10000,
-    features: ['ats', 'crm', 'leads', 'careers', 'messaging', 'vendors', 'timesheets', 'esign', 'ai', 'credentials', 'eeo', 'api', 'sso', 'whitelabel'],
+    features: ['ats', 'crm', 'leads', 'careers', 'messaging', 'vendors', 'timesheets', 'esign', 'ai', 'credentials', 'scheduling', 'eeo', 'api', 'sso', 'whitelabel'],
     blurb: 'EEO/OFCCP reporting, API, SSO, white-label and dedicated onboarding.', displayPrice: 'Custom',
   },
 };

@@ -53,6 +53,8 @@ model Organization {
   seats                Int       @default(1)
   salesTargets         SalesTarget[]
   credentials          Credential[]
+  shifts               Shift[]
+  workerLinks          WorkerLink[]
   aiCreditsUsed        Int       @default(0) // reset each billing period by webhook
   // Indeed Apply (candidates apply on Indeed; Indeed POSTs applications to /api/public/<slug>/indeed-apply)
   indeedApplyApiToken  String?
@@ -184,6 +186,7 @@ model Candidate {
   updatedAt      DateTime      @updatedAt
   organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   vendor         Vendor?       @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  workerLinks    WorkerLink[]
   credentials    Credential[]
   applications   Application[]
 
@@ -217,6 +220,7 @@ model Application {
   organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   candidate        Candidate    @relation(fields: [candidateId], references: [id], onDelete: Cascade)
   job              Job          @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  shifts           Shift[]
   timesheets       Timesheet[]
 
   @@unique([candidateId, jobId])
@@ -492,5 +496,53 @@ model Credential {
   candidate      Candidate    @relation(fields: [candidateId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, expiresAt])
+  @@index([candidateId])
+}
+
+enum ShiftResponse {
+  PENDING
+  CONFIRMED
+  DECLINED
+}
+
+// One scheduled shift for a worker on assignment. Times are local to the job site ("07:00"); an end at or
+// before the start runs past midnight. Workers only hear about a shift when the schedule is published.
+model Shift {
+  id             String        @id @default(cuid())
+  organizationId String
+  applicationId  String
+  date           DateTime      @db.Date
+  start          String
+  end            String
+  breakMinutes   Int           @default(0)
+  unit           String?       // unit, department or post
+  notes          String?
+  cancelled      Boolean       @default(false)
+  notified       Boolean       @default(false) // the worker has been told about this version of the shift
+  notifiedAt     DateTime?     // last notice sent; null = the worker has never heard about it
+  response       ShiftResponse @default(PENDING)
+  respondedAt    DateTime?
+  declineReason  String?
+  remindedAt     DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  application    Application   @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, date])
+  @@index([applicationId, date])
+}
+
+// Private link a worker gets in schedule notices to see and confirm their shifts. Only the hash is stored.
+model WorkerLink {
+  id             String       @id @default(cuid())
+  organizationId String
+  candidateId    String
+  tokenHash      String       @unique
+  expiresAt      DateTime
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  candidate      Candidate    @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
   @@index([candidateId])
 }

@@ -13,7 +13,7 @@ export function configReport(env: Record<string, string | undefined> = process.e
   if (env.STORAGE_DRIVER === 'local') { if (env.NODE_ENV === 'production') warnings.push('STORAGE_DRIVER=local keeps files on this server’s disk; on Vercel and most hosts that disk is wiped. Use S3 or R2.'); }
   else if (!set('S3_BUCKET') || !set('S3_ACCESS_KEY_ID') || !set('S3_SECRET_ACCESS_KEY')) warnings.push('File storage is not configured: resume uploads and signed PDFs will fail. Set the S3_* variables.');
   if (!set('ANTHROPIC_API_KEY')) warnings.push('ANTHROPIC_API_KEY is missing: resume parsing and lead scoring are off.');
-  if (!set('CRON_SECRET')) warnings.push('CRON_SECRET is missing: the daily credential-expiration emails can’t run.');
+  if (!set('CRON_SECRET')) warnings.push('CRON_SECRET is missing: the daily credential-expiration emails and shift reminders can’t run.');
   if (!set('TWILIO_ACCOUNT_SID')) warnings.push('Twilio is not configured: text messages are not sent.');
   return { errors, warnings };
 }
