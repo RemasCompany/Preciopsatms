@@ -5,6 +5,7 @@ import { STAGE_ORDER as ORDER } from '@/lib/eeo';
 import { REJECTION_REASONS } from '@/lib/pipeline';
 import { hasFeature } from '@/lib/plans';
 import { credentialLabel, placementIssues } from '@/lib/credentials';
+import { onboardingGaps } from '@/lib/onboarding-server';
 
 const Body = z.object({ stage: z.nativeEnum(Stage), rejectionReason: z.enum(REJECTION_REASONS).optional() });
 
@@ -28,15 +29,18 @@ export const PATCH = withApi(async (req: Request, { params }: { params: { id: st
       await tdb.job.updateMany({ where: { id: app.jobId }, data: { status: 'FILLED' } });
       await logActivity(org.id, `${app.job.title} is fully filled`, user.id);
     }
-    // Placing isn't blocked, but the recruiter is told about credential problems before the person starts.
+    // Placing isn't blocked, but the recruiter is told about credential and onboarding gaps before the person starts.
+    const gaps = hasFeature(org, 'onboarding') ? await onboardingGaps(tdb, app.candidateId) : null;
+    const gapText = gaps ? `onboarding has ${gaps.left} required step${gaps.left === 1 ? '' : 's'} left` : null;
     if (hasFeature(org, 'credentials')) {
       const creds = await tdb.credential.findMany({ where: { candidateId: app.candidateId } });
       const issues = placementIssues(creds.map((c) => ({ label: credentialLabel(c), type: c.type, number: c.number, state: c.state, expiresAt: c.expiresAt?.toISOString().slice(0, 10) ?? null, verifiedAt: c.verifiedAt?.toISOString() ?? null })));
       if (issues.length) {
         await logActivity(org.id, `${app.candidate.name} was placed with credential issues: ${issues.join('; ')}`, user.id);
-        return Response.json({ ok: true, warning: `Check ${app.candidate.name}’s credentials before they start — ${issues.join('; ')}.` });
+        return Response.json({ ok: true, warning: `Check ${app.candidate.name}’s credentials before they start — ${[...issues, gapText].filter(Boolean).join('; ')}.` });
       }
     }
+    if (gapText) return Response.json({ ok: true, warning: `${app.candidate.name}’s ${gapText} before they can start.` });
   }
   return Response.json({ ok: true });
 });

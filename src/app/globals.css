@@ -240,3 +240,15 @@ fieldset.days{border:0;padding:0;margin:8px 0;display:flex;flex-wrap:wrap;gap:6p
 .clockrecent li{display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid var(--soft)}
 .tc-now{display:flex;flex-wrap:wrap;gap:8px}.tc-now .pill{font-size:13px;padding:4px 10px}
 .tcflags{display:flex;flex-wrap:wrap;gap:4px}.tcrow td{vertical-align:top}.tcweek td{font-weight:700;background:var(--soft)}
+
+/* ---------- onboarding ---------- */
+.obcard{border-width:2px;border-color:var(--amber)}.obcard.ready{border-color:var(--accent)}.obcard.ready .clockstate{color:var(--accent)}
+.oblist{list-style:none;padding:0;margin:8px 0 0}.oblist>li{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-top:1px solid var(--soft)}
+.oblist .x{gap:4px}.oblist .x .btn{align-self:flex-start;margin-top:4px}.oblist li.done b{color:var(--muted)}
+.obcheck{flex:none;width:22px;height:22px;border-radius:50%;border:2px solid var(--line);display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#fff;margin-top:1px}
+.oblist li.done .obcheck{background:var(--accent);border-color:var(--accent)}
+.obbar{height:8px;border-radius:4px;background:var(--soft);overflow:hidden;min-width:90px}.obbar span{display:block;height:100%;background:var(--accent);border-radius:0 4px 4px 0}
+.obsteps .li{align-items:flex-start}.obsteps .li .x b{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.stepedit{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:start;padding:10px 0;border-top:1px solid var(--soft)}
+.stepedit .form{grid-template-columns:repeat(2,minmax(0,1fr))}@media (max-width:820px){.stepedit .form{grid-template-columns:1fr}}
+.stepedit .ctl{display:flex;flex-direction:column;gap:4px}

@@ -8,7 +8,7 @@ import { hasFeature, type Feature } from './plans';
 // Models that carry organizationId. Every query through tenantDb() is forced into the caller's org.
 const TENANT_MODELS = new Set<string>([
   'Job', 'Candidate', 'Application', 'EeoSelfId', 'Client', 'Contact', 'Deal', 'Lead', 'Vendor', 'Task',
-  'Timesheet', 'SignDocument', 'Message', 'Activity', 'StoredFile', 'Invite', 'SalesTarget', 'Credential', 'Shift', 'WorkerLink', 'PayrollRun', 'PayrollItem', 'PayrollAdjustment', 'TimeEntry',
+  'Timesheet', 'SignDocument', 'Message', 'Activity', 'StoredFile', 'Invite', 'SalesTarget', 'Credential', 'Shift', 'WorkerLink', 'PayrollRun', 'PayrollItem', 'PayrollAdjustment', 'TimeEntry', 'OnboardingPackage', 'Onboarding', 'OnboardingStep',
 ]);
 const SCOPED_READS = new Set(['findMany', 'findFirst', 'findFirstOrThrow', 'count', 'aggregate', 'groupBy', 'updateMany', 'deleteMany']);
 const UNSCOPABLE = new Set(['findUnique', 'findUniqueOrThrow', 'update', 'delete', 'upsert']);

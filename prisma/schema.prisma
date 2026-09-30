@@ -60,6 +60,8 @@ model Organization {
   workerLinks          WorkerLink[]
   payrollRuns          PayrollRun[]
   timeEntries          TimeEntry[]
+  onboardingPackages   OnboardingPackage[]
+  onboardings          Onboarding[]
   aiCreditsUsed        Int       @default(0) // reset each billing period by webhook
   // Indeed Apply (candidates apply on Indeed; Indeed POSTs applications to /api/public/<slug>/indeed-apply)
   indeedApplyApiToken  String?
@@ -226,6 +228,7 @@ model Application {
   organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   candidate        Candidate    @relation(fields: [candidateId], references: [id], onDelete: Cascade)
   job              Job          @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  onboardings      Onboarding[]
   timeEntries      TimeEntry[]
   shifts           Shift[]
   timesheets       Timesheet[]
@@ -670,4 +673,77 @@ model TimeEntry {
 
   @@index([organizationId, clockIn])
   @@index([applicationId, clockIn])
+}
+
+// A reusable new-hire checklist (e.g. "Healthcare new hire"). Steps are JSON validated by src/lib/onboarding.ts.
+model OnboardingPackage {
+  id             String       @id @default(cuid())
+  organizationId String
+  name           String
+  description    String?
+  steps          Json         @default("[]")
+  archived       Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+enum OnboardingStatus {
+  IN_PROGRESS
+  COMPLETE
+  CANCELLED
+}
+
+// One new hire working through a package for one assignment. Steps are copied from the package when it starts.
+model Onboarding {
+  id             String           @id @default(cuid())
+  organizationId String
+  applicationId  String
+  candidateId    String
+  packageId      String?
+  packageName    String
+  status         OnboardingStatus @default(IN_PROGRESS)
+  startDate      DateTime?        @db.Date
+  invitedAt      DateTime?
+  completedAt    DateTime?
+  createdById    String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  application    Application      @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  steps          OnboardingStep[]
+
+  @@index([organizationId, status])
+  @@index([candidateId])
+}
+
+enum OnboardingStepStatus {
+  PENDING
+  DONE
+  WAIVED
+}
+
+model OnboardingStep {
+  id             String               @id @default(cuid())
+  organizationId String
+  onboardingId   String
+  position       Int
+  kind           String               // SIGN | UPLOAD | FORM | STAFF | CREDENTIAL
+  label          String
+  hint           String?
+  required       Boolean              @default(true)
+  config         Json                 @default("{}")
+  status         OnboardingStepStatus @default(PENDING)
+  completedAt    DateTime?
+  completedBy    String?              // "worker" or a user id
+  note           String?
+  signDocumentId String?
+  fileId         String?
+  data           Json?                // form answers (emergency contact)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  onboarding     Onboarding           @relation(fields: [onboardingId], references: [id], onDelete: Cascade)
+
+  @@index([onboardingId])
+  @@index([signDocumentId])
 }

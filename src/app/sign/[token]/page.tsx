@@ -4,7 +4,9 @@ import SignaturePad, { type SignaturePadHandle } from '@/components/SignaturePad
 
 type Doc = { title: string; body: string; signerName: string; company: string; brandColor: string };
 
-export default function SignPage({ params }: { params: { token: string } }) {
+export default function SignPage({ params, searchParams }: { params: { token: string }; searchParams: { back?: string } }) {
+  // Only ever link back to a worker's own page on this site.
+  const back = searchParams.back && /^\/shifts\/[\w-]{20,100}$/.test(searchParams.back) ? searchParams.back : null;
   const [doc, setDoc] = useState<Doc | null>(null);
   const [msg, setMsg] = useState('');
   const [done, setDone] = useState(false);
@@ -20,7 +22,7 @@ export default function SignPage({ params }: { params: { token: string } }) {
     const j = await r.json(); if (r.ok) setDone(true); else setMsg(j.error);
   }
 
-  if (done) return <main className="public"><h1>Signed</h1><p>Thank you. A signed copy has been emailed to you.</p></main>;
+  if (done) return <main className="public"><h1>Signed</h1><p>Thank you. A signed copy has been emailed to you.</p>{back && <a className="btn" href={back}>Back to your new-hire steps</a>}</main>;
   if (!doc) return <main className="public"><p>{msg || 'Loading…'}</p></main>;
   return (
     <main className="public" style={{ ['--accent' as string]: doc.brandColor }}>

@@ -4,6 +4,7 @@ import { sha256 } from '@/lib/tokens';
 import { renderSignedPdf } from '@/lib/pdf';
 import { putFile } from '@/lib/storage';
 import { sendEmail } from '@/lib/email';
+import { markSigned } from '@/lib/onboarding-server';
 
 const Body = z.object({
   name: z.string().min(2).max(120),
@@ -47,6 +48,7 @@ export async function POST(req: Request, { params }: { params: { token: string }
     data: { status: 'SIGNED', tokenHash: null, signerName: parsed.data.name, signerSignature: parsed.data.signature, signedAt: at, signerIp: ip, signerUserAgent: ua, audit, pdfFileId: file.id },
   });
   await db.activity.create({ data: { organizationId: doc.organizationId, text: `${parsed.data.name} signed ${doc.title}` } });
+  await markSigned(doc.organizationId, doc.id);
   // The signature is recorded; the copies below are courtesy emails, so a delivery failure must not fail the signing.
   const attach = [{ filename: `${doc.title}.pdf`, content: Buffer.from(pdf) }];
   await sendEmail({ to: doc.signerEmail, fromName: doc.organization.shortName ?? doc.organization.name, replyTo: doc.organization.applyEmail ?? undefined, subject: `Signed copy: ${doc.title}`, text: `Thank you for signing. Your copy is attached.\n\n${doc.organization.name}`, attachments: attach })

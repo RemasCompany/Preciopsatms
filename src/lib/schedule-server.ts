@@ -7,6 +7,7 @@ import { sendEmail } from './email';
 import { sendSms } from './sms';
 import { newToken, sha256 } from './tokens';
 import { credentialLabel, credentialStatus } from './credentials';
+import { onboardingGaps } from './onboarding-server';
 import {
   MIN_REST_HOURS, TIME_RE, WEEK_HOURS_BEFORE_OT, addDays, clock, dayLabel, overlaps, reminderNotice, restHours, scheduleNotice,
   spanMinutes, weekDays, weekHours, type NoticeShift, type ShiftTimes,
@@ -68,6 +69,8 @@ export async function shiftWarnings(tdb: TenantDb, orgFeatures: { credentials: b
       if (rest >= 0 && rest < MIN_REST_HOURS && (dates.includes(t[i].date) || dates.includes(t[i - 1].date))) out.push(`Only ${+rest.toFixed(1)} hours off before the ${dayLabel(t[i].date)} shift.`);
     }
   }
+  const gaps = await onboardingGaps(tdb, candidateId);
+  if (gaps) out.push(`Onboarding isn’t finished: ${gaps.left} required step${gaps.left === 1 ? '' : 's'} left (${gaps.packages.join(', ')}).`);
   if (orgFeatures.credentials) {
     const last = [...dates].sort().pop()!;
     const creds = await tdb.credential.findMany({ where: { candidateId } });
