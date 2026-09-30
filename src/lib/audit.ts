@@ -16,6 +16,7 @@ export const AUDIT_ACTIONS = {
   'settings.timeclock': { group: 'Settings', label: 'Time clock settings' },
   'settings.engagement': { group: 'Settings', label: 'Engagement settings' },
   'settings.onboarding': { group: 'Settings', label: 'Onboarding settings' },
+  'settings.accounting': { group: 'Settings', label: 'Accounting connection' },
   'billing.checkout': { group: 'Billing', label: 'Started a plan change' },
   'billing.portal': { group: 'Billing', label: 'Opened billing portal' },
   'billing.payment': { group: 'Billing', label: 'Recorded a client payment' },

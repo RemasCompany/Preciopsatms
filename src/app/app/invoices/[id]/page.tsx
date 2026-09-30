@@ -7,6 +7,8 @@ import { daysOverdue, toCents, usd } from '@/lib/invoicing';
 import { balanceCents, loadInvoice } from '@/lib/invoicing-server';
 import { ymd } from '@/lib/weeks';
 import { InvoiceActions } from '@/components/Invoices';
+import { SyncButton } from '@/components/Accounting';
+import { PROVIDERS, type Provider } from '@/lib/accounting';
 import Gate from '@/components/Gate';
 
 export const dynamic = 'force-dynamic';
@@ -17,6 +19,8 @@ export default async function InvoicePage({ params }: { params: { id: string } }
   if (!hasFeature(ctx.org, 'timesheets')) return <Gate title="Invoices" feature="Client invoicing and receivables" />;
   if (ctx.role !== 'OWNER' && ctx.role !== 'ADMIN') return (<><h1>Invoice</h1><p className="card">Only owners and admins can see invoices.</p></>);
   const inv = await loadInvoice(ctx.tdb, params.id).catch((e) => { if (e instanceof HttpError) notFound(); throw e; });
+  const conn = await ctx.tdb.accountingConnection.findFirst({ orderBy: { connectedAt: 'desc' } });
+  const books = conn ? PROVIDERS[conn.provider as Provider].name : null;
   const bal = balanceCents(inv), today = localDate(new Date(), ctx.org.timezone);
   const od = ['DRAFT', 'SENT', 'PARTIAL'].includes(inv.status) ? daysOverdue(ymd(inv.dueDate), today) : 0;
   const status = inv.status === 'PARTIAL' ? 'Partly paid' : inv.status[0] + inv.status.slice(1).toLowerCase();
@@ -32,6 +36,12 @@ export default async function InvoicePage({ params }: { params: { id: string } }
         <div className="kpi"><b className={od > 0 ? 'warnnum' : undefined}>{inv.status === 'VOID' ? '—' : usd(bal)}</b><span>Balance</span></div>
         <div className="kpi"><b className={od > 0 ? 'warnnum' : undefined}>{fmt(inv.dueDate)}</b><span>Due</span><span className="sub">{od > 0 ? `${od} days past due` : `issued ${fmt(inv.issueDate)}`}</span></div>
       </div>
+      {books && inv.status !== 'VOID' && (
+        <div className="row" style={{ alignItems: 'center', marginBottom: 8 }}>
+          <span className={inv.syncError ? 'warn' : 'muted'}>{inv.syncError ? `Not sent to ${books}: ${inv.syncError}` : inv.syncedAt ? `In ${books} (updated ${inv.syncedAt.toLocaleDateString('en-US')})` : `Not in ${books} yet.`}</span>
+          {canEdit(ctx) && <SyncButton provider={books} invoiceIds={[inv.id]} label={inv.syncedAt ? 'Send new payments' : `Send to ${books}`} />}
+        </div>
+      )}
       {inv.sentAt && <p className="muted">Emailed {inv.sentAt.toLocaleString('en-US', { timeZone: ctx.org.timezone, dateStyle: 'medium', timeStyle: 'short' })} to {inv.sentTo}.</p>}
       {canEdit(ctx) ? (
         <InvoiceActions id={inv.id} number={inv.number} status={inv.status} balance={bal / 100} sentTo={inv.sentTo}

@@ -47,6 +47,7 @@ model Organization {
   payrollCompanyCode   String?   // company code some providers need in imports (e.g. ADP Co Code)
   timezone             String    @default("America/New_York") // IANA zone for time clock days and workweeks
   geofenceMode         String    @default("flag") // off | flag | block: time clock punches outside a job site's geofence
+  everifyEnabled       Boolean   @default(false)  // the company is enrolled in E-Verify: open a case to track for each new hire
   onboardingEnabled    Boolean   @default(true)    // the company can switch onboarding off (e.g. direct-hire only)
   onboardingEnforcement String   @default("warn")  // warn | block: unfinished onboarding blocks scheduling and clock-in
   birthdayGreetings    Boolean   @default(false)   // send workers on assignment a greeting on their birthday
@@ -102,6 +103,9 @@ model Organization {
   openShifts         OpenShift[]
   shiftOffers        ShiftOffer[]
   backgroundChecks   BackgroundCheck[]
+  accountingConnections AccountingConnection[]
+  everifyCases       EVerifyCase[]
+  externalRefs       ExternalRef[]
 }
 
 model User {
@@ -241,6 +245,7 @@ model Candidate {
   @@index([organizationId, email])
   @@index([organizationId, phone])
   backgroundChecks BackgroundCheck[]
+  everifyCases     EVerifyCase[]
 }
 
 enum Stage {
@@ -527,6 +532,8 @@ model Invoice {
   voidReason     String?
   payrollRunId   String?
   createdById    String?
+  syncedAt       DateTime?     // pushed to the connected accounting system
+  syncError      String?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -574,6 +581,61 @@ model Payment {
 
   @@index([organizationId, receivedOn])
   @@index([invoiceId])
+}
+
+/// A connection to QuickBooks Online or Xero. Tokens are encrypted at rest (see secret-box.ts).
+model AccountingConnection {
+  id              String       @id @default(cuid())
+  organizationId  String
+  provider        String       // quickbooks | xero
+  externalTenant  String       // QuickBooks realmId or Xero tenantId
+  tenantName      String?
+  accessTokenEnc  String
+  refreshTokenEnc String
+  expiresAt       DateTime
+  connectedById   String?
+  connectedAt     DateTime     @default(now())
+  lastSyncAt      DateTime?
+  lastError       String?
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, provider])
+}
+
+/// Our record ↔ the accounting system's (customers, invoices, payments), so nothing is pushed twice.
+model ExternalRef {
+  id             String       @id @default(cuid())
+  organizationId String
+  provider       String
+  kind           String       // customer | invoice | payment | item
+  localId        String
+  externalId     String
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, provider, kind, localId])
+}
+
+/// An E-Verify case for a new hire, tracked against the three-business-day deadline. Created in E-Verify itself.
+model EVerifyCase {
+  id             String       @id @default(cuid())
+  organizationId String
+  candidateId    String
+  applicationId  String?
+  startDate      DateTime     @db.Date   // first day of work for pay
+  dueDate        DateTime     @db.Date   // create the case by this day
+  status         String       @default("to_create") // see STATUSES in everify.ts
+  caseNumber     String?
+  notes          String?
+  createdById    String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  closedAt       DateTime?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  candidate      Candidate    @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status, dueDate])
+  @@index([organizationId, candidateId])
 }
 
 /// A background check ordered through a screening provider (Checkr). The candidate enters SSN and consent on the provider's own page.

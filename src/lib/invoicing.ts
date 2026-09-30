@@ -5,8 +5,11 @@ export const toCents = (n: number | string | { toString(): string }) => Math.rou
 export const fromCents = (c: number) => (c / 100).toFixed(2);
 export const usd = (c: number) => (c / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 
+/** Dollars → whole cents, rounding half up without floating-point surprises (3 × 49.995 is 149.985, not 149.98499…). */
+export const cents = (dollars: number) => Math.round(Number((dollars * 100).toPrecision(12)));
+
 /** Regular hours at the bill rate plus overtime at 1.5x, rounded to the cent per line. */
-export const lineCents = (reg: number, ot: number, rate: number) => Math.round(reg * rate * 100) + Math.round(ot * rate * OT_MULTIPLIER * 100);
+export const lineCents = (reg: number, ot: number, rate: number) => cents(reg * rate) + cents(ot * rate * OT_MULTIPLIER);
 
 /** "Net 30" → 30, "Due on receipt" → 0. Unknown wording falls back to 30. */
 export function termsDays(terms: string) {

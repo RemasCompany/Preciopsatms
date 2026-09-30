@@ -78,6 +78,14 @@ On other hosts, call these yourself: `curl -H "Authorization: Bearer $CRON_SECRE
 
 Set `CHECKR_API_KEY` (and `CHECKR_ENV=production` when you go live; anything else uses Checkr's staging sandbox). In the Checkr dashboard, add the webhook URL `https://<your-app>/api/webhooks/checkr`. Recruiters then order checks from the candidate drawer: Checkr emails the candidate to consent and enter SSN and date of birth on Checkr's site (that information never passes through Preciops), status updates arrive by webhook, and a clear report is saved as a verified background-check credential for a year. “Consider” results are flagged for review with a reminder to follow the FCRA adverse-action process.
 
+## Accounting: QuickBooks Online and Xero (optional)
+
+Create an app with Intuit (developer.intuit.com) and/or Xero (developer.xero.com), register the redirect URIs `https://<your-app>/api/integrations/quickbooks/callback` and `.../xero/callback`, and set `QUICKBOOKS_CLIENT_ID`/`QUICKBOOKS_CLIENT_SECRET` (`QUICKBOOKS_ENV=production` for live companies) and/or `XERO_CLIENT_ID`/`XERO_CLIENT_SECRET`. Set `INTEGRATIONS_KEY` (`openssl rand -base64 32`) so stored tokens are encrypted with their own key. An admin then connects from Settings → Accounting and sends invoices from the Invoices page: each worker's regular and overtime hours become separate lines, QuickBooks customers are matched by name (or created), and a "Staffing services" item is created once. Recorded client payments are sent too (for Xero, only when `XERO_BANK_ACCOUNT` is set). Nothing is sent twice.
+
+## E-Verify
+
+Companies enrolled in E-Verify turn on tracking on the E-Verify page. Placing someone then opens a case with its deadline (the third business day after they start work; federal holidays aren't counted out, so the date errs early). Cases are created in E-Verify itself and the case number and result recorded here. Submitting cases directly would require enrolling as an E-Verify Web Services employer agent with DHS.
+
 ## Error monitoring and rate limits (optional)
 
 With `SENTRY_DSN` set, server errors (API 500s, failed scheduled jobs, background tasks that gave up) and browser crashes are sent to Sentry. Emails, phone numbers and private-link tokens are masked, query strings are dropped, and only the user's internal id is attached. Without it, errors go to the server log only.

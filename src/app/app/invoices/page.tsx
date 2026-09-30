@@ -6,6 +6,8 @@ import { BUCKETS, aging, daysOverdue, dso, toCents, usd } from '@/lib/invoicing'
 import { balanceCents } from '@/lib/invoicing-server';
 import { weekEnding, ymd, addWeeks } from '@/lib/weeks';
 import { NewInvoice } from '@/components/Invoices';
+import { SyncButton } from '@/components/Accounting';
+import { PROVIDERS, type Provider } from '@/lib/accounting';
 import Gate from '@/components/Gate';
 
 export const dynamic = 'force-dynamic';
@@ -21,12 +23,15 @@ export default async function Invoices({ searchParams }: { searchParams: { tab?:
   const today = localDate(new Date(), ctx.org.timezone), todayD = new Date(`${today}T00:00:00Z`);
   const since90 = new Date(todayD.getTime() - 90 * 864e5), since30 = new Date(todayD.getTime() - 30 * 864e5);
 
-  const [all, clients, recentTs, payments30] = await Promise.all([
+  const [all, clients, recentTs, payments30, conn] = await Promise.all([
     ctx.tdb.invoice.findMany({ include: { client: { select: { name: true } } }, orderBy: [{ issueDate: 'desc' }, { number: 'desc' }], take: 1000 }),
     ctx.tdb.client.findMany({ select: { id: true, name: true }, orderBy: { name: 'asc' } }),
     ctx.tdb.timesheet.findMany({ where: { status: { in: ['APPROVED', 'PAID'] }, weekEnding: { gte: addWeeks(weekEnding(), -26) } }, select: { id: true, weekEnding: true, regularHours: true, overtimeHours: true, application: { select: { job: { select: { clientId: true } } } } } }),
     ctx.tdb.payment.aggregate({ where: { receivedOn: { gte: since30 } }, _sum: { amount: true } }),
+    ctx.tdb.accountingConnection.findFirst({ orderBy: { connectedAt: 'desc' } }),
   ]);
+  const books = conn ? PROVIDERS[conn.provider as Provider].name : null;
+  const unsynced = all.filter((i) => i.status !== 'VOID' && !i.syncedAt).length;
   const billedIds = new Set((await ctx.tdb.invoiceLine.findMany({ where: { timesheetId: { in: recentTs.map((t) => t.id) }, invoice: { status: { not: 'VOID' } } }, select: { timesheetId: true } })).map((l) => l.timesheetId));
   const unbilledWeeks = new Map<string, Set<string>>();
   for (const t of recentTs) {
@@ -71,6 +76,7 @@ export default async function Invoices({ searchParams }: { searchParams: { tab?:
       <div className="bar" style={{ marginTop: 16 }}>
         <nav className="row" aria-label="Invoice status">{(Object.keys(TABS) as Tab[]).map((t) => <Link key={t} className={`btn ${t === tab ? '' : 'ghost'} sm`} href={`/app/invoices?tab=${t}`} aria-current={t === tab ? 'page' : undefined}>{TABS[t]}</Link>)}</nav>
         <span className="grow" />
+        {canEdit(ctx) && books && unsynced > 0 && <SyncButton provider={books} label={`Send ${unsynced} to ${books}`} />}
         {canEdit(ctx) && <NewInvoice clients={clients.map((c) => ({ ...c, unbilled: unbilledWeeks.get(c.id)?.size ?? 0 }))} defaultFrom={ymd(addWeeks(lastWeek, -3))} defaultTo={ymd(lastWeek)} />}
       </div>
       {shown.length ? (
@@ -79,7 +85,7 @@ export default async function Invoices({ searchParams }: { searchParams: { tab?:
             const od = ['DRAFT', 'SENT', 'PARTIAL'].includes(i.status) ? daysOverdue(ymd(i.dueDate), today) : 0;
             return (
               <tr key={i.id}>
-                <td><Link href={`/app/invoices/${i.id}`}><b>{i.number}</b></Link></td>
+                <td><Link href={`/app/invoices/${i.id}`}><b>{i.number}</b></Link>{books && i.status !== 'VOID' && (i.syncError || i.syncedAt) && <div className={i.syncError ? 'warn' : 'muted'} style={{ fontSize: 12.5 }}>{i.syncError ? `Not in ${books}` : `In ${books}`}</div>}</td>
                 <td>{i.client.name}</td><td>{fmt(i.issueDate)}</td>
                 <td>{fmt(i.dueDate)}{od > 0 && <div className="warn">{od} days past due</div>}</td>
                 <td>{usd(toCents(i.total))}</td><td>{i.status === 'VOID' ? '—' : usd(balanceCents(i))}</td>

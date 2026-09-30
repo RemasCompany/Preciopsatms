@@ -6,6 +6,7 @@ import { REJECTION_REASONS } from '@/lib/pipeline';
 import { hasFeature } from '@/lib/plans';
 import { credentialLabel, placementIssues } from '@/lib/credentials';
 import { onboardingGaps } from '@/lib/onboarding-server';
+import { openCaseForPlacement } from '@/lib/everify-server';
 
 const Body = z.object({ stage: z.nativeEnum(Stage), rejectionReason: z.enum(REJECTION_REASONS).optional() });
 
@@ -29,6 +30,7 @@ export const PATCH = withApi(async (req: Request, { params }: { params: { id: st
       await tdb.job.updateMany({ where: { id: app.jobId }, data: { status: 'FILLED' } });
       await logActivity(org.id, `${app.job.title} is fully filled`, user.id);
     }
+    await openCaseForPlacement(tdb, org, user, app);
     // Placing isn't blocked, but the recruiter is told about credential and onboarding gaps before the person starts.
     const gaps = hasFeature(org, 'onboarding') ? await onboardingGaps(tdb, app.candidateId) : null;
     const gapText = gaps ? `onboarding has ${gaps.left} required step${gaps.left === 1 ? '' : 's'} left` : null;
