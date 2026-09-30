@@ -71,8 +71,9 @@ Create a Messaging Service, then set its **incoming message webhook** to `https:
 Each recruiter, admin and owner gets one email listing credentials that reached 60, 30 or 7 days before expiring, or expired. Each credential is reported once per window, and every email is logged under Messages.
 `/api/cron/shift-reminders` runs every day at 22:00 UTC (late afternoon in the US): each worker with a published shift tomorrow gets one text, or an email if they can't be texted. Declined and cancelled shifts are skipped.
 `/api/cron/engagement` runs every day at 14:00 UTC and sends birthday greetings for companies that turned them on (Engagement page), once a year per worker, honoring opt-outs.
+`/api/cron/reports` runs every day at 12:00 UTC and emails scheduled reports: weekly ones on Mondays (last week) and monthly ones on the 1st (last month), in each company's time zone.
 `/api/cron/tasks` works through the background queue. Large sends (more than 25 people from “Message this list”) are queued; the browser that queued them starts them right away and shows progress, so the scheduled run only finishes work whose browser went away and retries failures (1, 4 and 16 minutes apart, then it gives up and reports the error). Vercel's Hobby plan allows one run a day (`30 3 * * *` in `vercel.json`); on Pro, change it to `*/5 * * * *` so leftovers finish within minutes.
-On other hosts, call these yourself: `curl -H "Authorization: Bearer $CRON_SECRET" https://app.preciopsatms.com/api/cron/credential-alerts` daily (and the same for `/api/cron/shift-reminders` and `/api/cron/engagement`), and `/api/cron/tasks` every 5 minutes.
+On other hosts, call these yourself: `curl -H "Authorization: Bearer $CRON_SECRET" https://app.preciopsatms.com/api/cron/credential-alerts` daily (and the same for `/api/cron/shift-reminders`, `/api/cron/engagement` and `/api/cron/reports`), and `/api/cron/tasks` every 5 minutes.
 
 ## Background checks (Checkr, optional)
 

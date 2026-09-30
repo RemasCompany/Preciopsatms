@@ -12,7 +12,7 @@ import { Suspense } from 'react';
 
 const NAV: [string, [href: string, label: string, feature?: Feature][]][] = [
   ['Recruiting', [['/app', 'Dashboard'], ['/app/pipeline', 'Pipeline'], ['/app/jobs', 'Jobs'], ['/app/candidates', 'Candidates'], ['/app/onboarding', 'Onboarding', 'onboarding'], ['/app/everify', 'E-Verify', 'onboarding'], ['/app/credentials', 'Credentials', 'credentials'], ['/app/schedule', 'Schedule', 'scheduling'], ['/app/timeclock', 'Time clock', 'timeclock'], ['/app/engagement', 'Engagement', 'engagement'], ['/app/referrals', 'Referrals', 'engagement'], ['/app/timesheets', 'Timesheets & payroll', 'timesheets'], ['/app/payroll', 'Payroll runs', 'payrollRuns'], ['/app/invoices', 'Invoices', 'timesheets']]],
-  ['Sales', [['/app/leads', 'Lead generation', 'leads'], ['/app/clients', 'Clients & contacts', 'crm'], ['/app/deals', 'Deals', 'crm'], ['/app/sales', 'Sales metrics', 'crm']]],
+  ['Sales', [['/app/leads', 'Lead generation', 'leads'], ['/app/clients', 'Clients & contacts', 'crm'], ['/app/deals', 'Deals', 'crm'], ['/app/sales', 'Sales metrics', 'crm'], ['/app/reports', 'Reports']]],
   ['Operations', [['/app/vendors', 'Vendors', 'vendors'], ['/app/documents', 'E-signatures', 'esign'], ['/app/eeo', 'EEO reporting', 'eeo'], ['/app/inbox', 'Inbox', 'messaging'], ['/app/tasks', 'Tasks'], ['/app/team', 'Team'], ['/app/settings', 'Settings & data'], ['/app/audit', 'Audit log'], ['/app/billing', 'Billing']]],
 ];
 

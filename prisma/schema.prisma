@@ -111,6 +111,7 @@ model Organization {
   doNotReturns       DoNotReturn[]
   referrals          Referral[]
   branches           Branch[]
+  reportSchedules    ReportSchedule[]
   externalRefs       ExternalRef[]
 }
 
@@ -635,6 +636,22 @@ model ExternalRef {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, provider, kind, localId])
+}
+
+/// A standard report emailed on a schedule (as CSV) to chosen teammates.
+model ReportSchedule {
+  id             String       @id @default(cuid())
+  organizationId String
+  report         String       // key in REPORTS
+  frequency      String       // weekly (Mondays, last week) | monthly (the 1st, last month)
+  userIds        String[]     // teammates who get it
+  branchId       String?
+  lastSentOn     String?      // YYYY-MM-DD (company time) of the last send, so a day is never sent twice
+  createdById    String?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
 }
 
 /// An office or location of the staffing company. Jobs, candidates and team members can belong to one.
