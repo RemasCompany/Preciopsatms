@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { checkFence, fenceOf, howFar, type FenceResult } from './geo';
 import { Prisma, type Organization, type User } from '@prisma/client';
 import { HttpError, tenantDb, logActivity, type TenantDb } from './tenant';
 import { newToken, sha256 } from './tokens';
@@ -46,12 +47,13 @@ export async function punch(link: { organizationId: string; candidateId: string;
     if (hasFeature(link.organization, 'onboarding') && link.organization.onboardingEnforcement === 'block' && await onboardingGaps(tdb, link.candidateId)) {
       throw new HttpError(409, 'Finish your new-hire steps before clocking in. If you’re stuck, contact your recruiter.');
     }
+    const fence = await siteCheck(tdb, link.organization, app.jobId, geo);
     const shift = await matchShift(tdb, app.id, now, tz);
-    const e = await tdb.timeEntry.create({ data: { applicationId: app.id, shiftId: shift?.id ?? null, clockIn: now, inLat: geo?.lat, inLng: geo?.lng, inAccuracy: geo?.accuracy } as never });
+    const e = await tdb.timeEntry.create({ data: { applicationId: app.id, shiftId: shift?.id ?? null, clockIn: now, inLat: geo?.lat, inLng: geo?.lng, inAccuracy: geo?.accuracy, inDistanceM: fence.distanceM, offSite: fence.outside } as never });
     // A double tap can race past the check above; keep only the first open entry.
     const opens = await tdb.timeEntry.findMany({ where: { clockOut: null, application: { candidateId: link.candidateId } }, orderBy: [{ clockIn: 'asc' }, { createdAt: 'asc' }], select: { id: true } });
     if (opens.length > 1 && opens[0].id !== e.id) { await tdb.timeEntry.deleteMany({ where: { id: e.id } }); throw new HttpError(409, 'You’re already clocked in.'); }
-    await logActivity(link.organizationId, `${link.candidate.name} clocked in (${app.job.title}) at ${localTime(now, tz)}`);
+    await logActivity(link.organizationId, `${link.candidate.name} clocked in (${app.job.title}) at ${localTime(now, tz)}${offSiteNote(fence)}`);
     return { entryId: e.id, message: `Clocked in at ${fmtTime(now, tz)}.` };
   }
   if (!open) throw new HttpError(409, 'You’re not clocked in.');
@@ -66,12 +68,29 @@ export async function punch(link: { organizationId: string; candidateId: string;
     await tdb.timeEntry.updateMany({ where: { id: open.id, clockOut: null }, data: { breakStartedAt: null, breakMinutes: open.breakMinutes + breakAdd } });
     return { entryId: open.id, message: `Back from a ${breakAdd}-minute break.` };
   }
-  await tdb.timeEntry.updateMany({ where: { id: open.id, clockOut: null }, data: { clockOut: now, breakStartedAt: null, breakMinutes: open.breakMinutes + breakAdd, outLat: geo?.lat, outLng: geo?.lng, outAccuracy: geo?.accuracy } });
+  const outFence = await siteCheck(tdb, link.organization, (await tdb.application.findFirst({ where: { id: open.applicationId }, select: { jobId: true } }))!.jobId, geo, true);
+  await tdb.timeEntry.updateMany({ where: { id: open.id, clockOut: null }, data: { clockOut: now, breakStartedAt: null, breakMinutes: open.breakMinutes + breakAdd, outLat: geo?.lat, outLng: geo?.lng, outAccuracy: geo?.accuracy, outDistanceM: outFence.distanceM, ...(outFence.outside ? { offSite: true } : {}) } });
   const worked = workedMinutes({ clockIn: open.clockIn, clockOut: now, breakMinutes: open.breakMinutes + breakAdd });
   const long = (now.getTime() - open.clockIn.getTime()) / 3600e3 > MAX_OPEN_HOURS;
-  await logActivity(link.organizationId, `${link.candidate.name} clocked out at ${localTime(now, tz)} (${(worked / 60).toFixed(2)} h)${long ? ' — check this entry, it ran over 16 hours' : ''}`);
+  await logActivity(link.organizationId, `${link.candidate.name} clocked out at ${localTime(now, tz)} (${(worked / 60).toFixed(2)} h)${long ? ' — check this entry, it ran over 16 hours' : ''}${offSiteNote(outFence)}`);
   return { entryId: open.id, message: `Clocked out at ${fmtTime(now, tz)}. You worked ${Math.floor(worked / 60)}h ${Math.round(worked % 60)}m.${long ? ' That’s a long shift — your recruiter will check it.' : ''}` };
 }
+/**
+ * Checks a punch against the job site's geofence. In block mode an off-site (or location-less) punch is refused;
+ * in flag mode it's saved and marked for review. Clocking out is never blocked — people must be able to stop the clock.
+ */
+async function siteCheck(tdb: TenantDb, org: Organization, jobId: string, geo: { lat: number; lng: number; accuracy?: number } | undefined, clockOut = false): Promise<FenceResult> {
+  if (org.geofenceMode === 'off') return { distanceM: null, outside: false, reason: 'no-site' };
+  const job = await tdb.job.findFirst({ where: { id: jobId }, select: { siteLat: true, siteLng: true, geofenceMeters: true } });
+  const r = checkFence(job ? fenceOf(job) : null, geo);
+  if (r.outside && org.geofenceMode === 'block' && !clockOut) {
+    throw new HttpError(403, r.reason === 'no-location'
+      ? 'Allow location for this page to clock in — your company checks that you’re at the job site.'
+      : `You’re about ${howFar(r.distanceM!)} from the job site. Clock in when you get there, or contact your recruiter.`);
+  }
+  return r;
+}
+const offSiteNote = (r: FenceResult) => (!r.outside ? '' : r.reason === 'no-location' ? ' — no location shared' : ` — ${howFar(r.distanceM!)} from the site`);
 const fmtTime = (d: Date, tz: string) => d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: tz });
 
 /** What the worker's page shows: assignments, the open entry and the last week of punches. */

@@ -46,6 +46,7 @@ model Organization {
   payrollProvider      String?   // adp | paychex | quickbooks | gusto | csv: default export format
   payrollCompanyCode   String?   // company code some providers need in imports (e.g. ADP Co Code)
   timezone             String    @default("America/New_York") // IANA zone for time clock days and workweeks
+  geofenceMode         String    @default("flag") // off | flag | block: time clock punches outside a job site's geofence
   onboardingEnabled    Boolean   @default(true)    // the company can switch onboarding off (e.g. direct-hire only)
   onboardingEnforcement String   @default("warn")  // warn | block: unfinished onboarding blocks scheduling and clock-in
   birthdayGreetings    Boolean   @default(false)   // send workers on assignment a greeting on their birthday
@@ -198,6 +199,9 @@ model Job {
 
   @@index([organizationId, status])
   openShifts     OpenShift[]
+  siteLat        Float?         // job site, for time clock geofencing
+  siteLng        Float?
+  geofenceMeters Int?
 }
 
 model Candidate {
@@ -883,6 +887,9 @@ model TimeEntry {
   outLat           Float?
   outLng           Float?
   outAccuracy      Float?
+  inDistanceM      Int?      // metres from the job site at clock-in (when the job has a site)
+  outDistanceM     Int?
+  offSite          Boolean   @default(false) // a punch was outside the geofence or had no location
   note             String?
   originalClockIn  DateTime?
   originalClockOut DateTime?

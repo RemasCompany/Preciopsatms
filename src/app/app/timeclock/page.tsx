@@ -7,6 +7,8 @@ import { weekRange } from '@/lib/timeclock-server';
 import { TIMEZONES, entryFlags, localDate, localTime, splitWeek, weekEndingOf, workedMinutes, type Entry } from '@/lib/timeclock';
 import TimeclockBoard, { type TcWorker } from '@/components/TimeclockBoard';
 import Gate from '@/components/Gate';
+import JobSites from '@/components/JobSites';
+import { DEFAULT_RADIUS_M, howFar } from '@/lib/geo';
 
 export const dynamic = 'force-dynamic';
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
@@ -54,6 +56,8 @@ export default async function Timeclock({ searchParams }: { searchParams: { week
       editReason: r.editReason, original: r.originalClockIn ? `${localTime(r.originalClockIn, tz)}–${r.originalClockOut ? localTime(r.originalClockOut, tz) : 'open'}` : null,
       inGeo: r.inLat != null && r.inLng != null ? { lat: r.inLat, lng: r.inLng, acc: r.inAccuracy } : null,
       outGeo: r.outLat != null && r.outLng != null ? { lat: r.outLat, lng: r.outLng, acc: r.outAccuracy } : null,
+      offSite: !r.offSite ? null : [r.inDistanceM, r.outDistanceM].some((d) => d != null)
+        ? `${howFar(Math.max(r.inDistanceM ?? 0, r.outDistanceM ?? 0))} from the site` : 'no location shared',
     });
   }
   for (const s of split) {
@@ -61,6 +65,8 @@ export default async function Timeclock({ searchParams }: { searchParams: { week
     if (w) { w.regular += s.regularHours; w.overtime += s.overtimeHours; }
   }
   const workers = [...people.values()];
+  const siteJobs = await ctx.tdb.job.findMany({ where: { applications: { some: assignmentWhere } }, orderBy: { title: 'asc' },
+    select: { id: true, title: true, location: true, siteLat: true, siteLng: true, geofenceMeters: true, client: { select: { name: true } } } });
   const total = workers.reduce((n, w) => n + w.regular + w.overtime, 0);
 
   return (
@@ -84,6 +90,8 @@ export default async function Timeclock({ searchParams }: { searchParams: { week
       </div>
       <TimeclockBoard week={week} workers={workers} totalHours={total} canEdit={canEdit(ctx)} isAdmin={ctx.role === 'OWNER' || ctx.role === 'ADMIN'}
         timesheets={hasFeature(ctx.org, 'timesheets')} timezone={tz} timezoneLabel={TIMEZONES.find(([z]) => z === tz)?.[1] ?? tz} />
+      <JobSites mode={ctx.org.geofenceMode} canEdit={canEdit(ctx)} isAdmin={ctx.role === 'OWNER' || ctx.role === 'ADMIN'} defaultRadius={DEFAULT_RADIUS_M}
+        jobs={siteJobs.map((j) => ({ id: j.id, label: [j.title, j.client?.name].filter(Boolean).join(' — '), address: j.location, lat: j.siteLat, lng: j.siteLng, radius: j.geofenceMeters }))} />
     </>
   );
 }

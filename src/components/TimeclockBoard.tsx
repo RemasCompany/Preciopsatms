@@ -10,6 +10,7 @@ export type TcEntry = {
   id: string; applicationId: string; job: string; inDate: string; inTime: string; outDate: string | null; outTime: string | null;
   breakMinutes: number; minutes: number; open: boolean; flags: { level: 'warn' | 'info'; text: string }[];
   editReason: string | null; original: string | null; inGeo: Geo; outGeo: Geo;
+  offSite?: string | null; // e.g. "1.2 miles from the site" or "no location shared"
 };
 export type TcWorker = {
   candidateId: string; name: string; canText: boolean; canEmail: boolean; apps: { id: string; label: string }[];
@@ -91,7 +92,7 @@ export default function TimeclockBoard({ week, workers, totalHours, canEdit, isA
                   <td>{e.open ? <span className="pill g">On the clock</span> : <>{clock(e.outTime)}{e.outDate && e.outDate !== e.inDate && <span className="muted"> (+1 day)</span>}</>}{e.outGeo && <div><a className="muted" href={map(e.outGeo)} target="_blank" rel="noopener noreferrer">location</a></div>}</td>
                   <td>{e.breakMinutes ? `${e.breakMinutes} min` : '—'}</td>
                   <td><b>{hm(e.minutes)}</b></td>
-                  <td><div className="tcflags">{e.flags.map((f) => <span key={f.text} className={`pill ${f.level === 'warn' ? 'r' : ''}`}>{f.text}</span>)}</div>
+                  <td><div className="tcflags">{e.offSite && <span className="pill r" title="Outside the job site’s geofence">Off site: {e.offSite}</span>}{e.flags.map((f) => <span key={f.text} className={`pill ${f.level === 'warn' ? 'r' : ''}`}>{f.text}</span>)}</div>
                     {e.editReason && <div className="muted" style={{ fontSize: 12.5 }}>“{e.editReason}”{e.original ? ` · was ${e.original}` : ''}</div>}</td>
                   {canEdit && <td><button className="btn ghost sm" disabled={w.locked} onClick={() => edit(e)}>Edit</button></td>}
                 </tr>
