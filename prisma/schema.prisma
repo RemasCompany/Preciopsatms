@@ -46,6 +46,8 @@ model Organization {
   payrollProvider      String?   // adp | paychex | quickbooks | gusto | csv: default export format
   payrollCompanyCode   String?   // company code some providers need in imports (e.g. ADP Co Code)
   timezone             String    @default("America/New_York") // IANA zone for time clock days and workweeks
+  onboardingEnabled    Boolean   @default(true)    // the company can switch onboarding off (e.g. direct-hire only)
+  onboardingEnforcement String   @default("warn")  // warn | block: unfinished onboarding blocks scheduling and clock-in
   // Billing
   plan                 PlanId    @default(starter)
   stripeCustomerId     String?   @unique
@@ -263,6 +265,8 @@ model Client {
   markupPct      Decimal?     @db.Decimal(5, 2)
   msaSignedAt    DateTime?
   paymentTerms   String       @default("Net 30")
+  onboardingMode      String   @default("ask") // ask (recruiter picks) | package (always onboardingPackageId) | none (not required)
+  onboardingPackageId String?
   notes          String?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt

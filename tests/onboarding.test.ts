@@ -206,3 +206,49 @@ describe('a new hire’s onboarding', () => {
     expect((await db.signDocument.findFirst({ where: { organizationId: org, relatedId: c.id } }))!.status).toBe('VOID');
   });
 });
+
+describe('each company chooses', () => {
+  it('can turn onboarding off (and back on) — only admins', async () => {
+    const { PATCH } = await import('@/app/api/onboarding/settings/route');
+    as(rec);
+    expect((await PATCH(req('PATCH', { enabled: false, enforcement: 'warn' }))).status).toBe(403);
+    as(admin);
+    expect((await PATCH(req('PATCH', { enabled: false, enforcement: 'warn' }))).status).toBe(200);
+    const off = await START(req('POST', { applicationId: app, packageId: pkgId }));
+    expect([off.status, (await off.json()).error]).toEqual([403, 'Onboarding is turned off for your company. An admin can turn it on in Settings & data.']);
+    expect((await (await PAGE(req('GET'), t())).json()).onboarding).toEqual([]);
+    expect((await PATCH(req('PATCH', { enabled: true, enforcement: 'block' }))).status).toBe(200);
+  });
+
+  it('in block mode, unfinished onboarding stops scheduling and clock-in', async () => {
+    as(rec);
+    const c = await db.candidate.create({ data: { organizationId: org, name: 'Not Ready', phone: '5125550177' } });
+    const a = await db.application.create({ data: { organizationId: org, candidateId: c.id, jobId: job, stage: 'PLACED' } });
+    await START(req('POST', { applicationId: a.id, packageId: pkgId, startDate: '2026-10-05' }));
+    const s = await ADD_SHIFT(req('POST', { applicationId: a.id, dates: ['2026-10-06'], start: '07:00', end: '19:00', breakMinutes: 30 }));
+    expect([s.status, (await s.json()).error]).toEqual([409, 'Not Ready can’t be scheduled until onboarding is finished (5 required steps left).']);
+    const { newToken, sha256 } = await import('@/lib/tokens');
+    const tok = newToken();
+    await db.workerLink.create({ data: { organizationId: org, candidateId: c.id, tokenHash: sha256(tok), kind: 'timeclock', expiresAt: new Date(Date.now() + 864e5) } });
+    const { POST: PUNCH } = await import('@/app/api/public/clock/[token]/route');
+    const pr = await PUNCH(req('POST', { action: 'in', applicationId: a.id }), t(tok));
+    expect([pr.status, (await pr.json()).error]).toEqual([409, 'Finish your new-hire steps before clocking in. If you’re stuck, contact your recruiter.']);
+    // Maria finished, so she can still be scheduled.
+    expect((await ADD_SHIFT(req('POST', { applicationId: app, dates: ['2026-10-07'], start: '07:00', end: '19:00', breakMinutes: 30 }))).status).toBe(201);
+  });
+
+  it('sets onboarding per client', async () => {
+    const { PATCH } = await import('@/app/api/onboarding/client-defaults/route');
+    const client = (await db.client.findFirst({ where: { organizationId: org } }))!;
+    as(rec);
+    expect((await PATCH(req('PATCH', { clientId: client.id, mode: 'none' }))).status).toBe(403);
+    as(admin);
+    expect((await (await PATCH(req('PATCH', { clientId: client.id, mode: 'package' }))).json()).error).toBe('Choose the package this client always uses.');
+    expect((await PATCH(req('PATCH', { clientId: client.id, mode: 'package', packageId: pkgId }))).status).toBe(200);
+    expect(await db.client.findUnique({ where: { id: client.id } })).toMatchObject({ onboardingMode: 'package', onboardingPackageId: pkgId });
+    expect((await PATCH(req('PATCH', { clientId: client.id, mode: 'none', packageId: pkgId }))).status).toBe(200);
+    expect(await db.client.findUnique({ where: { id: client.id } })).toMatchObject({ onboardingMode: 'none', onboardingPackageId: null });
+    as(outsider, other);
+    expect((await PATCH(req('PATCH', { clientId: client.id, mode: 'ask' }))).status).toBe(404);
+  });
+});

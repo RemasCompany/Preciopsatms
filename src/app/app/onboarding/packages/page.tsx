@@ -1,17 +1,20 @@
 import Link from 'next/link';
 import { requirePageContext, canEdit } from '@/lib/tenant';
-import { hasFeature } from '@/lib/plans';
+import { hasFeature, planIncludes } from '@/lib/plans';
 import { STARTER_PACKAGES, type StepDef } from '@/lib/onboarding';
 import { CREDENTIAL_TYPE_NAMES } from '@/lib/credentials';
-import { PackageEditor, AddStarter } from '@/components/Onboarding';
+import { PackageEditor, AddStarter, ClientDefaults } from '@/components/Onboarding';
 import Gate from '@/components/Gate';
 
 export const dynamic = 'force-dynamic';
 
 export default async function Packages() {
   const ctx = await requirePageContext();
-  if (!hasFeature(ctx.org, 'onboarding')) return <Gate title="Onboarding packages" feature="New-hire onboarding" />;
-  const packages = await ctx.tdb.onboardingPackage.findMany({ where: { archived: false }, orderBy: { name: 'asc' } });
+  if (!hasFeature(ctx.org, 'onboarding')) return <Gate title="Onboarding packages" feature="New-hire onboarding" off={planIncludes(ctx.org, 'onboarding')} />;
+  const [packages, clients] = await Promise.all([
+    ctx.tdb.onboardingPackage.findMany({ where: { archived: false }, orderBy: { name: 'asc' } }),
+    ctx.tdb.client.findMany({ where: { status: { not: 'Inactive' } }, select: { id: true, name: true, onboardingMode: true, onboardingPackageId: true }, orderBy: { name: 'asc' } }),
+  ]);
   const admin = (ctx.role === 'OWNER' || ctx.role === 'ADMIN') && canEdit(ctx);
   const have = new Set(packages.map((p) => p.name));
   return (
@@ -38,7 +41,9 @@ export default async function Packages() {
             </ol>
           </section>
         );
-      }) : <div className="card empty"><b>No packages yet</b>{admin ? 'Add a starter package above and adjust it, or build your own.' : 'Ask an admin to set up onboarding packages.'}</div>}
+      }) : null}
+      {admin && packages.length > 0 && <ClientDefaults packages={packages.map((p) => ({ id: p.id, name: p.name }))} clients={clients.map((c) => ({ id: c.id, name: c.name, mode: c.onboardingMode, packageId: c.onboardingPackageId }))} />}
+      {!packages.length && <div className="card empty"><b>No packages yet</b>{admin ? 'Add a starter package above and adjust it, or build your own.' : 'Ask an admin to set up onboarding packages.'}</div>}
     </>
   );
 }

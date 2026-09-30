@@ -13,11 +13,11 @@ async function api(url: string, method: string, body?: unknown) {
 }
 const fmt = (s: string) => new Date(s.length === 10 ? `${s}T00:00:00Z` : s).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: s.length === 10 ? 'UTC' : undefined });
 
-export function StartOnboarding({ packages, eligible }: { packages: { id: string; name: string }[]; eligible: { id: string; label: string; startDate: string }[] }) {
+export function StartOnboarding({ packages, eligible, hidden = 0 }: { packages: { id: string; name: string }[]; eligible: { id: string; label: string; startDate: string; packageId: string | null }[]; hidden?: number }) {
   const router = useRouter();
   const { toast } = useRecords();
   const [app, setApp] = useState(eligible[0]?.id ?? '');
-  const [pkg, setPkg] = useState(packages[0]?.id ?? '');
+  const [pkg, setPkg] = useState(eligible[0]?.packageId ?? packages[0]?.id ?? '');
   const [start, setStart] = useState(eligible[0]?.startDate ?? '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -31,10 +31,12 @@ export function StartOnboarding({ packages, eligible }: { packages: { id: string
     <div className="card">
       <h2 style={{ marginTop: 0, fontSize: 18 }}>Start onboarding</h2>
       <div className="form payform">
-        <label><span>New hire</span><select value={app} onChange={(e) => { setApp(e.target.value); setStart(eligible.find((x) => x.id === e.target.value)?.startDate ?? ''); }}>{eligible.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}</select></label>
+        <label><span>New hire</span><select value={app} onChange={(e) => { const x = eligible.find((y) => y.id === e.target.value); setApp(e.target.value); setStart(x?.startDate ?? ''); if (x?.packageId) setPkg(x.packageId); }}>{eligible.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}</select></label>
         <label><span>Package</span><select value={pkg} onChange={(e) => setPkg(e.target.value)}>{packages.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
         <label><span>First day of work</span><input type="date" value={start} onChange={(e) => setStart(e.target.value)} /></label>
       </div>
+      {eligible.find((x) => x.id === app)?.packageId && <p className="muted" style={{ fontSize: 13 }}>This client always uses this package.</p>}
+      {hidden > 0 && <p className="muted" style={{ fontSize: 13 }}>{hidden} hire{hidden === 1 ? '' : 's'} at clients that don’t require onboarding aren’t listed.</p>}
       {error && <p className="error" role="alert">{error}</p>}
       <button className="btn" onClick={go} disabled={busy || !app || !pkg}>{busy ? 'Starting…' : 'Start onboarding'}</button>
     </div>
@@ -247,4 +249,65 @@ export function PackageEditor({ pkg, credentialTypes }: { pkg?: { id: string; na
       </Drawer>
     )}
   </>;
+}
+
+/** Settings & data card: the company decides whether to use onboarding and how strict it is. */
+export function OnboardingSettings({ enabled, enforcement, readOnly }: { enabled: boolean; enforcement: string; readOnly: boolean }) {
+  const router = useRouter();
+  const { toast } = useRecords();
+  const [on, setOn] = useState(enabled);
+  const [mode, setMode] = useState(enforcement === 'block' ? 'block' : 'warn');
+  const [busy, setBusy] = useState(false);
+  async function save() {
+    setBusy(true);
+    try { await api('/api/onboarding/settings', 'PATCH', { enabled: on, enforcement: mode }); toast(on ? 'Onboarding settings saved.' : 'Onboarding turned off. Your records are kept.'); router.refresh(); }
+    catch (e) { toast((e as Error).message, true); } finally { setBusy(false); }
+  }
+  const changed = on !== enabled || mode !== (enforcement === 'block' ? 'block' : 'warn');
+  return (
+    <section className="card">
+      <h2 style={{ marginTop: 0 }}>New-hire onboarding</h2>
+      <p className="muted" style={{ marginTop: 0 }}>Choose whether your company uses onboarding. Direct-hire and search firms, whose clients onboard the people they hire, can turn it off. Choose per client on the <a href="/app/onboarding/packages">Packages</a> page.</p>
+      <label className="check"><input type="checkbox" checked={on} disabled={readOnly} onChange={(e) => setOn(e.target.checked)} /> Use onboarding for new hires</label>
+      {on && (
+        <fieldset className="days" style={{ flexDirection: 'column', gap: 6 }}><legend>When a new hire hasn’t finished onboarding</legend>
+          <label className="check"><input type="radio" name="enf" checked={mode === 'warn'} disabled={readOnly} onChange={() => setMode('warn')} /> Warn when they’re placed or scheduled (recommended)</label>
+          <label className="check"><input type="radio" name="enf" checked={mode === 'block'} disabled={readOnly} onChange={() => setMode('block')} /> Block scheduling and clock-in until every required step is done</label>
+        </fieldset>
+      )}
+      {!readOnly && <button className="btn ghost" onClick={save} disabled={busy || !changed}>Save</button>}
+    </section>
+  );
+}
+
+/** Per client: recruiter chooses, always one package, or not required. */
+export function ClientDefaults({ clients, packages }: { clients: { id: string; name: string; mode: string; packageId: string | null }[]; packages: { id: string; name: string }[] }) {
+  const router = useRouter();
+  const { toast } = useRecords();
+  const [busy, setBusy] = useState<string | null>(null);
+  async function set(clientId: string, value: string) {
+    const [mode, packageId] = value.startsWith('pkg:') ? ['package', value.slice(4)] : [value, null];
+    setBusy(clientId);
+    try { await api('/api/onboarding/client-defaults', 'PATCH', { clientId, mode, packageId }); toast('Saved.'); router.refresh(); }
+    catch (e) { toast((e as Error).message, true); } finally { setBusy(null); }
+  }
+  if (!clients.length) return null;
+  return (
+    <section className="card">
+      <h2 style={{ marginTop: 0, fontSize: 18 }}>By client</h2>
+      <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>Pick what each client needs. “Not required” hides that client’s hires from Start onboarding; a set package is chosen for recruiters automatically.</p>
+      <div className="tablewrap"><table>
+        <thead><tr><th>Client</th><th>Onboarding</th></tr></thead>
+        <tbody>{clients.map((c) => (
+          <tr key={c.id}><td><b>{c.name}</b></td><td>
+            <select aria-label={`Onboarding for ${c.name}`} disabled={busy === c.id} value={c.mode === 'package' && c.packageId ? `pkg:${c.packageId}` : c.mode === 'none' ? 'none' : 'ask'} onChange={(e) => set(c.id, e.target.value)}>
+              <option value="ask">Recruiter chooses each time</option>
+              {packages.map((p) => <option key={p.id} value={`pkg:${p.id}`}>Always use “{p.name}”</option>)}
+              <option value="none">Not required for this client</option>
+            </select>
+          </td></tr>
+        ))}</tbody>
+      </table></div>
+    </section>
+  );
 }

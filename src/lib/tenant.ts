@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import { Prisma, type Role } from '@prisma/client';
 import { authOptions } from './auth';
 import { db } from './db';
-import { hasFeature, type Feature } from './plans';
+import { hasFeature, planIncludes, type Feature } from './plans';
 
 // Models that carry organizationId. Every query through tenantDb() is forced into the caller's org.
 const TENANT_MODELS = new Set<string>([
@@ -59,7 +59,10 @@ export async function requireApiContext(opts: { minRole?: Role; feature?: Featur
   const ctx = await loadContext(session.user.id, session.user.orgId);
   if (!ctx) throw new HttpError(401, 'Sign in required');
   if (RANK[ctx.role] < RANK[opts.minRole ?? 'VIEWER']) throw new HttpError(403, 'Your role does not allow this');
-  if (opts.feature && !hasFeature(ctx.org, opts.feature)) throw new HttpError(402, 'This feature is not included in your plan');
+  if (opts.feature && !hasFeature(ctx.org, opts.feature)) {
+    if (planIncludes(ctx.org, opts.feature)) throw new HttpError(403, 'Onboarding is turned off for your company. An admin can turn it on in Settings & data.');
+    throw new HttpError(402, 'This feature is not included in your plan');
+  }
   if (opts.write && !['trialing', 'active'].includes(ctx.org.subscriptionStatus)) throw new HttpError(402, 'Your subscription is inactive. Update billing to make changes.');
   return ctx;
 }

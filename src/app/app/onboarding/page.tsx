@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { requirePageContext, canEdit } from '@/lib/tenant';
-import { hasFeature } from '@/lib/plans';
+import { hasFeature, planIncludes } from '@/lib/plans';
 import { i9Due, progress } from '@/lib/onboarding';
 import { verifiedTypes } from '@/lib/onboarding-server';
 import { StartOnboarding } from '@/components/Onboarding';
@@ -12,7 +12,7 @@ const fmt = (s: string) => new Date(`${s}T00:00:00Z`).toLocaleDateString('en-US'
 
 export default async function Onboarding({ searchParams }: { searchParams: { show?: string } }) {
   const ctx = await requirePageContext();
-  if (!hasFeature(ctx.org, 'onboarding')) return <Gate title="Onboarding" feature="New-hire onboarding" />;
+  if (!hasFeature(ctx.org, 'onboarding')) return <Gate title="Onboarding" feature="New-hire onboarding" off={planIncludes(ctx.org, 'onboarding')} />;
   const show = searchParams.show === 'done' ? 'done' : 'active';
   const [obs, packages, eligible] = await Promise.all([
     ctx.tdb.onboarding.findMany({
@@ -23,7 +23,7 @@ export default async function Onboarding({ searchParams }: { searchParams: { sho
     ctx.tdb.onboardingPackage.findMany({ where: { archived: false }, select: { id: true, name: true }, orderBy: { name: 'asc' } }),
     ctx.tdb.application.findMany({
       where: { stage: { in: ['OFFER', 'PLACED'] }, onboardings: { none: { status: { not: 'CANCELLED' } } } },
-      include: { candidate: { select: { name: true } }, job: { select: { title: true, startDate: true, client: { select: { name: true } } } } }, orderBy: { stageChangedAt: 'desc' }, take: 200,
+      include: { candidate: { select: { name: true } }, job: { select: { title: true, startDate: true, client: { select: { name: true, onboardingMode: true, onboardingPackageId: true } } } } }, orderBy: { stageChangedAt: 'desc' }, take: 200,
     }),
   ]);
   const today = ymd(new Date());
@@ -44,8 +44,9 @@ export default async function Onboarding({ searchParams }: { searchParams: { sho
         <Link className="btn ghost" href="/app/onboarding/packages">Packages ({packages.length})</Link>
       </div>
       {canEdit(ctx) && show === 'active' && (
-        <StartOnboarding packages={packages}
-          eligible={eligible.map((a) => ({ id: a.id, label: `${a.candidate.name} — ${[a.job.title, a.job.client?.name].filter(Boolean).join(', ')} (${a.stage === 'OFFER' ? 'offer' : 'placed'})`, startDate: a.job.startDate ? ymd(a.job.startDate) : '' }))} />
+        <StartOnboarding packages={packages} hidden={eligible.filter((a) => a.job.client?.onboardingMode === 'none').length}
+          eligible={eligible.filter((a) => a.job.client?.onboardingMode !== 'none').map((a) => ({ id: a.id, label: `${a.candidate.name} — ${[a.job.title, a.job.client?.name].filter(Boolean).join(', ')} (${a.stage === 'OFFER' ? 'offer' : 'placed'})`, startDate: a.job.startDate ? ymd(a.job.startDate) : '',
+            packageId: a.job.client?.onboardingMode === 'package' && packages.some((p) => p.id === a.job.client?.onboardingPackageId) ? a.job.client.onboardingPackageId : null }))} />
       )}
       {rows.length ? (
         <div className="tablewrap"><table>

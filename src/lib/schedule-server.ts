@@ -55,7 +55,7 @@ export async function assertNoOverlap(tdb: TenantDb, candidateId: string, shifts
 }
 
 /** Things worth a second look but not blocking: overtime, short turnarounds, credentials that won't be valid on the day. */
-export async function shiftWarnings(tdb: TenantDb, orgFeatures: { credentials: boolean }, candidateId: string, dates: string[]) {
+export async function shiftWarnings(tdb: TenantDb, orgFeatures: { credentials: boolean; onboarding?: boolean }, candidateId: string, dates: string[]) {
   const out: string[] = [];
   const weeks = [...new Set(dates.map((d) => { const x = day(d); x.setUTCDate(x.getUTCDate() + ((7 - x.getUTCDay()) % 7)); return ymd(x); }))];
   for (const w of weeks) {
@@ -69,7 +69,7 @@ export async function shiftWarnings(tdb: TenantDb, orgFeatures: { credentials: b
       if (rest >= 0 && rest < MIN_REST_HOURS && (dates.includes(t[i].date) || dates.includes(t[i - 1].date))) out.push(`Only ${+rest.toFixed(1)} hours off before the ${dayLabel(t[i].date)} shift.`);
     }
   }
-  const gaps = await onboardingGaps(tdb, candidateId);
+  const gaps = orgFeatures.onboarding ? await onboardingGaps(tdb, candidateId) : null;
   if (gaps) out.push(`Onboarding isn’t finished: ${gaps.left} required step${gaps.left === 1 ? '' : 's'} left (${gaps.packages.join(', ')}).`);
   if (orgFeatures.credentials) {
     const last = [...dates].sort().pop()!;

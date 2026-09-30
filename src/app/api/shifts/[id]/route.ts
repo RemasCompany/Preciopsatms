@@ -24,7 +24,7 @@ export const PATCH = withApi(async (req: Request, { params }: Ctx) => {
     // A changed shift must be re-sent and re-confirmed.
     ...(changed ? { notified: false, remindedAt: null, ...(changedTimes ? { response: 'PENDING' as const, respondedAt: null, declineReason: null } : {}) } : {}),
   } });
-  return Response.json({ ok: true, needsNotice: changed && !!s.notifiedAt, warnings: await shiftWarnings(tdb, { credentials: hasFeature(org, 'credentials') }, s.application.candidateId, [next.date]) });
+  return Response.json({ ok: true, needsNotice: changed && !!s.notifiedAt, warnings: await shiftWarnings(tdb, { credentials: hasFeature(org, 'credentials'), onboarding: hasFeature(org, 'onboarding') }, s.application.candidateId, [next.date]) });
 });
 
 /** Remove a shift. One the worker never heard about is deleted; one they were told about becomes a cancellation to send. */

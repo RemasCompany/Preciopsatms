@@ -3,6 +3,8 @@ import SettingsForm from '@/components/SettingsForm';
 import DataTools from '@/components/DataTools';
 import JobBoards from '@/components/JobBoards';
 import { feedWarnings } from '@/lib/job-boards';
+import { planIncludes } from '@/lib/plans';
+import { OnboardingSettings } from '@/components/Onboarding';
 
 export default async function Settings() {
   const ctx = await requirePageContext();
@@ -35,6 +37,7 @@ export default async function Settings() {
         <p className="muted">The page and widget update automatically as jobs open and close. Uncheck “Show on careers page” on a job to keep it internal.</p>
       </section>
       <JobBoards base={base} slug={org.slug} readOnly={!admin} indeed={{ apiToken: org.indeedApplyApiToken, hasSecret: !!org.indeedApplySecret }} warnings={warnings} />
+      {planIncludes(org, 'onboarding') && <OnboardingSettings enabled={org.onboardingEnabled} enforcement={org.onboardingEnforcement} readOnly={!admin} />}
       <DataTools canImport={canEdit(ctx) && role !== 'VIEWER'} owner={role === 'OWNER'} />
     </>
   );

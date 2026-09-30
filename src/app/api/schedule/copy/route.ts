@@ -3,6 +3,8 @@ import { requireApiContext, withApi, logActivity } from '@/lib/tenant';
 import { addWeeks, parseWeek } from '@/lib/weeks';
 import { assignmentWhere, parse } from '@/lib/schedule-server';
 import { overlaps } from '@/lib/schedule';
+import { hasFeature } from '@/lib/plans';
+import { onboardingGaps } from '@/lib/onboarding-server';
 
 const Body = z.object({ week: z.string() });
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
@@ -17,9 +19,15 @@ export const POST = withApi(async (req: Request) => {
     tdb.shift.findMany({ where: { cancelled: false, date: { gte: new Date(start.getTime() - 864e5), lte: new Date(week.getTime() + 864e5) } }, include: { application: { select: { candidateId: true } } } }),
   ]);
   const taken = existing.map((e) => ({ c: e.application.candidateId, t: { date: ymd(e.date), start: e.start, end: e.end, breakMinutes: e.breakMinutes } }));
+  // When the company blocks work until onboarding is done, those workers' shifts aren't copied.
+  const blocked = new Set<string>();
+  if (hasFeature(org, 'onboarding') && org.onboardingEnforcement === 'block') {
+    for (const c of new Set(source.map((s) => s.application.candidateId))) if (await onboardingGaps(tdb, c)) blocked.add(c);
+  }
   const rows = [];
   let skipped = 0;
   for (const s of source) {
+    if (blocked.has(s.application.candidateId)) { skipped++; continue; }
     const t = { date: ymd(new Date(s.date.getTime() + 7 * 864e5)), start: s.start, end: s.end, breakMinutes: s.breakMinutes };
     if (taken.some((x) => x.c === s.application.candidateId && overlaps(x.t, t))) { skipped++; continue; }
     taken.push({ c: s.application.candidateId, t });

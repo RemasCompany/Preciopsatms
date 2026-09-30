@@ -27,8 +27,15 @@ export const PLANS: Record<PlanId, {
 
 export const ACTIVE_STATUSES = new Set(['trialing', 'active']);
 
-export function hasFeature(org: { plan: PlanId; subscriptionStatus: string }, f: Feature) {
+/** Whether the plan includes a feature (regardless of the company's own on/off choices). */
+export function planIncludes(org: { plan: PlanId; subscriptionStatus: string }, f: Feature) {
   return ACTIVE_STATUSES.has(org.subscriptionStatus) && PLANS[org.plan].features.includes(f);
+}
+
+/** Whether a feature is available and switched on. Companies can turn onboarding off (e.g. direct-hire firms). */
+export function hasFeature(org: { plan: PlanId; subscriptionStatus: string; onboardingEnabled?: boolean }, f: Feature) {
+  if (f === 'onboarding' && org.onboardingEnabled === false) return false;
+  return planIncludes(org, f);
 }
 
 export function priceIdFor(plan: PlanId) {

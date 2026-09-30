@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { requirePageContext, canEdit } from '@/lib/tenant';
-import { hasFeature } from '@/lib/plans';
+import { hasFeature, planIncludes } from '@/lib/plans';
 import { hasBlanks } from '@/lib/merge';
 import { i9Due, progress } from '@/lib/onboarding';
 import { recompute, verifiedTypes } from '@/lib/onboarding-server';
@@ -13,7 +13,7 @@ const ymd = (d: Date) => d.toISOString().slice(0, 10);
 
 export default async function OnboardingPage({ params }: { params: { id: string } }) {
   const ctx = await requirePageContext();
-  if (!hasFeature(ctx.org, 'onboarding')) return <Gate title="Onboarding" feature="New-hire onboarding" />;
+  if (!hasFeature(ctx.org, 'onboarding')) return <Gate title="Onboarding" feature="New-hire onboarding" off={planIncludes(ctx.org, 'onboarding')} />;
   await recompute(ctx.tdb, params.id); // a credential may have been verified since
   const ob = await ctx.tdb.onboarding.findFirst({ where: { id: params.id }, include: { steps: { orderBy: { position: 'asc' } }, application: { include: { candidate: true, job: { select: { title: true, client: { select: { name: true } } } } } } } });
   if (!ob) notFound();

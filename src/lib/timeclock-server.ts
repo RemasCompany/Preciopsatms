@@ -3,6 +3,8 @@ import { Prisma, type Organization, type User } from '@prisma/client';
 import { HttpError, tenantDb, logActivity, type TenantDb } from './tenant';
 import { newToken, sha256 } from './tokens';
 import { assignmentWhere, deliver, type Channel } from './schedule-server';
+import { hasFeature } from './plans';
+import { onboardingGaps } from './onboarding-server';
 import { MAX_OPEN_HOURS, localDate, localTime, splitWeek, workedMinutes, zonedToUtc, type Entry } from './timeclock';
 
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
@@ -41,6 +43,9 @@ export async function punch(link: { organizationId: string; candidateId: string;
     if (!apps.length) throw new HttpError(409, 'You’re not on an assignment right now, so there’s nothing to clock in to.');
     const app = body.applicationId ? apps.find((a) => a.id === body.applicationId) : apps.length === 1 ? apps[0] : null;
     if (!app) throw new HttpError(400, 'Choose the assignment you’re working.');
+    if (hasFeature(link.organization, 'onboarding') && link.organization.onboardingEnforcement === 'block' && await onboardingGaps(tdb, link.candidateId)) {
+      throw new HttpError(409, 'Finish your new-hire steps before clocking in. If you’re stuck, contact your recruiter.');
+    }
     const shift = await matchShift(tdb, app.id, now, tz);
     const e = await tdb.timeEntry.create({ data: { applicationId: app.id, shiftId: shift?.id ?? null, clockIn: now, inLat: geo?.lat, inLng: geo?.lng, inAccuracy: geo?.accuracy } as never });
     // A double tap can race past the check above; keep only the first open entry.
