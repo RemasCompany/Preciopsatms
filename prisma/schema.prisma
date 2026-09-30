@@ -48,6 +48,7 @@ model Organization {
   timezone             String    @default("America/New_York") // IANA zone for time clock days and workweeks
   onboardingEnabled    Boolean   @default(true)    // the company can switch onboarding off (e.g. direct-hire only)
   onboardingEnforcement String   @default("warn")  // warn | block: unfinished onboarding blocks scheduling and clock-in
+  birthdayGreetings    Boolean   @default(false)   // send workers on assignment a greeting on their birthday
   // Billing
   plan                 PlanId    @default(starter)
   stripeCustomerId     String?   @unique
@@ -64,6 +65,9 @@ model Organization {
   timeEntries          TimeEntry[]
   onboardingPackages   OnboardingPackage[]
   onboardings          Onboarding[]
+  feedback             Feedback[]
+  feedbackRequests     FeedbackRequest[]
+  recognitions         Recognition[]
   aiCreditsUsed        Int       @default(0) // reset each billing period by webhook
   // Indeed Apply (candidates apply on Indeed; Indeed POSTs applications to /api/public/<slug>/indeed-apply)
   indeedApplyApiToken  String?
@@ -189,6 +193,9 @@ model Candidate {
   certs          String[]
   summary        String?
   payrollId      String?       // employee ID in the payroll provider, used to match export rows
+  birthMonth     Int?          // month and day only (never the year) — for workers on assignment; never used in matching
+  birthDay       Int?
+  lastGreetedYear Int?         // year of the last birthday greeting sent
   resumeFileId   String?
   emailOptOut    Boolean       @default(false)
   smsOptOut      Boolean       @default(false) // set by Twilio STOP webhook (TCPA)
@@ -750,4 +757,59 @@ model OnboardingStep {
 
   @@index([onboardingId])
   @@index([signDocumentId])
+}
+
+// How an assignment is going: from the worker (pulse check), the client (rating link) or staff (e.g. a phone call).
+model Feedback {
+  id             String       @id @default(cuid())
+  organizationId String
+  candidateId    String
+  applicationId  String?
+  source         String       // WORKER | CLIENT | STAFF
+  rating         Int          // 1–5
+  wouldRehire    Boolean?     // client: would you have them back?
+  comment        String?
+  authorName     String?      // client contact's name, as typed
+  contactId      String?
+  createdById    String?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+  @@index([candidateId])
+}
+
+// A one-time link a client contact uses to rate a worker. Only the hash is stored.
+model FeedbackRequest {
+  id             String       @id @default(cuid())
+  organizationId String
+  applicationId  String
+  contactId      String
+  tokenHash      String       @unique
+  expiresAt      DateTime
+  completedAt    DateTime?
+  feedbackId     String?
+  createdById    String?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
+}
+
+// Kudos for a worker from staff (or a milestone), optionally sent to them and shown on their page.
+model Recognition {
+  id              String       @id @default(cuid())
+  organizationId  String
+  candidateId     String
+  applicationId   String?
+  kind            String       // attendance | client_praise | above_beyond | safety | milestone | other
+  message         String
+  visibleToWorker Boolean      @default(true)
+  notifiedAt      DateTime?
+  createdById     String?
+  createdAt       DateTime     @default(now())
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+  @@index([candidateId])
 }

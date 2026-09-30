@@ -5,6 +5,7 @@ import { dayLabel, clock } from '@/lib/schedule';
 import { hasFeature } from '@/lib/plans';
 import { clockState } from '@/lib/timeclock-server';
 import { workerOnboarding } from '@/lib/onboarding-server';
+import { workerEngagement } from '@/lib/engagement-server';
 
 type Ctx = { params: { token: string } };
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
@@ -26,6 +27,7 @@ export async function GET(_req: Request, { params }: Ctx) {
   });
   const o = link.organization;
   return Response.json({
+    engagement: hasFeature(o, 'engagement') ? await workerEngagement(link.organizationId, link.candidateId) : null,
     onboarding: hasFeature(o, 'onboarding') ? await workerOnboarding(link.organizationId, link.candidateId) : [],
     clock: hasFeature(o, 'timeclock') ? await clockState(link.organizationId, link.candidateId, o.timezone) : null,
     company: o.shortName ?? o.name, brandColor: o.brandColor, contactEmail: o.applyEmail ?? null, logoUrl: o.logoUrl ?? null, firstName: link.candidate.name.split(' ')[0],
