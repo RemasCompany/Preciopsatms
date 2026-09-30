@@ -27,9 +27,9 @@ describe('aiText', () => {
   });
 
   it.each([
-    ['rejected key', () => new Anthropic.AuthenticationError(401, { error: {} }, 'bad key', {}), 503],
-    ['rate limit', () => new Anthropic.RateLimitError(429, { error: {} }, 'slow down', {}), 429],
-    ['server error', () => new Anthropic.InternalServerError(500, { error: {} }, 'oops', {}), 502],
+    ['rejected key', () => new Anthropic.AuthenticationError(401, { error: {} }, 'bad key', new Headers()), 503],
+    ['rate limit', () => new Anthropic.RateLimitError(429, { error: {} }, 'slow down', new Headers()), 429],
+    ['server error', () => new Anthropic.InternalServerError(500, { error: {} }, 'oops', new Headers()), 502],
   ])('maps a %s to a friendly error and refunds the credit', async (_n, err, status) => {
     process.env.ANTHROPIC_API_KEY = 'sk-test';
     updateMany.mockClear(); create.mockRejectedValueOnce(err());

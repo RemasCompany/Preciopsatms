@@ -28,7 +28,7 @@ Migrations run automatically on every Vercel deploy (`vercel-build` runs `prisma
 | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_STARTER`, `STRIPE_PRICE_GROWTH`, `STRIPE_PRICE_ENTERPRISE`, `TRIAL_DAYS` | Stripe dashboard (step 4) | buying plans |
 | `RESEND_API_KEY`, `EMAIL_FROM` | Resend (step 5) | all email |
 | `S3_BUCKET`, `S3_REGION`, `S3_ENDPOINT`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | AWS S3 or Cloudflare R2 (step 6) | resumes, signed PDFs |
-| `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` | console.anthropic.com | resume parsing, lead scoring |
+| `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `ANTHROPIC_ASSISTANT_MODEL` | console.anthropic.com | resume parsing, lead scoring, the in-app assistant (defaults to `claude-opus-5-5`) |
 | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_MESSAGING_SERVICE_SID` | Twilio | text messages |
 | `CRON_SECRET` | output of `openssl rand -base64 32` | daily credential alerts, shift reminders, birthday greetings and the background queue |
 | `SENTRY_DSN` (optional) | sentry.io → Project settings → Client keys | error reports from the server and browsers |
@@ -122,3 +122,7 @@ docker run -p 3000:3000 --env-file production.env preciops
 
 The container applies pending migrations and then starts. It has a health check on `/api/health`. The image never contains `.env` (see `.dockerignore`); pass settings at run time.
 The standalone server this image runs has been tested; the image build itself couldn't be run in the development environment (no registry access), so build it once locally or in CI before relying on it.
+
+## The assistant (AI)
+
+On Growth and Enterprise, the **Assistant** page answers questions about the company's jobs, pipeline, placements, hours, schedules, deadlines and (for owners and admins) margin and receivables. It looks things up with read-only tools over that company's data only. Workers appear as "Worker 1", client contacts' names, all contact details and EEO data are never sent to Anthropic, and emails and phone numbers typed into a question are masked. Each question uses one AI credit, refunded if the request fails. It requests Anthropic's server-side fallback beta (`server-side-fallback-2026-07-01`); if your account rejects it, remove `betas` and `fallbacks` from `src/lib/assistant.ts`.

@@ -2,7 +2,7 @@
   "name": "preciops",
   "version": "0.1.0",
   "private": true,
-  "description": "Preciops \u2014 workforce operations platform for staffing firms (multi-tenant SaaS)",
+  "description": "Preciops — workforce operations platform for staffing firms (multi-tenant SaaS)",
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
@@ -20,7 +20,7 @@
     "e2e": "playwright test"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.30.0",
+    "@anthropic-ai/sdk": "^0.129.0",
     "@aws-sdk/client-s3": "^3.600.0",
     "@aws-sdk/s3-request-presigner": "^3.600.0",
     "@prisma/client": "^5.17.0",
