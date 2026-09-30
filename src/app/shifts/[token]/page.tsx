@@ -4,13 +4,14 @@ import { clockLong, dayLabel, overnight, shiftHours } from '@/lib/schedule';
 import TimeClock, { type ClockData } from '@/components/TimeClock';
 import WorkerOnboarding, { type WorkerOb } from '@/components/WorkerOnboarding';
 import WorkerEngagement, { type WorkerEng } from '@/components/WorkerEngagement';
+import WorkerReferrals, { type WorkerRef } from '@/components/WorkerReferrals';
 
 type Shift = {
   id: string; date: string; start: string; end: string; breakMinutes: number; unit: string | null; notes: string | null;
   job: string; client: string | null; location: string | null; state: 'pending' | 'confirmed' | 'declined' | 'cancelled' | 'updating'; past: boolean;
 };
 type Offer = { id: string; status: 'open' | 'taken'; date: string; start: string; end: string; breakMinutes: number; unit: string | null; notes: string | null; job: string; client: string | null; location: string | null };
-type Data = { offers?: Offer[]; company: string; brandColor: string; contactEmail: string | null; logoUrl: string | null; firstName: string; shifts: Shift[]; clock: ClockData | null; onboarding?: WorkerOb[]; engagement?: WorkerEng | null };
+type Data = { referrals?: WorkerRef | null; offers?: Offer[]; company: string; brandColor: string; contactEmail: string | null; logoUrl: string | null; firstName: string; shifts: Shift[]; clock: ClockData | null; onboarding?: WorkerOb[]; engagement?: WorkerEng | null };
 
 const STATE: Record<Shift['state'], { text: string; cls: string }> = {
   pending: { text: 'Please confirm', cls: 'a' }, confirmed: { text: 'Confirmed', cls: 'g' }, declined: { text: 'You can’t make it', cls: 'r' },
@@ -110,6 +111,7 @@ export default function MyShifts({ params }: { params: { token: string } }) {
           </li>
         ))}
       </ul>
+      {data.referrals && <WorkerReferrals token={params.token} data={data.referrals} onChange={load} />}
       {data.contactEmail && <p className="muted">Questions? Email <a href={`mailto:${data.contactEmail}`}>{data.contactEmail}</a>.</p>}
     </main>
   );

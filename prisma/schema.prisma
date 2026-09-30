@@ -47,7 +47,9 @@ model Organization {
   payrollCompanyCode   String?   // company code some providers need in imports (e.g. ADP Co Code)
   timezone             String    @default("America/New_York") // IANA zone for time clock days and workweeks
   geofenceMode         String    @default("flag") // off | flag | block: time clock punches outside a job site's geofence
-  everifyEnabled       Boolean   @default(false)  // the company is enrolled in E-Verify: open a case to track for each new hire
+  everifyEnabled       Boolean   @default(false)
+  referralBonus        Decimal?  @db.Decimal(10, 2) // paid per referred worker who reaches referralMinHours; null = no bonus
+  referralMinHours     Int       @default(80)  // the company is enrolled in E-Verify: open a case to track for each new hire
   onboardingEnabled    Boolean   @default(true)    // the company can switch onboarding off (e.g. direct-hire only)
   onboardingEnforcement String   @default("warn")  // warn | block: unfinished onboarding blocks scheduling and clock-in
   birthdayGreetings    Boolean   @default(false)   // send workers on assignment a greeting on their birthday
@@ -106,6 +108,7 @@ model Organization {
   accountingConnections AccountingConnection[]
   everifyCases       EVerifyCase[]
   doNotReturns       DoNotReturn[]
+  referrals          Referral[]
   externalRefs       ExternalRef[]
 }
 
@@ -616,6 +619,27 @@ model ExternalRef {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, provider, kind, localId])
+}
+
+/// A worker referred a friend. The bonus (if the company pays one) is due after the friend works enough approved hours.
+model Referral {
+  id             String       @id @default(cuid())
+  organizationId String
+  referrerId     String       // the worker who referred
+  candidateId    String       // the friend
+  jobId          String?
+  note           String?
+  status         String       @default("submitted") // submitted | paid | ineligible
+  bonus          Decimal?     @db.Decimal(10, 2)   // snapshot of the company's bonus when referred
+  minHours       Int?
+  paidAt         DateTime?
+  paidById       String?
+  ineligibleReason String?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, candidateId]) // the first referral wins
+  @@index([organizationId, referrerId])
 }
 
 /// A worker who must not be sent back to a client (clientId set) or to anyone (clientId null). Lifted, never deleted.
