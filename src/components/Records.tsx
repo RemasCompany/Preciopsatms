@@ -11,7 +11,7 @@ import { RECORDS, defaultsFor, labelFor, vendorCompliance, HOURS_PER_WEEK, type 
 import { BOARD_STAGES, REJECTION_REASONS, stageLabel } from '@/lib/pipeline';
 
 type Open = { kind: RecordKind; id?: string; preset?: RecordValues };
-type Ctx = { open: (kind: RecordKind, id?: string, preset?: RecordValues) => void; toast: (text: string, error?: boolean) => void; canEdit: boolean; ai: boolean; credentials?: boolean };
+type Ctx = { open: (kind: RecordKind, id?: string, preset?: RecordValues) => void; toast: (text: string, error?: boolean) => void; canEdit: boolean; ai: boolean; credentials?: boolean; portal?: boolean };
 const RecordsCtx = createContext<Ctx | null>(null);
 export const useRecords = () => {
   const c = useContext(RecordsCtx);
@@ -20,7 +20,7 @@ export const useRecords = () => {
 };
 
 /** Hosts the record drawer and toast for every page under /app. */
-export function RecordsProvider({ canEdit, ai, credentials = false, children }: { canEdit: boolean; ai: boolean; credentials?: boolean; children: React.ReactNode }) {
+export function RecordsProvider({ canEdit, ai, credentials = false, portal = false, children }: { canEdit: boolean; ai: boolean; credentials?: boolean; portal?: boolean; children: React.ReactNode }) {
   const [current, setCurrent] = useState<Open | null>(null);
   const [toastMsg, setToastMsg] = useState<{ text: string; error?: boolean } | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>();
@@ -29,7 +29,7 @@ export function RecordsProvider({ canEdit, ai, credentials = false, children }: 
   }, []);
   const open = useCallback((kind: RecordKind, id?: string, preset?: RecordValues) => setCurrent({ kind, id, preset }), []);
   return (
-    <RecordsCtx.Provider value={{ open, toast, canEdit, ai, credentials }}>
+    <RecordsCtx.Provider value={{ open, toast, canEdit, ai, credentials, portal }}>
       {children}
       {current && <RecordDrawer key={`${current.kind}:${current.id ?? 'new'}`} {...current} onClose={() => setCurrent(null)} />}
       {toastMsg && <div className={`toast${toastMsg.error ? ' bad' : ''}`} role="status">{toastMsg.text}</div>}
@@ -298,7 +298,14 @@ function LeadWork({ id, values, reload }: { id: string; values: RecordValues; re
 }
 
 function Contacts({ clientId, contacts, reload, canEdit, compose }: { clientId: string; contacts: (RecordValues & { id: string })[]; reload: () => void; canEdit: boolean; compose: (r: Recipient) => void }) {
-  const { toast } = useRecords();
+  const { toast, portal } = useRecords();
+  async function portalLink(c: RecordValues & { id: string }, action: 'send' | 'revoke') {
+    if (action === 'revoke' && !confirm(`Turn off ${c.name}’s client portal access? Their links stop working.`)) return;
+    try {
+      await api('/api/clients/portal', 'POST', { contactId: c.id, action });
+      toast(action === 'send' ? `Portal link sent to ${c.email}.` : `${c.name}’s portal access is off.`);
+    } catch (e) { toast((e as Error).message, true); }
+  }
   const [draft, setDraft] = useState<RecordValues | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   async function save() {
@@ -318,7 +325,7 @@ function Contacts({ clientId, contacts, reload, canEdit, compose }: { clientId: 
         {contacts.map((c) => (
           <div key={c.id} className="li"><span className="x"><b>{c.name}</b><span className="muted">{c.title}</span></span>
             <span className="muted">{c.email && <a href={`mailto:${c.email}`}>{c.email}</a>} {c.phone && <a href={`tel:${String(c.phone).replace(/[^\d+]/g, '')}`}>{c.phone}</a>}</span>
-            {canEdit && <span className="row"><button className="btn ghost sm" onClick={() => compose({ type: 'contact', id: c.id, name: String(c.name), email: (c.email as string) || null, phone: (c.phone as string) || null })}>Message</button><button className="btn ghost sm" onClick={() => { setEditing(c.id); setDraft(c); }}>Edit</button><button className="btn ghost sm" onClick={() => remove(c.id)} aria-label={`Remove ${c.name}`}>✕</button></span>}
+            {canEdit && <span className="row"><button className="btn ghost sm" onClick={() => compose({ type: 'contact', id: c.id, name: String(c.name), email: (c.email as string) || null, phone: (c.phone as string) || null })}>Message</button>{portal && c.email ? <><button className="btn ghost sm" onClick={() => portalLink(c, 'send')} title="Email a private link to the client portal: approve hours, see the schedule, request staff, rate workers, download invoices">Portal link</button><button className="btn ghost sm" onClick={() => portalLink(c, 'revoke')} aria-label={`Turn off portal access for ${c.name}`} title="Turn off portal access">⊘</button></> : null}<button className="btn ghost sm" onClick={() => { setEditing(c.id); setDraft(c); }}>Edit</button><button className="btn ghost sm" onClick={() => remove(c.id)} aria-label={`Remove ${c.name}`}>✕</button></span>}
           </div>
         ))}
         {!contacts.length && !draft && <p className="muted">No contacts yet.</p>}

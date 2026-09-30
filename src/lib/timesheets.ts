@@ -4,6 +4,7 @@ import { hoursAmount } from './payroll';
 export type TimesheetRow = {
   applicationId: string; worker: string; email: string | null; job: string; client: { id: string; name: string } | null;
   status: 'NOT_ENTERED' | 'DRAFT' | 'APPROVED' | 'PAID'; reg: number; ot: number; pay: number; bill: number; gross: number; billable: number;
+  clientApprovedBy?: string | null; clientDispute?: string | null; // from the client portal
 };
 
 /** Everyone on assignment (placed on a non-direct-hire job) with their timesheet for the week. */
@@ -19,6 +20,7 @@ export async function timesheetRows(tdb: TenantDb, week: Date): Promise<Timeshee
     const pay = Number(t?.payRate ?? a.job.payRate ?? 0), bill = Number(t?.billRate ?? a.job.billRate ?? 0);
     const reg = Number(t?.regularHours ?? 0), ot = Number(t?.overtimeHours ?? 0);
     return { applicationId: a.id, worker: a.candidate.name, email: a.candidate.email, job: a.job.title, client: a.job.client, status: t?.status ?? 'NOT_ENTERED', reg, ot, pay, bill,
-      gross: hoursAmount(reg, ot, pay), billable: hoursAmount(reg, ot, bill) };
+      gross: hoursAmount(reg, ot, pay), billable: hoursAmount(reg, ot, bill),
+      clientApprovedBy: t?.clientApprovedAt ? t.clientApprovedBy ?? 'client' : null, clientDispute: t?.clientDisputeNote ?? null };
   });
 }

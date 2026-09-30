@@ -26,7 +26,9 @@ export const PUT = withApi(async (req: Request) => {
   const existing = await tdb.timesheet.findFirst({ where: { applicationId: app.id, weekEnding: week } });
   if (existing && existing.status !== 'DRAFT') throw new HttpError(409, 'This timesheet is already approved. Reopen it before editing.');
   const hours = { regularHours: b.regularHours, overtimeHours: b.overtimeHours };
-  if (existing) await tdb.timesheet.updateMany({ where: { id: existing.id }, data: hours });
+  // Changed hours need the client's sign-off again.
+  const changed = existing && (Number(existing.regularHours) !== b.regularHours || Number(existing.overtimeHours) !== b.overtimeHours);
+  if (existing) await tdb.timesheet.updateMany({ where: { id: existing.id }, data: changed ? { ...hours, clientApprovedAt: null, clientApprovedBy: null } : hours });
   else {
     try {
       await tdb.timesheet.create({ data: { applicationId: app.id, weekEnding: week, ...hours, payRate: app.job.payRate ?? 0, billRate: app.job.billRate ?? 0 } as never });

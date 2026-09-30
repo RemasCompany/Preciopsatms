@@ -97,6 +97,7 @@ model Organization {
   invoices           Invoice[]
   invoiceLines       InvoiceLine[]
   payments           Payment[]
+  clientPortalLinks  ClientPortalLink[]
 }
 
 model User {
@@ -316,6 +317,7 @@ model Contact {
   phone          String?
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   client         Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  portalLinks    ClientPortalLink[]
 }
 
 model Deal {
@@ -415,6 +417,10 @@ model Timesheet {
   billRate       Decimal         @db.Decimal(10, 2) // snapshot at entry
   status         TimesheetStatus @default(DRAFT)
   payrollRunId   String?         // the non-void payroll run that includes these hours
+  clientApprovedAt DateTime?     // the client signed off on these hours in the client portal
+  clientApprovedBy String?       // contact name, as they appeared then
+  clientDisputeNote String?      // the client questioned these hours (cleared when they approve)
+  clientDisputedAt  DateTime?
   approvedAt     DateTime?
   approvedById   String?
   paidAt         DateTime?
@@ -559,6 +565,23 @@ model Payment {
 
   @@index([organizationId, receivedOn])
   @@index([invoiceId])
+}
+
+/// A client contact's private link to the client portal. Long-lived, revocable; only the hash is stored.
+model ClientPortalLink {
+  id             String       @id @default(cuid())
+  organizationId String
+  contactId      String
+  tokenHash      String       @unique
+  expiresAt      DateTime
+  revokedAt      DateTime?
+  lastUsedAt     DateTime?
+  createdById    String?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contact        Contact      @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, contactId])
 }
 
 /// Work that runs outside the request (bulk messaging, …). Claimed with SKIP LOCKED so two workers never run the same task.

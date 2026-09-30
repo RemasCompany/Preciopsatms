@@ -149,6 +149,9 @@ export default function TimesheetGrid({ week, prev, next, rows: initial, canEdit
                 <td>{money(r.billable)}</td>
                 <td>
                   <span className={`pill${PILL[r.status]}`}>{LABEL[r.status]}</span>
+                  {r.clientApprovedBy && <span className="pill g" style={{ marginLeft: 6 }} title={`Approved by ${r.clientApprovedBy} in the client portal`}>Client ✓</span>}
+                  {r.clientDispute && <span className="pill r" style={{ marginLeft: 6 }} title={r.clientDispute}>Client question</span>}
+                  {r.clientDispute && <div className="warn" style={{ fontSize: 13 }}>“{r.clientDispute}”</div>}
                   {admin && r.status === 'DRAFT' && r.reg + r.ot > 0 && <button className="btn ghost sm" style={{ marginLeft: 6 }} onClick={() => act('approve', [r.applicationId])}>Approve</button>}
                   {admin && r.status === 'APPROVED' && <button className="btn ghost sm" style={{ marginLeft: 6 }} onClick={() => act('reopen', [r.applicationId])}>Reopen</button>}
                 </td>

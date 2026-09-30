@@ -23,7 +23,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         {!ctx.user.emailVerifiedAt && <VerifyBanner email={ctx.user.email} />}
         {org.subscriptionStatus === 'trialing' && trialDays > 0 && <p className="card banner">{trialDays} days left in your trial. <Link href="/app/billing">Choose a plan</Link></p>}
         {!['trialing', 'active'].includes(org.subscriptionStatus) && <p className="card banner error">Your subscription is {org.subscriptionStatus.replace('_', ' ')}. Your data is safe but read-only. <Link href="/app/billing">Update billing</Link></p>}
-        <RecordsProvider canEdit={canEdit(ctx)} ai={hasFeature(org, 'ai')} credentials={hasFeature(org, 'credentials')}>{children}</RecordsProvider>
+        <RecordsProvider canEdit={canEdit(ctx)} ai={hasFeature(org, 'ai')} credentials={hasFeature(org, 'credentials')} portal={hasFeature(org, 'clientPortal')}>{children}</RecordsProvider>
         <ResponsiveTables />
       </div>
     </div>
