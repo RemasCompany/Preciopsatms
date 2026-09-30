@@ -16,10 +16,12 @@ cp .env.example .env            # fill in keys; Stripe/Resend/Twilio/S3 can stay
 docker compose up -d            # Postgres
 npm install
 npx prisma migrate dev --name init
-npm run db:seed                 # owner@example.com / change-me-please
+npm run db:seed                 # demo company; owner@example.com (owner) or sam@example.com (recruiter), password change-me-please
 npm run dev                     # http://localhost:3000
 npm run stripe:listen           # separate terminal, forwards webhooks (Stripe CLI)
 ```
+The demo company comes filled in: clients, open jobs, a pipeline, workers on assignment with this week's schedule and last week's timesheets, credentials (some expiring or expired), six months of deals and sales targets, leads, vendors and tasks. Dates are relative to the day you seed. Running the seed again leaves existing data alone.
+
 In Stripe (test mode) create three recurring prices and put their IDs in `STRIPE_PRICE_*`. Enable Stripe Tax and the Customer Portal.
 
 ## Mobile
