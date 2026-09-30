@@ -48,6 +48,7 @@ model Organization {
   timezone             String    @default("America/New_York") // IANA zone for time clock days and workweeks
   geofenceMode         String    @default("flag") // off | flag | block: time clock punches outside a job site's geofence
   everifyEnabled       Boolean   @default(false)
+  smsNumber            String?   @unique // the company's own Twilio number (E.164); replies to it land in this company's inbox
   referralBonus        Decimal?  @db.Decimal(10, 2) // paid per referred worker who reaches referralMinHours; null = no bonus
   referralMinHours     Int       @default(80)  // the company is enrolled in E-Verify: open a case to track for each new hire
   onboardingEnabled    Boolean   @default(true)    // the company can switch onboarding off (e.g. direct-hire only)
@@ -337,6 +338,8 @@ model Contact {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   client         Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
   portalLinks    ClientPortalLink[]
+  emailOptOut    Boolean      @default(false)
+  smsOptOut      Boolean      @default(false) // replied STOP
 }
 
 model Deal {
@@ -379,6 +382,8 @@ model Lead {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  emailOptOut    Boolean      @default(false)
+  smsOptOut      Boolean      @default(false) // replied STOP
 }
 
 // ---------------- Operations ----------------
@@ -497,7 +502,10 @@ model Message {
   body           String
   relatedType    String?
   relatedId      String?
-  status         String       @default("queued") // queued|sent|failed|blocked_opt_out
+  status         String       @default("queued") // queued|sent|failed|blocked_opt_out|received
+  direction      String       @default("out") // out | in (a text someone sent us)
+  fromAddress    String?
+  readAt         DateTime?
   providerId     String?
   error          String?
   sentById       String?
@@ -505,6 +513,7 @@ model Message {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, relatedType, relatedId])
+  @@index([organizationId, channel, direction, readAt])
 }
 
 enum InvoiceStatus {

@@ -261,3 +261,16 @@ fieldset.days{border:0;padding:0;margin:8px 0;display:flex;flex-wrap:wrap;gap:6p
 .stars .muted{margin-left:8px}
 .fb-low{border-left:3px solid var(--red)}
 .linkbtn { background: none; border: 0; padding: 0; color: var(--accent, #2563eb); text-decoration: underline; cursor: pointer; font: inherit; }
+.inbox { display: grid; grid-template-columns: minmax(240px, 320px) 1fr; gap: 16px; align-items: start; }
+.inbox-list { padding: 8px; max-height: 70vh; overflow: auto; }
+.inbox-item { display: block; width: 100%; text-align: left; background: none; border: 0; border-radius: 10px; padding: 10px; cursor: pointer; font: inherit; color: inherit; }
+.inbox-item:hover, .inbox-item.on { background: var(--bg, #f1f5f9); }
+.inbox-snip { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.bubbles { display: flex; flex-direction: column; gap: 8px; max-height: 55vh; overflow: auto; padding: 12px 0; }
+.bubble { max-width: 75%; padding: 8px 12px; border-radius: 14px; white-space: pre-wrap; font-size: 15px; }
+.bubble span { display: block; font-size: 11px; opacity: .7; margin-top: 2px; }
+.bubble.in { align-self: flex-start; background: #eef2f7; }
+.bubble.out { align-self: flex-end; background: var(--accent, #0f766e); color: #fff; }
+.bubble.failed { background: #fde2e2; color: #7f1d1d; }
+@media (max-width: 720px) { .inbox { grid-template-columns: 1fr; } }
+.bubble { overflow-wrap: anywhere; }

@@ -63,7 +63,7 @@ Files are only ever read by the server after an ownership check; the bucket must
 
 ## 7. Texting (Twilio, optional)
 
-Create a Messaging Service, then set its **incoming message webhook** to `https://app.preciopsatms.com/api/sms/inbound` so STOP replies opt people out automatically.
+Create a Messaging Service, then set its **incoming message webhook** to `https://app.preciopsatms.com/api/sms/inbound`. STOP and START replies opt candidates, client contacts and leads out and back in automatically, and every other reply lands in the company's **Inbox** (matched to the candidate, contact or lead). With one shared number, a reply goes to the company that last texted that phone; a company can instead enter its own Twilio number under Settings → Careers page settings so replies to it always land in its inbox.
 
 ## 8. Daily jobs: credential alerts, shift reminders and birthday greetings
 

@@ -26,9 +26,9 @@ export type Tally = { sent: number; skipped: number; failed: number };
 async function recipients(orgId: string, b: SendInput): Promise<R[]> {
   const tdb = tenantDb(orgId), where = { id: { in: b.recipientIds } };
   if (b.recipientType === 'candidate') return tdb.candidate.findMany({ where });
-  if (b.recipientType === 'lead') return (await tdb.lead.findMany({ where })).map((l) => ({ id: l.id, name: l.contact ?? '', email: l.email, phone: l.phone, company: l.company }));
+  if (b.recipientType === 'lead') return (await tdb.lead.findMany({ where })).map((l) => ({ id: l.id, name: l.contact ?? '', email: l.email, phone: l.phone, company: l.company, emailOptOut: l.emailOptOut, smsOptOut: l.smsOptOut }));
   if (b.recipientType === 'vendor') return (await tdb.vendor.findMany({ where })).map((v) => ({ id: v.id, name: v.contact ?? '', email: v.email, phone: v.phone, company: v.name }));
-  return (await tdb.contact.findMany({ where, include: { client: true } })).map((c) => ({ id: c.id, name: c.name, email: c.email, phone: c.phone, company: c.client.name }));
+  return (await tdb.contact.findMany({ where, include: { client: true } })).map((c) => ({ id: c.id, name: c.name, email: c.email, phone: c.phone, company: c.client.name, emailOptOut: c.emailOptOut, smsOptOut: c.smsOptOut }));
 }
 
 /**

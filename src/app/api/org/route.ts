@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { requireApiContext, withApi, HttpError, logActivity } from '@/lib/tenant';
 import { db } from '@/lib/db';
+import { toE164 } from '@/lib/sms';
 import { audit, diff } from '@/lib/audit';
 
 const text = (max: number) => z.string().trim().max(max).transform((s) => s || null).nullable().optional();
@@ -13,6 +14,8 @@ const Settings = z.object({
   brandColor: z.string().regex(/^#[0-9a-f]{6}$/i, 'Pick a button color.').optional(),
   applyEmail: z.string().trim().max(200).refine((s) => !s || z.string().email().safeParse(s).success, 'Enter a valid apply-by-email address.').transform((s) => s || null).nullable().optional(),
   careersHeadline: z.string().trim().min(2, 'Add a headline for your careers page.').max(120).optional(),
+  // Replies texted to this number land in this company's inbox (otherwise replies are matched by who texted last).
+  smsNumber: z.string().trim().max(20).transform((s) => (s ? toE164(s) ?? 'bad' : null)).refine((s) => s !== 'bad', 'Enter the texting number with area code.').nullable().optional(),
   careersIntro: text(2000), showPayOnCareers: z.boolean().optional(), showClientOnCareers: z.boolean().optional(),
   // Indeed Apply credentials from Indeed's partner console. The secret is write-only (never sent back to the browser).
   indeedApplyApiToken: z.string().trim().max(200).regex(/^[\w-]*$/, 'That doesn’t look like an Indeed Apply API token.').transform((s) => s || null).nullable().optional(),
@@ -24,6 +27,7 @@ export const PATCH = withApi(async (req: Request) => {
   const parsed = Settings.safeParse(await req.json().catch(() => ({})));
   if (!parsed.success) throw new HttpError(400, parsed.error.issues[0]?.code === 'unrecognized_keys' ? 'That setting can’t be changed here.' : parsed.error.issues[0]?.message ?? 'Invalid input');
   const data = Object.fromEntries(Object.entries(parsed.data).filter(([, v]) => v !== undefined));
+  if (data.smsNumber && (await db.organization.findFirst({ where: { smsNumber: data.smsNumber as string, id: { not: org.id } }, select: { id: true } }))) throw new HttpError(409, 'That texting number is already used by another company.');
   await db.organization.update({ where: { id: org.id }, data });
   await logActivity(org.id, 'Updated company settings', user.id);
   const changes = diff(org as unknown as Record<string, unknown>, data);

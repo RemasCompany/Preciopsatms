@@ -5,7 +5,7 @@ import { useRecords } from './Records';
 
 type Settings = {
   name: string; shortName: string | null; ownerName: string | null; ownerTitle: string | null; city: string | null; website: string | null;
-  services: string | null; pitch: string | null; logoUrl: string | null; brandColor: string; applyEmail: string | null;
+  services: string | null; pitch: string | null; logoUrl: string | null; brandColor: string; applyEmail: string | null; smsNumber: string | null;
   careersHeadline: string; careersIntro: string | null; showPayOnCareers: boolean; showClientOnCareers: boolean;
 };
 type TextKey = { [K in keyof Settings]: Settings[K] extends boolean ? never : K }[keyof Settings];
@@ -53,6 +53,7 @@ export default function SettingsForm({ initial, readOnly }: { initial: Settings;
         <div className="form wide">
           {input('careersHeadline', 'Headline')}
           {input('applyEmail', 'Apply-by-email address', 'email')}
+          {input('smsNumber', 'Your texting number (optional, your own Twilio number)', 'tel')}
           <label className="full"><span>Introduction</span><textarea rows={3} value={v.careersIntro ?? ''} readOnly={readOnly} onChange={(e) => set('careersIntro', e.target.value)} /></label>
           <label><span>Button color</span><input type="color" value={v.brandColor} disabled={readOnly} onChange={(e) => set('brandColor', e.target.value)} style={{ height: 40, padding: 4 }} /></label>
           <span />
