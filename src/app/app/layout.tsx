@@ -13,7 +13,7 @@ import { Suspense } from 'react';
 const NAV: [string, [href: string, label: string, feature?: Feature][]][] = [
   ['Recruiting', [['/app', 'Dashboard'], ['/app/pipeline', 'Pipeline'], ['/app/jobs', 'Jobs'], ['/app/candidates', 'Candidates'], ['/app/onboarding', 'Onboarding', 'onboarding'], ['/app/everify', 'E-Verify', 'onboarding'], ['/app/credentials', 'Credentials', 'credentials'], ['/app/schedule', 'Schedule', 'scheduling'], ['/app/timeclock', 'Time clock', 'timeclock'], ['/app/engagement', 'Engagement', 'engagement'], ['/app/referrals', 'Referrals', 'engagement'], ['/app/timesheets', 'Timesheets & payroll', 'timesheets'], ['/app/payroll', 'Payroll runs', 'payrollRuns'], ['/app/invoices', 'Invoices', 'timesheets']]],
   ['Sales', [['/app/leads', 'Lead generation', 'leads'], ['/app/clients', 'Clients & contacts', 'crm'], ['/app/deals', 'Deals', 'crm'], ['/app/sales', 'Sales metrics', 'crm'], ['/app/reports', 'Reports']]],
-  ['Operations', [['/app/vendors', 'Vendors', 'vendors'], ['/app/documents', 'E-signatures', 'esign'], ['/app/eeo', 'EEO reporting', 'eeo'], ['/app/inbox', 'Inbox', 'messaging'], ['/app/tasks', 'Tasks'], ['/app/team', 'Team'], ['/app/settings', 'Settings & data'], ['/app/audit', 'Audit log'], ['/app/billing', 'Billing']]],
+  ['Operations', [['/app/vendors', 'Vendors', 'vendors'], ['/app/documents', 'E-signatures', 'esign'], ['/app/eeo', 'EEO reporting', 'eeo'], ['/app/compliance', 'Compliance'], ['/app/inbox', 'Inbox', 'messaging'], ['/app/tasks', 'Tasks'], ['/app/team', 'Team'], ['/app/settings', 'Settings & data'], ['/app/audit', 'Audit log'], ['/app/billing', 'Billing']]],
 ];
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -24,7 +24,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const trialDays = org.trialEndsAt ? Math.ceil((org.trialEndsAt.getTime() - Date.now()) / 864e5) : 0;
   return (
     <div className="shell">
-      <AppNav company={org.shortName ?? org.name} groups={NAV.map(([g, items]) => [g, items.filter(([h, , f]) => (!f || hasFeature(org, f)) && (!['/app/audit', '/app/invoices'].includes(h) || ctx.role === 'OWNER' || ctx.role === 'ADMIN')).map(([h, l]) => [h, h === '/app/inbox' && unread ? `${l} (${unread})` : l])] as NavGroup).filter(([, items]) => items.length)} />
+      <AppNav company={org.shortName ?? org.name} groups={NAV.map(([g, items]) => [g, items.filter(([h, , f]) => (!f || hasFeature(org, f)) && (!['/app/audit', '/app/invoices', '/app/compliance'].includes(h) || ctx.role === 'OWNER' || ctx.role === 'ADMIN')).map(([h, l]) => [h, h === '/app/inbox' && unread ? `${l} (${unread})` : l])] as NavGroup).filter(([, items]) => items.length)} />
       <div className="main">
         {branches.length > 0 && <Suspense><BranchSwitcher branches={branches} current={branch?.id ?? null} /></Suspense>}
         {!ctx.user.emailVerifiedAt && <VerifyBanner email={ctx.user.email} />}

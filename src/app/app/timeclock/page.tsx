@@ -8,6 +8,7 @@ import { TIMEZONES, entryFlags, localDate, localTime, splitWeek, weekEndingOf, w
 import TimeclockBoard, { type TcWorker } from '@/components/TimeclockBoard';
 import Gate from '@/components/Gate';
 import JobSites from '@/components/JobSites';
+import { mealBreakIssue, parsePlace } from '@/lib/state-rules';
 import { DEFAULT_RADIUS_M, howFar } from '@/lib/geo';
 
 export const dynamic = 'force-dynamic';
@@ -27,7 +28,7 @@ export default async function Timeclock({ searchParams }: { searchParams: { week
 
   const [apps, rows, openNow] = await Promise.all([
     ctx.tdb.application.findMany({ where: assignmentWhere, include: { candidate: { select: { id: true, name: true, email: true, phone: true, emailOptOut: true, smsOptOut: true } }, job: { select: { title: true, client: { select: { name: true } } } }, timesheets: { where: { weekEnding: new Date(`${week}T00:00:00Z`) }, select: { status: true } } }, orderBy: { candidate: { name: 'asc' } } }),
-    ctx.tdb.timeEntry.findMany({ where: { clockIn: { gte: from, lt: to } }, include: { application: { select: { candidateId: true, job: { select: { title: true } } } } }, orderBy: { clockIn: 'asc' } }),
+    ctx.tdb.timeEntry.findMany({ where: { clockIn: { gte: from, lt: to } }, include: { application: { select: { candidateId: true, job: { select: { title: true, location: true } } } } }, orderBy: { clockIn: 'asc' } }),
     ctx.tdb.timeEntry.findMany({ where: { clockOut: null }, include: { application: { select: { candidate: { select: { name: true } }, job: { select: { title: true } } } } }, orderBy: { clockIn: 'asc' } }),
   ]);
   const shiftIds = rows.map((r) => r.shiftId).filter(Boolean) as string[];
@@ -52,7 +53,8 @@ export default async function Timeclock({ searchParams }: { searchParams: { week
       id: r.id, applicationId: r.applicationId, job: r.application.job.title,
       inDate: localDate(r.clockIn, tz), inTime: localTime(r.clockIn, tz), outDate: r.clockOut ? localDate(r.clockOut, tz) : null, outTime: r.clockOut ? localTime(r.clockOut, tz) : null,
       breakMinutes: r.breakMinutes, minutes: Math.round(workedMinutes(e, now)), open: !r.clockOut,
-      flags: entryFlags({ ...e, shift: s ? { date: ymd(s.date), start: s.start, end: s.end } : null, source: r.source, editedAt: r.editedAt }, tz, now),
+      flags: [...entryFlags({ ...e, shift: s ? { date: ymd(s.date), start: s.start, end: s.end } : null, source: r.source, editedAt: r.editedAt }, tz, now),
+        ...(() => { const m = r.clockOut ? mealBreakIssue(parsePlace(r.application.job.location).state, Math.round(workedMinutes(e, now)), r.breakMinutes) : null; return m ? [{ level: 'warn' as const, text: `${m.split(':')[0]} meal break missed` }] : []; })()],
       editReason: r.editReason, original: r.originalClockIn ? `${localTime(r.originalClockIn, tz)}–${r.originalClockOut ? localTime(r.originalClockOut, tz) : 'open'}` : null,
       inGeo: r.inLat != null && r.inLng != null ? { lat: r.inLat, lng: r.inLng, acc: r.inAccuracy } : null,
       outGeo: r.outLat != null && r.outLng != null ? { lat: r.outLat, lng: r.outLng, acc: r.outAccuracy } : null,

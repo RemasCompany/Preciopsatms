@@ -3,6 +3,7 @@ import { labelFor } from '@/lib/records';
 import ListToolbar, { pickFilters } from '@/components/ListToolbar';
 import { OpenRecord, Pill } from '@/components/Records';
 import { currentBranch, jobInBranch } from '@/lib/branches';
+import { parsePlace, payTransparencyIssue } from '@/lib/state-rules';
 
 const FILTERS = ['status', 'sector', 'type'];
 const money = (n: number) => `$${n.toFixed(2)}`;
@@ -33,7 +34,7 @@ export default async function Jobs({ searchParams }: { searchParams: Record<stri
               <tr key={j.id}>
                 <td><OpenRecord kind="jobs" id={j.id}><b>{j.title}</b>{j.hot && <span className="pill hot">Hot</span>}</OpenRecord><div className="muted">{j.client?.name ?? 'No client'}</div></td>
                 <td>{j.sector ?? '—'}</td>
-                <td>{j.location ?? '—'}<div className="muted">{labelFor('jobs', 'type', j.type)}</div></td>
+                <td>{j.location ?? '—'}<div className="muted">{labelFor('jobs', 'type', j.type)}</div>{payTransparencyIssue(j, org.showPayOnCareers) && <div className="warn" style={{ fontSize: 12.5 }} title={payTransparencyIssue(j, org.showPayOnCareers)!}>Pay must be posted in {parsePlace(j.location).state}</div>}</td>
                 <td>{placed} / {j.openings} filled</td>
                 <td>{live ? <a href={`/app/pipeline?job=${j.id}`}>{live} in pipeline</a> : <span className="muted">No candidates</span>}</td>
                 <td>{j.billRate ? <>{money(spread)}/hr<div className="muted">{Math.round((spread / bill) * 100)}% margin</div></> : '—'}</td>

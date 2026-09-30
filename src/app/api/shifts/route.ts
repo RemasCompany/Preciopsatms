@@ -1,7 +1,9 @@
 import { requireApiContext, withApi, logActivity, HttpError } from '@/lib/tenant';
 import { hasFeature } from '@/lib/plans';
 import { CreateShift, assertNoOverlap, assignmentWhere, checkTimes, parse, shiftWarnings } from '@/lib/schedule-server';
-import { dayLabel } from '@/lib/schedule';
+import { dayLabel, shiftHours } from '@/lib/schedule';
+import { shiftRuleWarnings } from '@/lib/state-rules';
+import { localDate } from '@/lib/timeclock';
 import { onboardingGaps } from '@/lib/onboarding-server';
 import { assertNotBarred } from '@/lib/dnr';
 
@@ -10,7 +12,7 @@ export const POST = withApi(async (req: Request) => {
   const { tdb, org, user } = await requireApiContext({ minRole: 'RECRUITER', feature: 'scheduling', write: true });
   const b = parse(CreateShift, await req.json().catch(() => null));
   checkTimes(b);
-  const app = await tdb.application.findFirst({ where: { id: b.applicationId, ...assignmentWhere }, include: { candidate: { select: { id: true, name: true } }, job: { select: { client: { select: { id: true, name: true } } } } } });
+  const app = await tdb.application.findFirst({ where: { id: b.applicationId, ...assignmentWhere }, include: { candidate: { select: { id: true, name: true } }, job: { select: { location: true, client: { select: { id: true, name: true } } } } } });
   if (!app) throw new HttpError(404, 'That worker is no longer on this assignment.');
   await assertNotBarred(tdb, app.candidate, app.job.client?.id ?? null, app.job.client?.name);
   const dates = [...new Set(b.dates)].sort();
@@ -21,5 +23,7 @@ export const POST = withApi(async (req: Request) => {
   await assertNoOverlap(tdb, app.candidateId, dates.map((date) => ({ date, start: b.start, end: b.end, breakMinutes: b.breakMinutes })));
   await tdb.shift.createMany({ data: dates.map((date) => ({ organizationId: org.id, applicationId: app.id, date: new Date(`${date}T00:00:00Z`), start: b.start, end: b.end, breakMinutes: b.breakMinutes, unit: b.unit ?? null, notes: b.notes ?? null })) });
   await logActivity(org.id, `Scheduled ${app.candidate.name}: ${dates.length === 1 ? dayLabel(dates[0]) : `${dates.length} shifts`}`, user.id);
-  return Response.json({ created: dates.length, warnings: await shiftWarnings(tdb, { credentials: hasFeature(org, 'credentials'), onboarding: hasFeature(org, 'onboarding') }, app.candidateId, dates) }, { status: 201 });
+  const today = localDate(new Date(), org.timezone);
+  const rules = [...new Set(dates.flatMap((date) => shiftRuleWarnings(app.job, { date, hours: shiftHours(b), breakMinutes: b.breakMinutes }, today)))];
+  return Response.json({ created: dates.length, warnings: [...await shiftWarnings(tdb, { credentials: hasFeature(org, 'credentials'), onboarding: hasFeature(org, 'onboarding') }, app.candidateId, dates), ...rules] }, { status: 201 });
 });

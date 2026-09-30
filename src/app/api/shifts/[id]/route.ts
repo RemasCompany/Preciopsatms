@@ -2,6 +2,9 @@ import { requireApiContext, withApi, logActivity, HttpError } from '@/lib/tenant
 import { hasFeature } from '@/lib/plans';
 import { UpdateShift, assertNoOverlap, checkTimes, parse, shiftWarnings } from '@/lib/schedule-server';
 import { dayLabel } from '@/lib/schedule';
+import { shiftRuleWarnings } from '@/lib/state-rules';
+import { localDate } from '@/lib/timeclock';
+import { shiftHours } from '@/lib/schedule';
 
 type Ctx = { params: { id: string } };
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
@@ -10,7 +13,7 @@ const ymd = (d: Date) => d.toISOString().slice(0, 10);
 export const PATCH = withApi(async (req: Request, { params }: Ctx) => {
   const { tdb, org } = await requireApiContext({ minRole: 'RECRUITER', feature: 'scheduling', write: true });
   const b = parse(UpdateShift, await req.json().catch(() => null));
-  const s = await tdb.shift.findFirst({ where: { id: params.id }, include: { application: { select: { candidateId: true } } } });
+  const s = await tdb.shift.findFirst({ where: { id: params.id }, include: { application: { select: { candidateId: true, job: { select: { location: true } } } } } });
   if (!s) throw new HttpError(404, 'That shift was deleted.');
   if (s.cancelled) throw new HttpError(409, 'This shift was cancelled. Add a new shift instead.');
   const next = { date: b.date ?? ymd(s.date), start: b.start ?? s.start, end: b.end ?? s.end, breakMinutes: b.breakMinutes ?? s.breakMinutes };
@@ -24,7 +27,8 @@ export const PATCH = withApi(async (req: Request, { params }: Ctx) => {
     // A changed shift must be re-sent and re-confirmed.
     ...(changed ? { notified: false, remindedAt: null, ...(changedTimes ? { response: 'PENDING' as const, respondedAt: null, declineReason: null } : {}) } : {}),
   } });
-  return Response.json({ ok: true, needsNotice: changed && !!s.notifiedAt, warnings: await shiftWarnings(tdb, { credentials: hasFeature(org, 'credentials'), onboarding: hasFeature(org, 'onboarding') }, s.application.candidateId, [next.date]) });
+  const rules = changed ? shiftRuleWarnings(s.application.job, { date: next.date, hours: shiftHours(next), breakMinutes: next.breakMinutes }, localDate(new Date(), org.timezone)) : [];
+  return Response.json({ ok: true, needsNotice: changed && !!s.notifiedAt, warnings: [...await shiftWarnings(tdb, { credentials: hasFeature(org, 'credentials'), onboarding: hasFeature(org, 'onboarding') }, s.application.candidateId, [next.date]), ...rules] });
 });
 
 /** Remove a shift. One the worker never heard about is deleted; one they were told about becomes a cancellation to send. */
