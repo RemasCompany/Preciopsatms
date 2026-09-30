@@ -46,17 +46,27 @@ export default function PipelineBoard({ apps: initial, jobs, candidates, initial
     window.history.replaceState(null, '', u);
   }
 
+  // One save at a time per card, in order: quick arrow-key moves must not land out of order on the server.
+  const saving = useRef(new Map<string, Promise<void>>());
   async function move(a: BoardApp, stage: Stage, rejectionReason?: RejectionReason) {
     if (!canEdit || a.stage === stage) return;
     if (stage === 'REJECTED' && !rejectionReason) { setRejecting(a); return; }
-    const before = apps;
+    const from = a.stage;
     setApps((xs) => xs.map((x) => (x.id === a.id ? { ...x, stage, stageChangedAt: new Date().toISOString() } : x)));
-    const res = await fetch(`/api/applications/${a.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stage, rejectionReason }) });
-    if (!res.ok) { setApps(before); say((await res.json().catch(() => ({}))).error ?? 'Could not move this candidate. Try again.', true); return; }
-    const j = await res.json().catch(() => ({}));
-    if (stage === 'PLACED') { if (j.warning) say(j.warning, true); else say(`${a.candidate} placed. Nice work.`); router.refresh(); }
-    else if (stage === 'REJECTED') say(`${a.candidate} rejected: ${rejectionReason}.`);
+    const run = (saving.current.get(a.id) ?? Promise.resolve()).then(async () => {
+      const res = await fetch(`/api/applications/${a.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stage, rejectionReason }) });
+      if (!res.ok) {
+        setApps((xs) => xs.map((x) => (x.id === a.id && x.stage === stage ? { ...x, stage: from } : x)));
+        say((await res.json().catch(() => ({}))).error ?? 'Could not move this candidate. Try again.', true); return;
+      }
+      const j = await res.json().catch(() => ({}));
+      if (stage === 'PLACED') { if (j.warning) say(j.warning, true); else say(`${a.candidate} placed. Nice work.`); router.refresh(); }
+      else if (stage === 'REJECTED') say(`${a.candidate} rejected: ${rejectionReason}.`);
+    }).catch(() => say('Could not move this candidate. Check your connection and try again.', true));
+    saving.current.set(a.id, run);
+    await run;
   }
+
 
   function onKey(e: React.KeyboardEvent, a: BoardApp) {
     if (e.key === 'Enter') { open('candidates', a.candidateId); return; }

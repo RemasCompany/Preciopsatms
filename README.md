@@ -52,6 +52,13 @@ npm test                                                                     # V
 ```
 Covers tenant isolation and API gating (`tests/tenant.test.ts`, needs the test DB), plan feature gating, payroll/overtime math and the four-fifths rule.
 
+End-to-end (a real browser against a running app): sign up → choose a plan → create a job → apply on the careers page → move to Placed → enter hours → approve → export payroll.
+```bash
+npx playwright install chromium   # once
+npm run e2e                       # reuses `npm run dev` if it's running, else starts it; uses the DATABASE_URL in .env
+```
+With Stripe test keys set, the plan step also opens Stripe Checkout. The run deletes the company and user it created. CI runs it against a production build (`e2e` job).
+
 ## What's built
 | Area | Where |
 |---|---|
