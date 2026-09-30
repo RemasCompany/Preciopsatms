@@ -229,3 +229,14 @@ fieldset.days{border:0;padding:0;margin:8px 0;display:flex;flex-wrap:wrap;gap:6p
 .payworkerhead>div{display:flex;flex-direction:column}.payworkerhead .muted{font-size:13px}.paytotal{text-align:right}.paytotal b{font-size:18px}
 .paylines{min-width:560px}.paylines th,.paylines td{padding:7px 10px}.paylines td .muted{font-size:12.5px}
 .adjlist{list-style:none;padding:0;margin:10px 0}.adjlist li{display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--soft);font-size:14px}.adjlist li b{margin-left:auto}
+
+/* ---------- time clock ---------- */
+.clockcard{border-width:2px}.clockcard.on{border-color:var(--accent)}.clockcard.onbreak{border-color:var(--amber)}
+.clockhead{display:flex;justify-content:space-between;align-items:center}.clockstate{font-weight:800;font-size:15px;color:var(--ink)}
+.clockcard.on .clockstate{color:var(--accent)}.clockcard.onbreak .clockstate{color:var(--amber)}
+.clockbig{font-size:44px;font-weight:800;color:var(--ink);margin:6px 0 0;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.clockin{width:100%;min-height:56px;font-size:18px;margin-top:8px}.clockbtns .btn{flex:1 1 0;min-height:52px}
+.clockrecent{margin-top:12px;font-size:14px}.clockrecent summary{cursor:pointer;color:var(--muted)}.clockrecent ul{list-style:none;padding:0;margin:8px 0 0}
+.clockrecent li{display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid var(--soft)}
+.tc-now{display:flex;flex-wrap:wrap;gap:8px}.tc-now .pill{font-size:13px;padding:4px 10px}
+.tcflags{display:flex;flex-wrap:wrap;gap:4px}.tcrow td{vertical-align:top}.tcweek td{font-weight:700;background:var(--soft)}

@@ -2,6 +2,8 @@ import { z } from 'zod';
 import { tenantDb, logActivity } from '@/lib/tenant';
 import { resolveWorkerLink } from '@/lib/schedule-server';
 import { dayLabel, clock } from '@/lib/schedule';
+import { hasFeature } from '@/lib/plans';
+import { clockState } from '@/lib/timeclock-server';
 
 type Ctx = { params: { token: string } };
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
@@ -23,6 +25,7 @@ export async function GET(_req: Request, { params }: Ctx) {
   });
   const o = link.organization;
   return Response.json({
+    clock: hasFeature(o, 'timeclock') ? await clockState(link.organizationId, link.candidateId, o.timezone) : null,
     company: o.shortName ?? o.name, brandColor: o.brandColor, contactEmail: o.applyEmail ?? null, logoUrl: o.logoUrl ?? null, firstName: link.candidate.name.split(' ')[0],
     shifts: shifts.map((s) => ({
       id: s.id, date: ymd(s.date), start: s.start, end: s.end, breakMinutes: s.breakMinutes, unit: s.unit, notes: s.notes,

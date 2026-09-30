@@ -45,6 +45,7 @@ model Organization {
   showClientOnCareers  Boolean   @default(false)
   payrollProvider      String?   // adp | paychex | quickbooks | gusto | csv: default export format
   payrollCompanyCode   String?   // company code some providers need in imports (e.g. ADP Co Code)
+  timezone             String    @default("America/New_York") // IANA zone for time clock days and workweeks
   // Billing
   plan                 PlanId    @default(starter)
   stripeCustomerId     String?   @unique
@@ -58,6 +59,7 @@ model Organization {
   shifts               Shift[]
   workerLinks          WorkerLink[]
   payrollRuns          PayrollRun[]
+  timeEntries          TimeEntry[]
   aiCreditsUsed        Int       @default(0) // reset each billing period by webhook
   // Indeed Apply (candidates apply on Indeed; Indeed POSTs applications to /api/public/<slug>/indeed-apply)
   indeedApplyApiToken  String?
@@ -224,6 +226,7 @@ model Application {
   organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   candidate        Candidate    @relation(fields: [candidateId], references: [id], onDelete: Cascade)
   job              Job          @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  timeEntries      TimeEntry[]
   shifts           Shift[]
   timesheets       Timesheet[]
 
@@ -545,6 +548,8 @@ model WorkerLink {
   candidateId    String
   tokenHash      String       @unique
   expiresAt      DateTime
+  kind           String       @default("schedule") // schedule | timeclock (long-lived, sent on purpose, revocable)
+  revokedAt      DateTime?
   createdAt      DateTime     @default(now())
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   candidate      Candidate    @relation(fields: [candidateId], references: [id], onDelete: Cascade)
@@ -632,4 +637,37 @@ model PayrollAdjustment {
   item           PayrollItem           @relation(fields: [itemId], references: [id], onDelete: Cascade)
 
   @@index([itemId])
+}
+
+// One clock-in to clock-out for a worker on an assignment. Times are instants (UTC); the org's time zone decides
+// which day and workweek they fall in. Edits by staff keep the original punches and a reason.
+model TimeEntry {
+  id               String       @id @default(cuid())
+  organizationId   String
+  applicationId    String
+  shiftId          String?      // the scheduled shift this punch matched, if any
+  clockIn          DateTime
+  clockOut         DateTime?
+  breakMinutes     Int          @default(0)
+  breakStartedAt   DateTime?
+  source           String       @default("WORKER") // WORKER | STAFF
+  inLat            Float?
+  inLng            Float?
+  inAccuracy       Float?
+  outLat           Float?
+  outLng           Float?
+  outAccuracy      Float?
+  note             String?
+  originalClockIn  DateTime?
+  originalClockOut DateTime?
+  editedById       String?
+  editedAt         DateTime?
+  editReason       String?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  application      Application  @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, clockIn])
+  @@index([applicationId, clockIn])
 }

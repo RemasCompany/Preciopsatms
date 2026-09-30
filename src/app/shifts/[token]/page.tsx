@@ -1,12 +1,13 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 import { clockLong, dayLabel, overnight, shiftHours } from '@/lib/schedule';
+import TimeClock, { type ClockData } from '@/components/TimeClock';
 
 type Shift = {
   id: string; date: string; start: string; end: string; breakMinutes: number; unit: string | null; notes: string | null;
   job: string; client: string | null; location: string | null; state: 'pending' | 'confirmed' | 'declined' | 'cancelled' | 'updating'; past: boolean;
 };
-type Data = { company: string; brandColor: string; contactEmail: string | null; logoUrl: string | null; firstName: string; shifts: Shift[] };
+type Data = { company: string; brandColor: string; contactEmail: string | null; logoUrl: string | null; firstName: string; shifts: Shift[]; clock: ClockData | null };
 
 const STATE: Record<Shift['state'], { text: string; cls: string }> = {
   pending: { text: 'Please confirm', cls: 'a' }, confirmed: { text: 'Confirmed', cls: 'g' }, declined: { text: 'You can’t make it', cls: 'r' },
@@ -48,7 +49,9 @@ export default function MyShifts({ params }: { params: { token: string } }) {
       {/* eslint-disable-next-line @next/next/no-img-element */}
       {data.logoUrl && /^https:\/\//.test(data.logoUrl) && <img className="careers-logo" src={data.logoUrl} alt={data.company} />}
       <p className="muted" style={{ margin: 0 }}>{data.company}</p>
-      <h1>Hi {data.firstName}, here’s your schedule</h1>
+      <h1>Hi {data.firstName}{data.clock ? '' : ', here’s your schedule'}</h1>
+      {data.clock && <TimeClock token={params.token} data={data.clock} onChange={load} />}
+      {data.clock && <h2 style={{ marginBottom: 4 }}>Your schedule</h2>}
       <p className="lede">{toConfirm ? `${toConfirm} shift${toConfirm === 1 ? '' : 's'} waiting for you to confirm.` : upcoming.length ? 'You’re all set.' : 'You have no upcoming shifts.'}</p>
       {note && <p className="card banner" role="status">{note}</p>}
       <ul className="shiftlist">

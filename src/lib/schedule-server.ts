@@ -84,7 +84,7 @@ export async function shiftWarnings(tdb: TenantDb, orgFeatures: { credentials: b
 }
 
 // ---- notices ----
-type Channel = 'email' | 'sms';
+export type Channel = 'email' | 'sms';
 const LINK_DAYS = 45;
 const appUrl = () => process.env.APP_URL ?? 'http://localhost:3000';
 
@@ -96,8 +96,8 @@ export async function workerLink(orgId: string, candidateId: string, lastShift: 
   return `${appUrl()}/shifts/${token}`;
 }
 
-type Worker = { id: string; name: string; email: string | null; phone: string | null; emailOptOut: boolean; smsOptOut: boolean };
-async function deliver(tdb: TenantDb, w: Worker, channel: Channel, msg: { subject: string; text: string }, from: { name: string; replyTo?: string }, sentById: string | null) {
+export type Worker = { id: string; name: string; email: string | null; phone: string | null; emailOptOut: boolean; smsOptOut: boolean };
+export async function deliver(tdb: TenantDb, w: Worker, channel: Channel, msg: { subject: string; text: string }, from: { name: string; replyTo?: string }, sentById: string | null) {
   const to = channel === 'email' ? w.email : w.phone;
   const optedOut = channel === 'email' ? w.emailOptOut : w.smsOptOut;
   const log = (status: string, extra: { providerId?: string; error?: string } = {}) => tdb.message.create({
@@ -189,6 +189,6 @@ export async function runShiftReminders(now = new Date()) {
 export async function resolveWorkerLink(token: string) {
   if (!token || token.length > 100) return null;
   const link = await db.workerLink.findUnique({ where: { tokenHash: sha256(token) }, include: { organization: true, candidate: { select: { id: true, name: true } } } });
-  if (!link || link.expiresAt < new Date()) return null;
+  if (!link || link.expiresAt < new Date() || link.revokedAt) return null;
   return link;
 }
