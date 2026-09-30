@@ -6,6 +6,9 @@ import AppNav, { type NavGroup } from '@/components/AppNav';
 import ResponsiveTables from '@/components/ResponsiveTables';
 import VerifyBanner from '@/components/VerifyBanner';
 import { unreadCount } from '@/lib/sms-inbox';
+import { currentBranch } from '@/lib/branches';
+import BranchSwitcher from '@/components/BranchSwitcher';
+import { Suspense } from 'react';
 
 const NAV: [string, [href: string, label: string, feature?: Feature][]][] = [
   ['Recruiting', [['/app', 'Dashboard'], ['/app/pipeline', 'Pipeline'], ['/app/jobs', 'Jobs'], ['/app/candidates', 'Candidates'], ['/app/onboarding', 'Onboarding', 'onboarding'], ['/app/everify', 'E-Verify', 'onboarding'], ['/app/credentials', 'Credentials', 'credentials'], ['/app/schedule', 'Schedule', 'scheduling'], ['/app/timeclock', 'Time clock', 'timeclock'], ['/app/engagement', 'Engagement', 'engagement'], ['/app/referrals', 'Referrals', 'engagement'], ['/app/timesheets', 'Timesheets & payroll', 'timesheets'], ['/app/payroll', 'Payroll runs', 'payrollRuns'], ['/app/invoices', 'Invoices', 'timesheets']]],
@@ -16,12 +19,14 @@ const NAV: [string, [href: string, label: string, feature?: Feature][]][] = [
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const ctx = await requirePageContext();
   const { org } = ctx;
+  const { branches, branch } = await currentBranch(ctx);
   const unread = hasFeature(org, 'messaging') ? await unreadCount(ctx.tdb) : 0;
   const trialDays = org.trialEndsAt ? Math.ceil((org.trialEndsAt.getTime() - Date.now()) / 864e5) : 0;
   return (
     <div className="shell">
       <AppNav company={org.shortName ?? org.name} groups={NAV.map(([g, items]) => [g, items.filter(([h, , f]) => (!f || hasFeature(org, f)) && (!['/app/audit', '/app/invoices'].includes(h) || ctx.role === 'OWNER' || ctx.role === 'ADMIN')).map(([h, l]) => [h, h === '/app/inbox' && unread ? `${l} (${unread})` : l])] as NavGroup).filter(([, items]) => items.length)} />
       <div className="main">
+        {branches.length > 0 && <Suspense><BranchSwitcher branches={branches} current={branch?.id ?? null} /></Suspense>}
         {!ctx.user.emailVerifiedAt && <VerifyBanner email={ctx.user.email} />}
         {org.subscriptionStatus === 'trialing' && trialDays > 0 && <p className="card banner">{trialDays} days left in your trial. <Link href="/app/billing">Choose a plan</Link></p>}
         {!['trialing', 'active'].includes(org.subscriptionStatus) && <p className="card banner error">Your subscription is {org.subscriptionStatus.replace('_', ' ')}. Your data is safe but read-only. <Link href="/app/billing">Update billing</Link></p>}

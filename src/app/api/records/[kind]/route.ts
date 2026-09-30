@@ -18,7 +18,7 @@ export const GET = withApi(async (_req: Request, { params }: { params: { kind: s
 
 export const POST = withApi(async (req: Request, { params }: { params: { kind: string } }) => {
   const kind = kindOf(params.kind);
-  const { tdb, org, user } = await requireApiContext({ minRole: 'RECRUITER', feature: RECORDS[kind].feature, write: true });
+  const { tdb, org, user } = await requireApiContext({ minRole: kind === 'branches' ? 'ADMIN' : 'RECRUITER', feature: RECORDS[kind].feature, write: true });
   const body = await req.json().catch(() => ({}));
   const data = await parseRecord(tdb, kind, body, 'create', org.id);
   if (OWNED_KINDS.includes(kind) && data.ownerId === undefined) data.ownerId = user.id;

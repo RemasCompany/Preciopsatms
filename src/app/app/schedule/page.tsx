@@ -9,6 +9,7 @@ import ScheduleBoard, { type BoardRow } from '@/components/ScheduleBoard';
 import Gate from '@/components/Gate';
 import OpenShifts, { type OpenRow } from '@/components/OpenShifts';
 import { clock } from '@/lib/schedule';
+import { currentBranch, jobInBranch } from '@/lib/branches';
 
 export const dynamic = 'force-dynamic';
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
@@ -19,11 +20,12 @@ export default async function Schedule({ searchParams }: { searchParams: { week?
   let week: Date;
   try { week = parseWeek(searchParams.week ?? null); } catch { week = weekEnding(); }
   const w = ymd(week), days = weekDays(w);
+  const { branch } = await currentBranch(ctx);
   const clients = await ctx.tdb.client.findMany({ where: { jobs: { some: { applications: { some: assignmentWhere } } } }, select: { id: true, name: true }, orderBy: { name: 'asc' } });
   const client = clients.some((c) => c.id === searchParams.client) ? searchParams.client! : '';
 
   const apps = await ctx.tdb.application.findMany({
-    where: { ...assignmentWhere, ...(client ? { job: { ...assignmentWhere.job, clientId: client } } : {}) },
+    where: { ...assignmentWhere, job: { ...assignmentWhere.job, ...(client ? { clientId: client } : {}), ...jobInBranch(branch) } },
     include: {
       candidate: { select: { id: true, name: true, email: true, phone: true, emailOptOut: true, smsOptOut: true } },
       job: { select: { title: true, client: { select: { name: true } } } },

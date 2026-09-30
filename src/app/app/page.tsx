@@ -3,13 +3,16 @@ import { requirePageContext } from '@/lib/tenant';
 import { hasFeature } from '@/lib/plans';
 import { SOON_DAYS, credentialLabel, credentialStatus } from '@/lib/credentials';
 import { OpenRecord } from '@/components/Records';
+import { appInBranch, currentBranch, jobInBranch } from '@/lib/branches';
 
 export default async function Dashboard() {
-  const { tdb, user, org } = await requirePageContext();
+  const ctx = await requirePageContext();
+  const { tdb, user, org } = ctx;
+  const { branch } = await currentBranch(ctx);
   const [openJobs, active, placed, recent] = await Promise.all([
-    tdb.job.count({ where: { status: 'OPEN' } }),
-    tdb.application.count({ where: { stage: { notIn: ['PLACED', 'REJECTED'] } } }),
-    tdb.application.count({ where: { stage: 'PLACED', stageChangedAt: { gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) } } }),
+    tdb.job.count({ where: { status: 'OPEN', ...jobInBranch(branch) } }),
+    tdb.application.count({ where: { stage: { notIn: ['PLACED', 'REJECTED'] }, ...appInBranch(branch) } }),
+    tdb.application.count({ where: { ...appInBranch(branch), stage: 'PLACED', stageChangedAt: { gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) } } }),
     tdb.activity.findMany({ orderBy: { createdAt: 'desc' }, take: 10 }),
   ]);
   // Credentials that are expired or expire within 30 days, for active candidates.

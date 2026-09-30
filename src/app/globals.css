@@ -274,3 +274,4 @@ fieldset.days{border:0;padding:0;margin:8px 0;display:flex;flex-wrap:wrap;gap:6p
 .bubble.failed { background: #fde2e2; color: #7f1d1d; }
 @media (max-width: 720px) { .inbox { grid-template-columns: 1fr; } }
 .bubble { overflow-wrap: anywhere; }
+.branchsw { display: flex; gap: 8px; align-items: center; justify-content: flex-end; margin: 0 0 8px; font-size: 14px; } .branchsw select { width: auto; }

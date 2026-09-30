@@ -2,6 +2,7 @@ import { requirePageContext, canEdit } from '@/lib/tenant';
 import { labelFor } from '@/lib/records';
 import ListToolbar, { pickFilters } from '@/components/ListToolbar';
 import { OpenRecord, Pill } from '@/components/Records';
+import { currentBranch, jobInBranch } from '@/lib/branches';
 
 const FILTERS = ['status', 'sector', 'type'];
 const money = (n: number) => `$${n.toFixed(2)}`;
@@ -11,8 +12,9 @@ export default async function Jobs({ searchParams }: { searchParams: Record<stri
   const { tdb, org } = ctx;
   const q = searchParams.q?.trim();
   const active = pickFilters('jobs', FILTERS, searchParams);
+  const { branch } = await currentBranch(ctx);
   const jobs = await tdb.job.findMany({
-    where: { ...active, ...(q ? { OR: [{ title: { contains: q, mode: 'insensitive' } }, { location: { contains: q, mode: 'insensitive' } }, { client: { name: { contains: q, mode: 'insensitive' } } }] } : {}) } as never,
+    where: { ...active, ...jobInBranch(branch), ...(q ? { OR: [{ title: { contains: q, mode: 'insensitive' } }, { location: { contains: q, mode: 'insensitive' } }, { client: { name: { contains: q, mode: 'insensitive' } } }] } : {}) } as never,
     include: { client: { select: { name: true } }, applications: { select: { stage: true } } },
     orderBy: [{ hot: 'desc' }, { createdAt: 'desc' }],
   });
@@ -40,7 +42,7 @@ export default async function Jobs({ searchParams }: { searchParams: Record<stri
             );
           })}
         </tbody></table></div>
-      ) : <div className="card empty"><b>{q || Object.keys(active).length ? 'No jobs match' : 'No jobs yet'}</b>{q || Object.keys(active).length ? 'Try a different search or filter.' : 'Add a requisition to start sourcing.'}</div>}
+      ) : <div className="card empty"><b>{q || Object.keys(active).length ? 'No jobs match' : branch ? `No jobs in ${branch.name}` : 'No jobs yet'}</b>{q || Object.keys(active).length ? 'Try a different search or filter.' : branch ? 'Choose “All branches” at the top, or give a job this branch in its details.' : 'Add a requisition to start sourcing.'}</div>}
     </>
   );
 }

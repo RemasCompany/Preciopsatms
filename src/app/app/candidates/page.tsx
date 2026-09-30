@@ -4,6 +4,7 @@ import { OpenRecord, Pill } from '@/components/Records';
 import BulkMessage from '@/components/BulkMessage';
 import { reachOf } from '@/lib/bulk-messaging';
 import { hasFeature } from '@/lib/plans';
+import { currentBranch, candidateInBranch } from '@/lib/branches';
 
 const FILTERS = ['status', 'sector', 'availability', 'source'];
 
@@ -11,8 +12,9 @@ export default async function Candidates({ searchParams }: { searchParams: Recor
   const ctx = await requirePageContext();
   const q = searchParams.q?.trim();
   const active = pickFilters('candidates', FILTERS, searchParams);
+  const { branch } = await currentBranch(ctx);
   const list = await ctx.tdb.candidate.findMany({
-    where: { ...active, ...(q ? { OR: [{ name: { contains: q, mode: 'insensitive' } }, { title: { contains: q, mode: 'insensitive' } }, { email: { contains: q, mode: 'insensitive' } }, { skills: { has: q } }] } : {}) },
+    where: { AND: [candidateInBranch(branch)], ...active, ...(q ? { OR: [{ name: { contains: q, mode: 'insensitive' } }, { title: { contains: q, mode: 'insensitive' } }, { email: { contains: q, mode: 'insensitive' } }, { skills: { has: q } }] } : {}) },
     include: { vendor: { select: { name: true } }, _count: { select: { applications: true } } },
     orderBy: { updatedAt: 'desc' }, take: 200,
   });
@@ -36,7 +38,7 @@ export default async function Candidates({ searchParams }: { searchParams: Recor
             </tr>
           ))}
         </tbody></table></div>
-      ) : <div className="card empty"><b>{q || Object.keys(active).length ? 'No candidates match' : 'No candidates yet'}</b>{q || Object.keys(active).length ? 'Try a different search or filter.' : 'Add your first candidate, or share your careers page to start collecting applicants.'}</div>}
+      ) : <div className="card empty"><b>{q || Object.keys(active).length ? 'No candidates match' : branch ? `No candidates in ${branch.name}` : 'No candidates yet'}</b>{q || Object.keys(active).length ? 'Try a different search or filter.' : branch ? 'Choose “All branches” at the top, or set a branch on the candidate or their job.' : 'Add your first candidate, or share your careers page to start collecting applicants.'}</div>}
     </>
   );
 }

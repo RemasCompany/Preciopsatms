@@ -8,9 +8,9 @@ export type TimesheetRow = {
 };
 
 /** Everyone on assignment (placed on a non-direct-hire job) with their timesheet for the week. */
-export async function timesheetRows(tdb: TenantDb, week: Date): Promise<TimesheetRow[]> {
+export async function timesheetRows(tdb: TenantDb, week: Date, branchId?: string | null): Promise<TimesheetRow[]> {
   const apps = await tdb.application.findMany({
-    where: { stage: 'PLACED', job: { type: { not: 'DIRECT_HIRE' } } },
+    where: { stage: 'PLACED', job: { type: { not: 'DIRECT_HIRE' }, ...(branchId ? { branchId } : {}) } },
     include: { candidate: { select: { name: true, email: true } }, job: { select: { title: true, payRate: true, billRate: true, client: { select: { id: true, name: true } } } }, timesheets: { where: { weekEnding: week } } },
     orderBy: { candidate: { name: 'asc' } },
   });

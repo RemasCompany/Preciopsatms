@@ -5,13 +5,15 @@ import { parseWeek, ymd, addWeeks } from '@/lib/weeks';
 import { timesheetRows } from '@/lib/timesheets';
 import TimesheetGrid from '@/components/TimesheetGrid';
 import Gate from '@/components/Gate';
+import { currentBranch } from '@/lib/branches';
 
 export default async function Timesheets({ searchParams }: { searchParams: { week?: string } }) {
   const ctx = await requirePageContext();
   if (!hasFeature(ctx.org, 'timesheets')) return <Gate title="Timesheets & payroll" feature="Timesheets and payroll" />;
   let week: Date;
   try { week = parseWeek(searchParams.week ?? null); } catch { week = parseWeek(null); }
-  const rows = await timesheetRows(ctx.tdb, week);
+  const { branch } = await currentBranch(ctx);
+  const rows = await timesheetRows(ctx.tdb, week, branch?.id);
   const lines = await ctx.tdb.invoiceLine.findMany({ where: { weekEnding: week, invoice: { status: { not: 'VOID' } } }, select: { invoice: { select: { id: true, number: true, clientId: true } } } });
   const invoiced = Object.fromEntries(lines.map((l) => [l.invoice.clientId, { id: l.invoice.id, number: l.invoice.number }]));
   const admin = ctx.role === 'OWNER' || ctx.role === 'ADMIN';

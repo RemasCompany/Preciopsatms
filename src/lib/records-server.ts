@@ -4,8 +4,8 @@ import { HttpError, type TenantDb } from './tenant';
 import { db } from './db';
 import { RECORDS, optValue, type Field, type RecordKind, type RecordValues } from './records';
 
-export const MODEL: Record<RecordKind, 'job' | 'candidate' | 'client' | 'contact' | 'deal' | 'lead' | 'vendor' | 'task'> = {
-  jobs: 'job', candidates: 'candidate', clients: 'client', contacts: 'contact', deals: 'deal', leads: 'lead', vendors: 'vendor', tasks: 'task',
+export const MODEL: Record<RecordKind, 'job' | 'candidate' | 'client' | 'contact' | 'deal' | 'lead' | 'vendor' | 'task' | 'branch'> = {
+  jobs: 'job', candidates: 'candidate', clients: 'client', contacts: 'contact', deals: 'deal', leads: 'lead', vendors: 'vendor', tasks: 'task', branches: 'branch',
 };
 
 type Delegate = {

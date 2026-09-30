@@ -1,15 +1,19 @@
 import { requirePageContext } from '@/lib/tenant';
 import { ACTIVE_STATUSES } from '@/lib/plans';
 import PipelineBoard, { type BoardApp } from '@/components/PipelineBoard';
+import { appInBranch, currentBranch, jobInBranch } from '@/lib/branches';
 
 export default async function Pipeline({ searchParams }: { searchParams: { job?: string } }) {
-  const { tdb, org, role } = await requirePageContext();
+  const ctx = await requirePageContext();
+  const { tdb, org, role } = ctx;
+  const { branch } = await currentBranch(ctx);
   const [apps, jobs, candidates] = await Promise.all([
     tdb.application.findMany({
+      where: appInBranch(branch),
       include: { candidate: { select: { name: true, availability: true } }, job: { select: { title: true, client: { select: { name: true } } } } },
       orderBy: { stageChangedAt: 'desc' },
     }),
-    tdb.job.findMany({ select: { id: true, title: true, status: true, client: { select: { name: true } } }, orderBy: { createdAt: 'desc' } }),
+    tdb.job.findMany({ where: jobInBranch(branch), select: { id: true, title: true, status: true, client: { select: { name: true } } }, orderBy: { createdAt: 'desc' } }),
     tdb.candidate.findMany({ select: { id: true, name: true, title: true }, orderBy: { name: 'asc' }, take: 1000 }),
   ]);
   const rows: BoardApp[] = apps.map((a) => ({

@@ -7,13 +7,13 @@ export const SECTORS = ['IT & Software', 'Healthcare', 'Manufacturing', 'Warehou
 export type Opt = string | [value: string, label: string];
 export type FieldType = 'text' | 'email' | 'tel' | 'url' | 'num' | 'date' | 'sel' | 'ref' | 'user' | 'chk' | 'tags' | 'area';
 export type Field = { key: string; label: string; type: FieldType; options?: Opt[]; ref?: RecordKind; required?: boolean; notNull?: boolean; min?: number; max?: number; int?: boolean };
-export type RecordKind = 'jobs' | 'candidates' | 'clients' | 'contacts' | 'deals' | 'leads' | 'vendors' | 'tasks';
+export type RecordKind = 'jobs' | 'candidates' | 'clients' | 'contacts' | 'deals' | 'leads' | 'vendors' | 'tasks' | 'branches';
 
 const f = (key: string, label: string, type: FieldType = 'text', extra: Partial<Field> = {}): Field => ({ key, label, type, ...extra });
 
 export const RECORDS: Record<RecordKind, { one: string; titleKey: string; feature?: Feature; fields: Field[] }> = {
   jobs: { one: 'job', titleKey: 'title', feature: 'ats', fields: [
-    f('title', 'Job title', 'text', { required: true }), f('clientId', 'Client', 'ref', { ref: 'clients' }), f('sector', 'Sector', 'sel', { options: SECTORS }),
+    f('title', 'Job title', 'text', { required: true }), f('clientId', 'Client', 'ref', { ref: 'clients' }), f('branchId', 'Branch', 'ref', { ref: 'branches' }), f('sector', 'Sector', 'sel', { options: SECTORS }),
     f('location', 'Location (City, ST)'), f('postalCode', 'ZIP code'), f('remote', 'Fully remote', 'chk'),
     f('type', 'Employment type', 'sel', { notNull: true, options: [['CONTRACT', 'Contract'], ['CONTRACT_TO_HIRE', 'Contract-to-hire'], ['DIRECT_HIRE', 'Direct hire'], ['TEMP', 'Temp'], ['PER_DIEM', 'Per diem']] }),
     f('openings', 'Openings', 'num', { min: 1, max: 999, int: true }), f('payRate', 'Pay rate ($/hr)', 'num', { min: 0 }), f('billRate', 'Bill rate ($/hr)', 'num', { min: 0 }),
@@ -27,7 +27,7 @@ export const RECORDS: Record<RecordKind, { one: string; titleKey: string; featur
     f('sector', 'Sector', 'sel', { options: SECTORS }), f('yearsExp', 'Years of experience', 'num', { min: 0, max: 80, int: true }), f('desiredRate', 'Desired rate ($/hr)', 'num', { min: 0 }),
     f('availability', 'Availability', 'sel', { options: ['Immediately', '2 weeks', '30 days', 'Passive'] }),
     f('source', 'Source', 'sel', { options: ['Job board', 'Referral', 'LinkedIn', 'Vendor', 'Walk-in', 'Website', 'Careers page', 'Other'] }),
-    f('vendorId', 'Supplied by vendor', 'ref', { ref: 'vendors' }), f('payrollId', 'Payroll employee ID'),
+    f('vendorId', 'Supplied by vendor', 'ref', { ref: 'vendors' }), f('branchId', 'Branch', 'ref', { ref: 'branches' }), f('payrollId', 'Payroll employee ID'),
     f('status', 'Status', 'sel', { notNull: true, options: ['Active', 'On assignment', 'Placed', 'Inactive', 'Do not use'] }),
     f('skills', 'Skills (comma separated)', 'tags'), f('certs', 'Licenses & certifications', 'tags'), f('summary', 'Summary / resume notes', 'area'),
   ] },
@@ -61,6 +61,9 @@ export const RECORDS: Record<RecordKind, { one: string; titleKey: string; featur
   tasks: { one: 'task', titleKey: 'title', fields: [
     f('title', 'Task', 'text', { required: true }), f('dueAt', 'Due date', 'date'), f('priority', 'Priority', 'sel', { notNull: true, options: ['Normal', 'High', 'Low'] }),
     f('related', 'Related to'), f('done', 'Done', 'chk'),
+  ] },
+  branches: { one: 'branch', titleKey: 'name', fields: [
+    f('name', 'Branch name', 'text', { required: true }), f('city', 'City'), f('phone', 'Phone', 'tel'),
   ] },
 };
 

@@ -4,12 +4,12 @@ import { useRouter } from 'next/navigation';
 import type { Role } from '@prisma/client';
 import { useRecords } from './Records';
 
-type Member = { id: string; userId: string; name: string | null; email: string; role: Role; since: string };
+type Member = { id: string; userId: string; name: string | null; email: string; role: Role; since: string; branchId?: string | null };
 type Invite = { id: string; email: string; role: Role; expired: boolean; expiresAt: string };
 const ROLE_LABEL: Record<Role, string> = { OWNER: 'Owner', ADMIN: 'Admin', RECRUITER: 'Recruiter', VIEWER: 'Viewer' };
 const date = (iso: string) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
-export default function Team({ me, admin, members, invites, full }: { me: { id: string; role: Role }; admin: boolean; members: Member[]; invites: Invite[]; full: boolean }) {
+export default function Team({ me, admin, members, invites, full, branches = [] }: { me: { id: string; role: Role }; admin: boolean; members: Member[]; invites: Invite[]; full: boolean; branches?: { id: string; name: string }[] }) {
   const router = useRouter();
   const { toast } = useRecords();
   const [email, setEmail] = useState('');
@@ -32,7 +32,7 @@ export default function Team({ me, admin, members, invites, full }: { me: { id: 
 
   return (
     <>
-      <div className="tablewrap"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Joined</th>{admin && <th><span className="sr">Actions</span></th>}</tr></thead><tbody>
+      <div className="tablewrap"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th>{branches.length > 0 && <th>Home branch</th>}<th>Joined</th>{admin && <th><span className="sr">Actions</span></th>}</tr></thead><tbody>
         {members.map((m) => {
           const self = m.userId === me.id;
           const locked = !admin || self || (m.role === 'OWNER' && me.role !== 'OWNER');
@@ -45,6 +45,10 @@ export default function Team({ me, admin, members, invites, full }: { me: { id: 
                   {roleChoices.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
                 </select>
               )}</td>
+              {branches.length > 0 && <td>{admin || self ? (
+                <select aria-label={`Home branch for ${m.email}`} value={m.branchId ?? ''} onChange={(e) => call(`/api/team/members/${m.id}/branch`, 'PATCH', { branchId: e.target.value || null }, 'Home branch updated.')}>
+                  <option value="">All branches</option>{branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>) : branches.find((b) => b.id === m.branchId)?.name ?? 'All branches'}</td>}
               <td>{date(m.since)}</td>
               {admin && <td>{!locked && <button className="btn ghost sm" onClick={() => confirm(`Remove ${m.email} from your team?`) && call(`/api/team/members/${m.id}`, 'DELETE', undefined, 'Removed.')}>Remove</button>}</td>}
             </tr>

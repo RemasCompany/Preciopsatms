@@ -18,7 +18,7 @@ export const GET = withApi(async (_req: Request, { params }: Ctx) => {
 
 export const PATCH = withApi(async (req: Request, { params }: Ctx) => {
   const kind = kindOf(params.kind);
-  const { tdb, org, user } = await requireApiContext({ minRole: 'RECRUITER', feature: RECORDS[kind].feature, write: true });
+  const { tdb, org, user } = await requireApiContext({ minRole: kind === 'branches' ? 'ADMIN' : 'RECRUITER', feature: RECORDS[kind].feature, write: true });
   const before = await delegate(tdb, kind).findFirst({ where: { id: params.id } });
   if (!before) throw new HttpError(404, 'That record was deleted.');
   const body = await req.json().catch(() => ({}));
@@ -45,7 +45,7 @@ export const PATCH = withApi(async (req: Request, { params }: Ctx) => {
 
 export const DELETE = withApi(async (_req: Request, { params }: Ctx) => {
   const kind = kindOf(params.kind);
-  const { tdb, org, user } = await requireApiContext({ minRole: 'RECRUITER', feature: RECORDS[kind].feature, write: true });
+  const { tdb, org, user } = await requireApiContext({ minRole: kind === 'branches' ? 'ADMIN' : 'RECRUITER', feature: RECORDS[kind].feature, write: true });
   const row = await delegate(tdb, kind).findFirst({ where: { id: params.id } });
   if (!row) throw new HttpError(404, 'That record was deleted.');
   if (kind === 'jobs' || kind === 'candidates') {

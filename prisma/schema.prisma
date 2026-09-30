@@ -110,6 +110,7 @@ model Organization {
   everifyCases       EVerifyCase[]
   doNotReturns       DoNotReturn[]
   referrals          Referral[]
+  branches           Branch[]
   externalRefs       ExternalRef[]
 }
 
@@ -145,6 +146,8 @@ model Membership {
   organizationId String
   role           Role         @default(RECRUITER)
   createdAt      DateTime     @default(now())
+  branchId       String?      // home branch: the app opens filtered to it
+  branch         Branch?      @relation(fields: [branchId], references: [id], onDelete: SetNull)
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
@@ -212,6 +215,8 @@ model Job {
   siteLat        Float?         // job site, for time clock geofencing
   siteLng        Float?
   geofenceMeters Int?
+  branchId       String?
+  branch         Branch?      @relation(fields: [branchId], references: [id], onDelete: SetNull)
 }
 
 model Candidate {
@@ -252,6 +257,8 @@ model Candidate {
   backgroundChecks BackgroundCheck[]
   everifyCases     EVerifyCase[]
   doNotReturns     DoNotReturn[]
+  branchId       String?
+  branch         Branch?      @relation(fields: [branchId], references: [id], onDelete: SetNull)
 }
 
 enum Stage {
@@ -628,6 +635,23 @@ model ExternalRef {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, provider, kind, localId])
+}
+
+/// An office or location of the staffing company. Jobs, candidates and team members can belong to one.
+model Branch {
+  id             String       @id @default(cuid())
+  organizationId String
+  name           String
+  city           String?
+  phone          String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  jobs           Job[]
+  candidates     Candidate[]
+  members        Membership[]
+
+  @@index([organizationId])
 }
 
 /// A worker referred a friend. The bonus (if the company pays one) is due after the friend works enough approved hours.

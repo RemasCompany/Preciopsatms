@@ -9,7 +9,7 @@ import { captureError, cleanPath } from './monitoring';
 // Models that carry organizationId. Every query through tenantDb() is forced into the caller's org.
 const TENANT_MODELS = new Set<string>([
   'Job', 'Candidate', 'Application', 'EeoSelfId', 'Client', 'Contact', 'Deal', 'Lead', 'Vendor', 'Task',
-  'Timesheet', 'SignDocument', 'Message', 'Activity', 'StoredFile', 'Invite', 'SalesTarget', 'Credential', 'Shift', 'WorkerLink', 'PayrollRun', 'PayrollItem', 'PayrollAdjustment', 'TimeEntry', 'OnboardingPackage', 'Onboarding', 'OnboardingStep', 'Feedback', 'FeedbackRequest', 'Recognition', 'AuditLog', 'BackgroundTask', 'Invoice', 'InvoiceLine', 'Payment', 'ClientPortalLink', 'OpenShift', 'ShiftOffer', 'BackgroundCheck', 'AccountingConnection', 'ExternalRef', 'EVerifyCase', 'DoNotReturn', 'Referral',
+  'Timesheet', 'SignDocument', 'Message', 'Activity', 'StoredFile', 'Invite', 'SalesTarget', 'Credential', 'Shift', 'WorkerLink', 'PayrollRun', 'PayrollItem', 'PayrollAdjustment', 'TimeEntry', 'OnboardingPackage', 'Onboarding', 'OnboardingStep', 'Feedback', 'FeedbackRequest', 'Recognition', 'AuditLog', 'BackgroundTask', 'Invoice', 'InvoiceLine', 'Payment', 'ClientPortalLink', 'OpenShift', 'ShiftOffer', 'BackgroundCheck', 'AccountingConnection', 'ExternalRef', 'EVerifyCase', 'DoNotReturn', 'Referral', 'Branch',
 ]);
 // Written once, never changed: the audit log is evidence.
 const APPEND_ONLY = new Set(['AuditLog']);
