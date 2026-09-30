@@ -1,5 +1,6 @@
 import { requireApiContext, withApi, logActivity } from '@/lib/tenant';
 import { STAGE_ORDER } from '@/lib/eeo';
+import { audit } from '@/lib/audit';
 
 const cell = (v: unknown) => { const s = String(v ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
 const ymd = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : '');
@@ -25,6 +26,7 @@ export const GET = withApi(async (req: Request) => {
       a.rejectionReason, a.stage === 'REJECTED' ? ymd(a.stageChangedAt) : '', e?.gender, e?.race, e?.veteran, e?.disability];
   });
   await logActivity(org.id, 'Exported the applicant flow log', user.id);
+  await audit(org.id, user, 'eeo.export', `Exported the applicant flow log (${rows.length} applications${year ? `, ${year}` : ''})`, { req });
   const today = new Date().toISOString().slice(0, 10);
   return new Response([header, ...rows].map((r) => r.map(cell).join(',')).join('\n'), {
     headers: { 'Content-Type': 'text/csv', 'Content-Disposition': `attachment; filename="applicant-flow-log-${today}.csv"`, 'Cache-Control': 'private, no-store' },

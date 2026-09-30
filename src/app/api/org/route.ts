@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { requireApiContext, withApi, HttpError, logActivity } from '@/lib/tenant';
 import { db } from '@/lib/db';
+import { audit, diff } from '@/lib/audit';
 
 const text = (max: number) => z.string().trim().max(max).transform((s) => s || null).nullable().optional();
 const url = z.string().trim().max(300).refine((s) => !s || /^https:\/\/\S+\.\S+/.test(s), 'Use a full https:// address.').transform((s) => s || null).nullable().optional();
@@ -25,5 +26,7 @@ export const PATCH = withApi(async (req: Request) => {
   const data = Object.fromEntries(Object.entries(parsed.data).filter(([, v]) => v !== undefined));
   await db.organization.update({ where: { id: org.id }, data });
   await logActivity(org.id, 'Updated company settings', user.id);
+  const changes = diff(org as unknown as Record<string, unknown>, data);
+  await audit(org.id, user, 'settings.company', `Changed company settings: ${Object.keys(changes).join(', ') || 'no changes'}`, { changes, req });
   return Response.json({ ok: true });
 });

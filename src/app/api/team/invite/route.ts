@@ -4,6 +4,7 @@ import { requireApiContext, withApi, HttpError, logActivity } from '@/lib/tenant
 import { seatLimitReached } from '@/lib/stripe';
 import { newToken, sha256 } from '@/lib/tokens';
 import { sendEmail } from '@/lib/email';
+import { audit } from '@/lib/audit';
 
 const Body = z.object({ email: z.string().trim().email('Enter a valid email address.'), role: z.enum(['ADMIN', 'RECRUITER', 'VIEWER']) });
 
@@ -29,5 +30,6 @@ export const POST = withApi(async (req: Request) => {
     throw new HttpError(502, 'The invite email couldn’t be sent. Check the address and try again.');
   }
   await logActivity(org.id, `Invited ${email} as ${parsed.data.role.toLowerCase()}`, user.id);
+  await audit(org.id, user, 'team.invite', `Invited ${email} as ${parsed.data.role.toLowerCase()}`, { targetType: 'invite', targetId: invite.id, req });
   return Response.json({ ok: true });
 });

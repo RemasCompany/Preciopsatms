@@ -107,9 +107,9 @@ describe('CSV import and export', () => {
 
   it('full data export is owner-only and leaves out secrets', async () => {
     as(admin);
-    expect((await ACCOUNT()).status).toBe(403);
+    expect((await ACCOUNT(new Request('http://x'))).status).toBe(403);
     as(owner);
-    const text = await (await ACCOUNT()).text();
+    const text = await (await ACCOUNT(new Request('http://x'))).text();
     const data = JSON.parse(text);
     expect(data.organization.id).toBe(org);
     expect(data.candidates.map((c: { name: string }) => c.name)).toContain('Ana Diaz');

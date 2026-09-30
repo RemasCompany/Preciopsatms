@@ -8,8 +8,10 @@ import { hasFeature, planIncludes, type Feature } from './plans';
 // Models that carry organizationId. Every query through tenantDb() is forced into the caller's org.
 const TENANT_MODELS = new Set<string>([
   'Job', 'Candidate', 'Application', 'EeoSelfId', 'Client', 'Contact', 'Deal', 'Lead', 'Vendor', 'Task',
-  'Timesheet', 'SignDocument', 'Message', 'Activity', 'StoredFile', 'Invite', 'SalesTarget', 'Credential', 'Shift', 'WorkerLink', 'PayrollRun', 'PayrollItem', 'PayrollAdjustment', 'TimeEntry', 'OnboardingPackage', 'Onboarding', 'OnboardingStep', 'Feedback', 'FeedbackRequest', 'Recognition',
+  'Timesheet', 'SignDocument', 'Message', 'Activity', 'StoredFile', 'Invite', 'SalesTarget', 'Credential', 'Shift', 'WorkerLink', 'PayrollRun', 'PayrollItem', 'PayrollAdjustment', 'TimeEntry', 'OnboardingPackage', 'Onboarding', 'OnboardingStep', 'Feedback', 'FeedbackRequest', 'Recognition', 'AuditLog',
 ]);
+// Written once, never changed: the audit log is evidence.
+const APPEND_ONLY = new Set(['AuditLog']);
 const SCOPED_READS = new Set(['findMany', 'findFirst', 'findFirstOrThrow', 'count', 'aggregate', 'groupBy', 'updateMany', 'deleteMany']);
 const UNSCOPABLE = new Set(['findUnique', 'findUniqueOrThrow', 'update', 'delete', 'upsert']);
 
@@ -19,6 +21,7 @@ export function tenantDb(orgId: string) {
       $allModels: {
         async $allOperations({ model, operation, args, query }) {
           if (!TENANT_MODELS.has(model)) return query(args);
+          if (APPEND_ONLY.has(model) && (operation === 'updateMany' || operation === 'deleteMany')) throw new Error(`tenantDb: ${model} is append-only`);
           const a = (args ?? {}) as Record<string, unknown>;
           if (SCOPED_READS.has(operation)) a.where = { ...(a.where as object), organizationId: orgId };
           else if (operation === 'create') a.data = { ...(a.data as object), organizationId: orgId };

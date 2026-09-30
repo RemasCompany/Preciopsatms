@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { db } from '@/lib/db';
 import { limited } from '@/lib/rate-limit';
 import { consumeToken, peekToken } from '@/lib/account';
+import { audit } from '@/lib/audit';
 
 const Body = z.object({ token: z.string().min(10).max(100), password: z.string().min(10, 'Use at least 10 characters.').max(200, 'That password is too long.') });
 
@@ -24,5 +25,6 @@ export async function POST(req: Request) {
   await db.user.update({ where: { id: user.id }, data: { passwordHash: await bcrypt.hash(b.data.password, 12), passwordChangedAt: now, emailVerifiedAt: user.emailVerifiedAt ?? now } });
   const orgs = await db.membership.findMany({ where: { userId: user.id }, select: { organizationId: true } });
   if (orgs.length) await db.activity.createMany({ data: orgs.map((o) => ({ organizationId: o.organizationId, text: `${user.name ?? user.email} reset their password`, actorId: user.id })) });
+  for (const o of orgs) await audit(o.organizationId, user, 'auth.password_reset', `${user.email} reset their password by email link; other sessions were signed out`, { targetType: 'user', targetId: user.id, req });
   return Response.json({ ok: true, email: user.email });
 }

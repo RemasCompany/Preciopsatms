@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 import { sha256 } from '@/lib/tokens';
 import { syncSeats, seatLimitReached } from '@/lib/stripe';
 import { withApi, HttpError } from '@/lib/tenant';
+import { audit } from '@/lib/audit';
 
 type Ctx = { params: { token: string } };
 const INVALID = 'This invite link is invalid, expired or already used. Ask for a new one.';
@@ -49,6 +50,7 @@ export const POST = withApi(async (req: Request, { params }: Ctx) => {
   }
   await db.invite.update({ where: { id: inv.id }, data: { acceptedAt: new Date() } });
   await db.activity.create({ data: { organizationId: inv.organizationId, text: `${user.name ?? user.email} joined the team`, actorId: user.id } });
+  if (!already) await audit(inv.organizationId, user, 'team.join', `${user.email} accepted an invite and joined as ${inv.role.toLowerCase()}`, { targetType: 'user', targetId: user.id, req });
   await syncSeats(inv.organizationId).catch((e) => console.error('[invite] seat sync failed', e));
   return Response.json({ email: user.email, orgId: inv.organizationId });
 });

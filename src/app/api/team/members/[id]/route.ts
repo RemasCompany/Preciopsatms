@@ -3,6 +3,7 @@ import { Role } from '@prisma/client';
 import { db } from '@/lib/db';
 import { requireApiContext, withApi, HttpError, logActivity } from '@/lib/tenant';
 import { syncSeats } from '@/lib/stripe';
+import { audit } from '@/lib/audit';
 
 type Ctx = { params: { id: string } };
 
@@ -22,11 +23,12 @@ export const PATCH = withApi(async (req: Request, { params }: Ctx) => {
   if (m.role === 'OWNER' && role !== 'OWNER' && (await owners(org.id)) <= 1) throw new HttpError(409, 'Your company needs at least one owner. Make someone else an owner first.');
   await db.membership.update({ where: { id: m.id }, data: { role } });
   await logActivity(org.id, `Changed ${m.user.email} to ${role.toLowerCase()}`, user.id);
+  await audit(org.id, user, 'team.role_change', `Changed ${m.user.email} from ${m.role.toLowerCase()} to ${role.toLowerCase()}`, { targetType: 'user', targetId: m.userId, changes: { role: [m.role, role] }, req });
   return Response.json({ ok: true });
 });
 
 /** Remove a teammate. Their account stays; they lose access to this company. Seats sync to Stripe. */
-export const DELETE = withApi(async (_req: Request, { params }: Ctx) => {
+export const DELETE = withApi(async (req: Request, { params }: Ctx) => {
   const { org, user, role: myRole } = await requireApiContext({ minRole: 'ADMIN', write: true });
   const m = await target(org.id, params.id);
   if (m.userId === user.id) throw new HttpError(409, 'You can’t remove yourself.');
@@ -35,5 +37,6 @@ export const DELETE = withApi(async (_req: Request, { params }: Ctx) => {
   await db.membership.delete({ where: { id: m.id } });
   await syncSeats(org.id).catch((e) => console.error('[team] seat sync failed', e));
   await logActivity(org.id, `Removed ${m.user.email} from the team`, user.id);
+  await audit(org.id, user, 'team.remove', `Removed ${m.user.email} (${m.role.toLowerCase()}) from the team`, { targetType: 'user', targetId: m.userId, req });
   return Response.json({ ok: true });
 });

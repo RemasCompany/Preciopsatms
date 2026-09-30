@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { requireApiContext, withApi, logActivity, HttpError } from '@/lib/tenant';
 import { db } from '@/lib/db';
 import { planIncludes } from '@/lib/plans';
+import { audit, diff } from '@/lib/audit';
 
 const Body = z.object({
   enabled: z.boolean(),
@@ -14,7 +15,9 @@ export const PATCH = withApi(async (req: Request) => {
   if (!planIncludes(org, 'onboarding')) throw new HttpError(402, 'Onboarding is included in the Growth and Enterprise plans.');
   const r = Body.safeParse(await req.json().catch(() => null));
   if (!r.success) throw new HttpError(400, r.error.issues[0]?.message ?? 'Invalid input');
-  await db.organization.update({ where: { id: org.id }, data: { onboardingEnabled: r.data.enabled, onboardingEnforcement: r.data.enforcement } });
+  const next = { onboardingEnabled: r.data.enabled, onboardingEnforcement: r.data.enforcement };
+  await db.organization.update({ where: { id: org.id }, data: next });
+  await audit(org.id, user, 'settings.onboarding', r.data.enabled ? `Turned onboarding on (${r.data.enforcement})` : 'Turned onboarding off', { changes: diff(org, next), req });
   await logActivity(org.id, r.data.enabled ? `Turned onboarding on (${r.data.enforcement === 'block' ? 'unfinished onboarding blocks scheduling and clock-in' : 'unfinished onboarding shows a warning'})` : 'Turned onboarding off', user.id);
   return Response.json({ ok: true });
 });

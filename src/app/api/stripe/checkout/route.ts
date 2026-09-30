@@ -3,9 +3,10 @@ import { stripe, stripeEnabled } from '@/lib/stripe';
 import { priceIdFor, PLANS } from '@/lib/plans';
 import { db } from '@/lib/db';
 import { requireApiContext, withApi, HttpError } from '@/lib/tenant';
+import { audit } from '@/lib/audit';
 
 export const POST = withApi(async (req: Request) => {
-  const { org } = await requireApiContext({ minRole: 'OWNER' });
+  const { org, user } = await requireApiContext({ minRole: 'OWNER' });
   const { plan } = z.object({ plan: z.enum(['starter', 'growth', 'enterprise']) }).parse(await req.json());
   if (!stripeEnabled()) throw new HttpError(503, 'Billing isn’t set up on this server yet. Your trial continues in the meantime.');
   let customer = org.stripeCustomerId;
@@ -28,5 +29,6 @@ export const POST = withApi(async (req: Request) => {
     success_url: `${process.env.APP_URL}/app/billing?status=success`,
     cancel_url: `${process.env.APP_URL}/app/billing`,
   });
+  await audit(org.id, user, 'billing.checkout', `Started checkout for the ${PLANS[plan].name} plan (${seats} seat${seats === 1 ? '' : 's'})`, { req });
   return Response.json({ url: session.url });
 });

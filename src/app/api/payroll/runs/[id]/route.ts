@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { requireApiContext, withApi, logActivity, HttpError } from '@/lib/tenant';
 import { checksFor, loadRun, syncItems } from '@/lib/payroll-run-server';
 import { totals } from '@/lib/payroll-run';
+import { audit } from '@/lib/audit';
 
 type Ctx = { params: { id: string } };
 const Body = z.object({ action: z.enum(['refresh', 'approve', 'unapprove', 'pay', 'void']), acknowledge: z.boolean().optional(), payDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() });
@@ -24,6 +25,7 @@ export const PATCH = withApi(async (req: Request, { params }: Ctx) => {
   const run = await tdb.payrollRun.findFirst({ where: { id: params.id } });
   if (!run) throw new HttpError(404, 'That payroll run was deleted.');
   const DONE = { refresh: 'refreshed', approve: 'approved', unapprove: 'reopened', pay: 'marked paid', void: 'voided' } as const;
+  const target = { targetType: 'payrollRun', targetId: run.id, req };
   const need = (...s: string[]) => { if (!s.includes(run.status)) throw new HttpError(409, `This run is ${run.status.toLowerCase()}, so it can’t be ${DONE[b.action]}.`); };
 
   if (b.action === 'refresh') {
@@ -41,13 +43,16 @@ export const PATCH = withApi(async (req: Request, { params }: Ctx) => {
     if (warnings.length && !b.acknowledge) return Response.json({ ok: false, needsAcknowledge: true, warnings }, { status: 409 });
     await tdb.payrollRun.updateMany({ where: { id: run.id, status: 'DRAFT' }, data: { status: 'APPROVED', approvedAt: new Date(), approvedById: user.id } });
     const t = totals(loaded.items);
-    await logActivity(org.id, `Approved payroll run ${run.number}: ${loaded.items.length} timesheets, $${(t.gross / 100).toFixed(2)} gross${warnings.length ? ` (approved with ${warnings.length} warning${warnings.length === 1 ? '' : 's'})` : ''}`, user.id);
+    const summary = `Approved payroll run ${run.number}: ${loaded.items.length} timesheets, $${(t.gross / 100).toFixed(2)} gross${warnings.length ? ` (approved with ${warnings.length} warning${warnings.length === 1 ? '' : 's'})` : ''}`;
+    await logActivity(org.id, summary, user.id);
+    await audit(org.id, user, 'payroll.approve', summary, { ...target, changes: warnings.length ? { acknowledgedWarnings: warnings.map((w) => w.text) } : undefined });
     return Response.json({ ok: true });
   }
   if (b.action === 'unapprove') {
     need('APPROVED');
     await tdb.payrollRun.updateMany({ where: { id: run.id, status: 'APPROVED' }, data: { status: 'DRAFT', approvedAt: null, approvedById: null } });
     await logActivity(org.id, `Reopened payroll run ${run.number} for changes`, user.id);
+    await audit(org.id, user, 'payroll.unapprove', `Reopened payroll run ${run.number} for changes`, target);
     return Response.json({ ok: true });
   }
   if (b.action === 'pay') {
@@ -58,6 +63,7 @@ export const PATCH = withApi(async (req: Request, { params }: Ctx) => {
       await tx.timesheet.updateMany({ where: { payrollRunId: run.id, status: 'APPROVED' }, data: { status: 'PAID', paidAt: now } });
     });
     await logActivity(org.id, `Marked payroll run ${run.number} as paid`, user.id);
+    await audit(org.id, user, 'payroll.pay', `Marked payroll run ${run.number} as paid`, target);
     return Response.json({ ok: true });
   }
   need('DRAFT', 'APPROVED');
@@ -66,5 +72,6 @@ export const PATCH = withApi(async (req: Request, { params }: Ctx) => {
     await tx.timesheet.updateMany({ where: { payrollRunId: run.id }, data: { payrollRunId: null } });
   });
   await logActivity(org.id, `Voided payroll run ${run.number}; its timesheets can go in a new run`, user.id);
+  await audit(org.id, user, 'payroll.void', `Voided payroll run ${run.number} (was ${run.status.toLowerCase()})`, target);
   return Response.json({ ok: true });
 });

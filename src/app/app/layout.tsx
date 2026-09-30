@@ -9,7 +9,7 @@ import VerifyBanner from '@/components/VerifyBanner';
 const NAV: [string, [href: string, label: string, feature?: Feature][]][] = [
   ['Recruiting', [['/app', 'Dashboard'], ['/app/pipeline', 'Pipeline'], ['/app/jobs', 'Jobs'], ['/app/candidates', 'Candidates'], ['/app/onboarding', 'Onboarding', 'onboarding'], ['/app/credentials', 'Credentials', 'credentials'], ['/app/schedule', 'Schedule', 'scheduling'], ['/app/timeclock', 'Time clock', 'timeclock'], ['/app/engagement', 'Engagement', 'engagement'], ['/app/timesheets', 'Timesheets & payroll', 'timesheets'], ['/app/payroll', 'Payroll runs', 'payrollRuns']]],
   ['Sales', [['/app/leads', 'Lead generation', 'leads'], ['/app/clients', 'Clients & contacts', 'crm'], ['/app/deals', 'Deals', 'crm'], ['/app/sales', 'Sales metrics', 'crm']]],
-  ['Operations', [['/app/vendors', 'Vendors', 'vendors'], ['/app/documents', 'E-signatures', 'esign'], ['/app/eeo', 'EEO reporting', 'eeo'], ['/app/tasks', 'Tasks'], ['/app/team', 'Team'], ['/app/settings', 'Settings & data'], ['/app/billing', 'Billing']]],
+  ['Operations', [['/app/vendors', 'Vendors', 'vendors'], ['/app/documents', 'E-signatures', 'esign'], ['/app/eeo', 'EEO reporting', 'eeo'], ['/app/tasks', 'Tasks'], ['/app/team', 'Team'], ['/app/settings', 'Settings & data'], ['/app/audit', 'Audit log'], ['/app/billing', 'Billing']]],
 ];
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -18,7 +18,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const trialDays = org.trialEndsAt ? Math.ceil((org.trialEndsAt.getTime() - Date.now()) / 864e5) : 0;
   return (
     <div className="shell">
-      <AppNav company={org.shortName ?? org.name} groups={NAV.map(([g, items]) => [g, items.filter(([, , f]) => !f || hasFeature(org, f)).map(([h, l]) => [h, l])] as NavGroup).filter(([, items]) => items.length)} />
+      <AppNav company={org.shortName ?? org.name} groups={NAV.map(([g, items]) => [g, items.filter(([h, , f]) => (!f || hasFeature(org, f)) && (h !== '/app/audit' || ctx.role === 'OWNER' || ctx.role === 'ADMIN')).map(([h, l]) => [h, l])] as NavGroup).filter(([, items]) => items.length)} />
       <div className="main">
         {!ctx.user.emailVerifiedAt && <VerifyBanner email={ctx.user.email} />}
         {org.subscriptionStatus === 'trialing' && trialDays > 0 && <p className="card banner">{trialDays} days left in your trial. <Link href="/app/billing">Choose a plan</Link></p>}

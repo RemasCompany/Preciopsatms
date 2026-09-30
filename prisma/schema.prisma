@@ -92,6 +92,7 @@ model Organization {
   eeo          EeoSelfId[]
   activity     Activity[]
   files        StoredFile[]
+  auditLogs          AuditLog[]
 }
 
 model User {
@@ -474,6 +475,26 @@ model Message {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, relatedType, relatedId])
+}
+
+/// Append-only record of admin and security-sensitive actions. Never updated or deleted by the app.
+model AuditLog {
+  id             String       @id @default(cuid())
+  organizationId String
+  actorId        String?
+  actorEmail     String?
+  action         String
+  summary        String
+  targetType     String?
+  targetId       String?
+  changes        Json?
+  ip             String?
+  userAgent      String?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, action])
 }
 
 model Activity {
