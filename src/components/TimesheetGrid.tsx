@@ -23,7 +23,9 @@ export default function TimesheetGrid({ week, prev, next, rows: initial, canEdit
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [busy, setBusy] = useState('');
   const queue = useRef(new Map<string, Promise<void>>()); // one save at a time per row
-  useEffect(() => { setRows(initial); setDrafts({}); }, [initial]);
+  const pending = useRef(0); // saves in flight
+  const saved = useRef(rows); saved.current = rows; // last saved values, read when a queued save actually runs
+  useEffect(() => { if (pending.current === 0) { setRows(initial); setDrafts({}); } }, [initial]);
 
   // Live totals include hours typed but not yet saved.
   const live = useMemo(() => rows.map((r) => {
@@ -46,21 +48,32 @@ export default function TimesheetGrid({ week, prev, next, rows: initial, canEdit
     return { ...d, [id]: { reg: d[id]?.reg ?? (r.status === 'NOT_ENTERED' ? '' : String(r.reg)), ot: d[id]?.ot ?? (r.status === 'NOT_ENTERED' ? '' : String(r.ot)), [k]: v } };
   });
 
+  // Saves run one at a time per row; the page refreshes only once nothing is in flight, so a slow
+  // refresh from an earlier save can't overwrite hours typed after it.
   function save(r: TimesheetRow) {
     const id = r.applicationId;
-    const run = (queue.current.get(id) ?? Promise.resolve()).then(() => saveNow(r));
+    pending.current++;
+    const run = (queue.current.get(id) ?? Promise.resolve()).then(() => saveNow(r)).finally(() => { if (--pending.current === 0) router.refresh(); });
     queue.current.set(id, run.catch(() => {}));
   }
   async function saveNow(r: TimesheetRow) {
     const d = drafts[r.applicationId];
     if (!d) return;
     const reg = Number(d.reg) || 0, ot = Number(d.ot) || 0;
-    if (r.status !== 'NOT_ENTERED' && reg === r.reg && ot === r.ot) { setDrafts(({ [r.applicationId]: _, ...rest }) => rest); return; }
+    const clear = () => setDrafts((all) => {
+      const cur = all[r.applicationId];
+      if (!cur || cur.reg !== d.reg || cur.ot !== d.ot) return all; // edited again since: keep the newer draft
+      const { [r.applicationId]: _, ...rest } = all; return rest;
+    });
+    // Compare with what's saved now (not the row as displayed, which already shows the typed hours).
+    const base = saved.current.find((x) => x.applicationId === r.applicationId) ?? r;
+    if (base.status !== 'NOT_ENTERED' && reg === base.reg && ot === base.ot) { clear(); return; }
     const res = await fetch('/api/timesheets', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ applicationId: r.applicationId, week, regularHours: reg, overtimeHours: ot }) });
     if (!res.ok) { toast((await res.json().catch(() => ({}))).error ?? 'Could not save hours.', true); return; }
-    setRows((xs) => xs.map((x) => (x.applicationId === r.applicationId ? { ...x, reg, ot, status: 'DRAFT', gross: hoursAmount(reg, ot, x.pay), billable: hoursAmount(reg, ot, x.bill) } : x)));
-    setDrafts(({ [r.applicationId]: _, ...rest }) => rest);
-    router.refresh();
+    const apply = (xs: TimesheetRow[]) => xs.map((x) => (x.applicationId === r.applicationId ? { ...x, reg, ot, status: 'DRAFT' as const, gross: hoursAmount(reg, ot, x.pay), billable: hoursAmount(reg, ot, x.bill) } : x));
+    saved.current = apply(saved.current); // before React re-renders, so the next queued save sees it
+    setRows(apply);
+    clear();
   }
 
   async function act(action: 'approve' | 'markPaid' | 'reopen', applicationIds?: string[]) {
