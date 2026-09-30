@@ -10,9 +10,11 @@ Everything except the database and three core settings is optional. The app star
 ## 1. Database (about 5 minutes)
 
 1. Create a project at [neon.tech](https://neon.tech) (or Supabase → Project → Database).
-2. Copy the **pooled** connection string and add `?sslmode=require` if it isn't there. This is `DATABASE_URL`.
+2. Copy **two** connection strings from the dashboard's *Connect* dialog:
+   - the **pooled** one (Neon: host contains `-pooler`; Supabase: port 6543). Add `?sslmode=require&pgbouncer=true` (join with `&` if it already has a `?`). This is `DATABASE_URL`, used by the app.
+   - the **direct** one (pooling switched off; Supabase: port 5432). Add `?sslmode=require`. This is `DIRECT_URL`, used only to run migrations, which don't work through a pooler.
 
-Migrations run automatically on every Vercel deploy (`vercel-build` runs `prisma migrate deploy`), so the tables are created for you.
+Migrations run automatically on every Vercel deploy (`vercel-build` runs `prisma migrate deploy` over `DIRECT_URL`), so the tables are created for you. Without `DIRECT_URL`, migrations use `DATABASE_URL`, which works only when that is a direct connection.
 
 ## 2. App on Vercel (about 10 minutes)
 
@@ -21,7 +23,8 @@ Migrations run automatically on every Vercel deploy (`vercel-build` runs `prisma
 
 | Variable | Value | Needed for |
 |---|---|---|
-| `DATABASE_URL` | from step 1 | **required** |
+| `DATABASE_URL` | pooled string from step 1 | **required** |
+| `DIRECT_URL` | direct string from step 1 | **required** with a pooled `DATABASE_URL` (migrations) |
 | `NEXTAUTH_SECRET` | output of `openssl rand -base64 32` | **required** |
 | `NEXTAUTH_URL` | `https://app.preciopsatms.com` (or the `*.vercel.app` URL at first) | **required** |
 | `APP_URL` | same as `NEXTAUTH_URL` | **required** (links in emails, feeds, Indeed Apply) |
@@ -81,7 +84,7 @@ Set `CHECKR_API_KEY` (and `CHECKR_ENV=production` when you go live; anything els
 
 ## Accounting: QuickBooks Online and Xero (optional)
 
-Create an app with Intuit (developer.intuit.com) and/or Xero (developer.xero.com), register the redirect URIs `https://<your-app>/api/integrations/quickbooks/callback` and `.../xero/callback`, and set `QUICKBOOKS_CLIENT_ID`/`QUICKBOOKS_CLIENT_SECRET` (`QUICKBOOKS_ENV=production` for live companies) and/or `XERO_CLIENT_ID`/`XERO_CLIENT_SECRET`. Set `INTEGRATIONS_KEY` (`openssl rand -base64 32`) so stored tokens are encrypted with their own key. An admin then connects from Settings → Accounting and sends invoices from the Invoices page: each worker's regular and overtime hours become separate lines, QuickBooks customers are matched by name (or created), and a "Staffing services" item is created once. Recorded client payments are sent too (for Xero, only when `XERO_BANK_ACCOUNT` is set). Nothing is sent twice.
+Create an app with Intuit (developer.intuit.com) and/or Xero (developer.xero.com), register the redirect URIs `https://<your-app>/api/integrations/quickbooks/callback` and `.../xero/callback`, and set `QUICKBOOKS_CLIENT_ID`/`QUICKBOOKS_CLIENT_SECRET` (`QUICKBOOKS_ENV=production` for live companies) and/or `XERO_CLIENT_ID`/`XERO_CLIENT_SECRET`. Set `INTEGRATIONS_KEY` (`openssl rand -base64 32`) so stored tokens are encrypted with their own key. An admin then connects from Settings → Accounting and sends invoices from the Invoices page: each worker's regular and overtime hours become separate lines, QuickBooks customers are matched by name (or created), and a "Staffing services" item is created once. Recorded client payments are sent too (for Xero, only when `XERO_BANK_ACCOUNT` is set; invoice lines post to account code `XERO_SALES_ACCOUNT`, default `200`). Nothing is sent twice.
 
 ## E-Verify
 

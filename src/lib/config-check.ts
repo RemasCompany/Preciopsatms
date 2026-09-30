@@ -4,6 +4,9 @@ export function configReport(env: Record<string, string | undefined> = process.e
   const errors: string[] = [], warnings: string[] = [];
   for (const k of ['DATABASE_URL', 'NEXTAUTH_SECRET', 'NEXTAUTH_URL', 'APP_URL']) if (!set(k)) errors.push(`${k} is required.`);
   if (set('NEXTAUTH_SECRET') && env.NEXTAUTH_SECRET!.length < 32) errors.push('NEXTAUTH_SECRET should be at least 32 characters (openssl rand -base64 32).');
+  const pooled = set('DATABASE_URL') && /-pooler\.|pgbouncer=true|:6543\//.test(env.DATABASE_URL!);
+  if (pooled && !set('DIRECT_URL')) warnings.push('DATABASE_URL is a pooled connection but DIRECT_URL is missing: migrations will fail on the next deploy. Set DIRECT_URL to the direct (non-pooled) connection string.');
+  if (pooled && !/pgbouncer=true/.test(env.DATABASE_URL!)) warnings.push('DATABASE_URL is a pooled connection without pgbouncer=true: add it, or queries can fail with “prepared statement already exists”.');
   if (set('APP_URL') && env.NODE_ENV === 'production' && !env.APP_URL!.startsWith('https://')) warnings.push('APP_URL should use https:// in production (Indeed Apply and signing links require it).');
   if (!set('STRIPE_SECRET_KEY')) warnings.push('Stripe is not configured: signups run on the free trial and plans can’t be purchased.');
   else if (!set('STRIPE_WEBHOOK_SECRET')) errors.push('STRIPE_WEBHOOK_SECRET is required when Stripe is on, or subscriptions won’t sync.');

@@ -22,4 +22,11 @@ describe('startup config report', () => {
     const r = configReport({ ...base, APP_URL: 'http://app.test', STORAGE_DRIVER: 'local' });
     expect(r.warnings.filter((w) => /STORAGE_DRIVER|https/.test(w))).toHaveLength(2);
   });
+
+  it('catches a pooled database URL that would break migrations or queries', () => {
+    const pooled = 'postgresql://u:p@ep-x-pooler.us-east-2.aws.neon.tech/db?sslmode=require';
+    expect(configReport({ ...base, DATABASE_URL: pooled }).warnings.filter((w) => w.startsWith('DATABASE_URL is a pooled'))).toHaveLength(2);
+    expect(configReport({ ...base, DATABASE_URL: `${pooled}&pgbouncer=true`, DIRECT_URL: 'postgresql://u:p@ep-x.us-east-2.aws.neon.tech/db' }).warnings.filter((w) => w.startsWith('DATABASE_URL'))).toHaveLength(0);
+    expect(configReport(base).warnings.filter((w) => w.startsWith('DATABASE_URL'))).toHaveLength(0);
+  });
 });
