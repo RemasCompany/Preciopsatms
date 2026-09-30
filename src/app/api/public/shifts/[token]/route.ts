@@ -7,6 +7,8 @@ import { clockState } from '@/lib/timeclock-server';
 import { workerOnboarding } from '@/lib/onboarding-server';
 import { workerEngagement } from '@/lib/engagement-server';
 import { limited } from '@/lib/rate-limit';
+import { respondToOffer, workerOffers } from '@/lib/open-shifts';
+import { HttpError } from '@/lib/tenant';
 
 type Ctx = { params: { token: string } };
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
@@ -25,6 +27,7 @@ export async function GET(_req: Request, { params }: Ctx) {
   });
   const o = link.organization;
   return Response.json({
+    offers: hasFeature(o, 'scheduling') ? await workerOffers(link.organizationId, link.candidateId) : [],
     engagement: hasFeature(o, 'engagement') ? await workerEngagement(link.organizationId, link.candidateId) : null,
     onboarding: hasFeature(o, 'onboarding') ? await workerOnboarding(link.organizationId, link.candidateId) : [],
     clock: hasFeature(o, 'timeclock') ? await clockState(link.organizationId, link.candidateId, o.timezone) : null,
@@ -45,7 +48,14 @@ export async function POST(req: Request, { params }: Ctx) {
   if (await limited('shifts', params.token.slice(0, 20), 60, 600e3)) return Response.json({ error: 'Too many requests. Try again in a few minutes.' }, { status: 429 });
   const link = await resolveWorkerLink(params.token);
   if (!link) return gone();
-  const b = Body.safeParse(await req.json().catch(() => null));
+  const raw = await req.json().catch(() => null);
+  const offer = z.object({ offerId: z.string(), accept: z.boolean() }).safeParse(raw);
+  if (offer.success) {
+    // Picking up (or passing on) an open shift.
+    try { return Response.json(await respondToOffer(link.organizationId, link.candidate, offer.data.offerId, offer.data.accept)); }
+    catch (e) { if (e instanceof HttpError) return Response.json({ error: e.message }, { status: e.status }); throw e; }
+  }
+  const b = Body.safeParse(raw);
   if (!b.success) return Response.json({ error: b.error.issues[0]?.message ?? 'Invalid input' }, { status: 400 });
   const tdb = tenantDb(link.organizationId);
   const s = await tdb.shift.findFirst({ where: { id: b.data.shiftId, application: { candidateId: link.candidateId } } });

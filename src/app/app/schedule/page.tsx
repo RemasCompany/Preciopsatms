@@ -7,6 +7,8 @@ import { dayLabel, weekDays } from '@/lib/schedule';
 import { credentialStatus } from '@/lib/credentials';
 import ScheduleBoard, { type BoardRow } from '@/components/ScheduleBoard';
 import Gate from '@/components/Gate';
+import OpenShifts, { type OpenRow } from '@/components/OpenShifts';
+import { clock } from '@/lib/schedule';
 
 export const dynamic = 'force-dynamic';
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
@@ -46,6 +48,19 @@ export default async function Schedule({ searchParams }: { searchParams: { week?
       cancelled: s.cancelled, notified: s.notified, everSent: !!s.notifiedAt, response: s.response, declineReason: s.declineReason,
     })),
   }));
+  const [openShifts, poolJobs] = await Promise.all([
+    ctx.tdb.openShift.findMany({ where: { date: { gte: new Date(`${days[0]}T00:00:00Z`), lte: week }, ...(client ? { job: { clientId: client } } : {}) }, orderBy: [{ date: 'asc' }, { start: 'asc' }],
+      include: { job: { select: { title: true } }, offers: { select: { status: true, candidateId: true } } } }),
+    ctx.tdb.job.findMany({ where: { type: { not: 'DIRECT_HIRE' }, applications: { some: assignmentWhere }, ...(client ? { clientId: client } : {}) }, orderBy: { title: 'asc' },
+      select: { id: true, title: true, client: { select: { name: true } }, _count: { select: { applications: { where: assignmentWhere } } } } }),
+  ]);
+  const names = new Map(apps.map((a) => [a.candidateId, a.candidate.name]));
+  const openRows: OpenRow[] = openShifts.map((o) => ({ id: o.id, date: ymd(o.date), start: o.start, end: o.end, unit: o.unit, job: o.job.title, slots: o.slots, filled: o.filled, status: o.status,
+    offered: o.offers.filter((x) => x.status !== 'CANCELLED').length, declined: o.offers.filter((x) => x.status === 'DECLINED').length,
+    takers: o.offers.filter((x) => x.status === 'ACCEPTED').map((x) => names.get(x.candidateId) ?? 'a worker') }));
+  // Declined shifts this week are the usual reason to post an open one.
+  const declined = apps.flatMap((a) => a.shifts.filter((s) => !s.cancelled && s.notified && s.response === 'DECLINED' && ymd(s.date) >= ymd(new Date()))
+    .map((s) => ({ jobId: a.jobId, date: ymd(s.date), start: s.start, end: s.end, breakMinutes: s.breakMinutes, unit: s.unit, label: `${a.candidate.name.split(' ')[0]}’s ${dayLabel(ymd(s.date))} ${clock(s.start)} shift (can’t make it)` })));
   const all = rows.flatMap((r) => r.shifts.filter((s) => !s.cancelled));
   const count = (f: (s: BoardRow['shifts'][number]) => boolean) => all.filter(f).length;
   const q = (wk: Date) => `?week=${ymd(wk)}${client ? `&client=${client}` : ''}`;
@@ -77,6 +92,8 @@ export default async function Schedule({ searchParams }: { searchParams: { week?
         <div className="kpi"><b>{count((s) => !s.notified)}</b><span>Not sent yet</span></div>
       </div>
       <ScheduleBoard week={w} days={days} rows={rows} canEdit={canEdit(ctx)} today={ymd(new Date())} />
+      <OpenShifts rows={openRows} declined={declined} canEdit={canEdit(ctx)} today={ymd(new Date())}
+        jobs={poolJobs.map((j) => ({ id: j.id, label: [j.title, j.client?.name].filter(Boolean).join(' — '), pool: j._count.applications }))} />
     </>
   );
 }

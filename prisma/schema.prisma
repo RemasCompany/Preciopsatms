@@ -98,6 +98,8 @@ model Organization {
   invoiceLines       InvoiceLine[]
   payments           Payment[]
   clientPortalLinks  ClientPortalLink[]
+  openShifts         OpenShift[]
+  shiftOffers        ShiftOffer[]
 }
 
 model User {
@@ -195,6 +197,7 @@ model Job {
   applications   Application[]
 
   @@index([organizationId, status])
+  openShifts     OpenShift[]
 }
 
 model Candidate {
@@ -565,6 +568,47 @@ model Payment {
 
   @@index([organizationId, receivedOn])
   @@index([invoiceId])
+}
+
+/// A shift nobody is on yet, offered to the job's worker pool; the first to accept gets it.
+model OpenShift {
+  id             String       @id @default(cuid())
+  organizationId String
+  jobId          String
+  date           DateTime     @db.Date
+  start          String
+  end            String
+  breakMinutes   Int          @default(0)
+  unit           String?
+  notes          String?
+  slots          Int          @default(1)
+  filled         Int          @default(0)
+  status         String       @default("OPEN") // OPEN | FILLED | CANCELLED
+  createdById    String?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  job            Job          @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  offers         ShiftOffer[]
+
+  @@index([organizationId, date])
+}
+
+model ShiftOffer {
+  id             String       @id @default(cuid())
+  organizationId String
+  openShiftId    String
+  candidateId    String
+  applicationId  String
+  status         String       @default("OFFERED") // OFFERED | ACCEPTED | DECLINED | TAKEN | CANCELLED
+  sentAt         DateTime     @default(now())
+  sentVia        String?
+  respondedAt    DateTime?
+  shiftId        String?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  openShift      OpenShift    @relation(fields: [openShiftId], references: [id], onDelete: Cascade)
+
+  @@unique([openShiftId, candidateId])
+  @@index([organizationId, candidateId, status])
 }
 
 /// A client contact's private link to the client portal. Long-lived, revocable; only the hash is stored.

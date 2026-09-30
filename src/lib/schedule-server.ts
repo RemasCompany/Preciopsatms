@@ -19,13 +19,13 @@ const DATE = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Choose a date.').refine((v
 const TIME = (label: string) => z.string().regex(TIME_RE, `Enter a ${label} time.`);
 const opt = (max: number, label: string) => z.union([z.string().max(max, `${label} is too long.`), z.null()]).optional().transform((v) => (v?.trim() ? v.trim() : v === undefined ? undefined : null));
 
-const Fields = {
+export const ShiftFields = {
   start: TIME('start'), end: TIME('end'),
   breakMinutes: z.coerce.number({ invalid_type_error: 'Enter the break in minutes.' }).int('Enter the break in whole minutes.').min(0, 'The break can’t be negative.').max(240, 'Breaks over 4 hours aren’t supported.'),
   unit: opt(80, 'Unit'), notes: opt(500, 'Notes'),
 };
-export const CreateShift = z.object({ applicationId: z.string().min(1, 'Choose a worker.'), dates: z.array(DATE).min(1, 'Choose at least one day.').max(31, 'Add up to 31 days at a time.'), ...Fields });
-export const UpdateShift = z.object({ date: DATE, ...Fields }).partial();
+export const CreateShift = z.object({ applicationId: z.string().min(1, 'Choose a worker.'), dates: z.array(DATE).min(1, 'Choose at least one day.').max(31, 'Add up to 31 days at a time.'), ...ShiftFields });
+export const UpdateShift = z.object({ date: DATE, ...ShiftFields }).partial();
 
 export function parse<T extends z.ZodTypeAny>(schema: T, body: unknown): z.infer<T> {
   const r = schema.safeParse(body ?? {});

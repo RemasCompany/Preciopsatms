@@ -9,7 +9,8 @@ type Shift = {
   id: string; date: string; start: string; end: string; breakMinutes: number; unit: string | null; notes: string | null;
   job: string; client: string | null; location: string | null; state: 'pending' | 'confirmed' | 'declined' | 'cancelled' | 'updating'; past: boolean;
 };
-type Data = { company: string; brandColor: string; contactEmail: string | null; logoUrl: string | null; firstName: string; shifts: Shift[]; clock: ClockData | null; onboarding?: WorkerOb[]; engagement?: WorkerEng | null };
+type Offer = { id: string; status: 'open' | 'taken'; date: string; start: string; end: string; breakMinutes: number; unit: string | null; notes: string | null; job: string; client: string | null; location: string | null };
+type Data = { offers?: Offer[]; company: string; brandColor: string; contactEmail: string | null; logoUrl: string | null; firstName: string; shifts: Shift[]; clock: ClockData | null; onboarding?: WorkerOb[]; engagement?: WorkerEng | null };
 
 const STATE: Record<Shift['state'], { text: string; cls: string }> = {
   pending: { text: 'Please confirm', cls: 'a' }, confirmed: { text: 'Confirmed', cls: 'g' }, declined: { text: 'You can’t make it', cls: 'r' },
@@ -43,6 +44,15 @@ export default function MyShifts({ params }: { params: { token: string } }) {
     load();
   }
 
+  async function answerOffer(o: Offer, accept: boolean) {
+    setBusy(o.id); setNote('');
+    const r = await fetch(`/api/public/shifts/${params.token}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ offerId: o.id, accept }) });
+    const j = await r.json().catch(() => ({}));
+    setBusy(null);
+    setNote(r.ok ? j.message : j.error ?? 'That didn’t go through. Try again.');
+    load();
+  }
+
   if (!data) return <main className="public"><p className={error ? 'error' : 'muted'}>{error || 'Loading…'}</p></main>;
   const upcoming = data.shifts.filter((s) => !s.past);
   const toConfirm = upcoming.filter((s) => s.state === 'pending').length;
@@ -55,7 +65,22 @@ export default function MyShifts({ params }: { params: { token: string } }) {
       {!!data.onboarding?.length && <WorkerOnboarding token={params.token} items={data.onboarding} onChange={load} />}
       {data.clock && <TimeClock token={params.token} data={data.clock} onChange={load} />}
       {data.engagement && <WorkerEngagement token={params.token} data={data.engagement} onChange={load} />}
-      {(data.clock || !!data.onboarding?.length) && <h2 style={{ marginBottom: 4 }}>Your schedule</h2>}
+      {!!data.offers?.length && (
+        <section aria-label="Open shifts you can pick up">
+          <h2 style={{ marginBottom: 4 }}>Open shifts you can pick up</h2>
+          <ul className="shiftlist">{data.offers.map((o) => (
+            <li key={o.id} className={`card shiftcard ${o.status === 'taken' ? 'cancelled' : 'pending'}`}>
+              <div className="shifthead"><b>{dayLabel(o.date, { weekday: 'long', month: 'long', day: 'numeric' })}</b><span className={`pill ${o.status === 'taken' ? '' : 'a'}`}>{o.status === 'taken' ? 'Taken' : 'Open'}</span></div>
+              <p className="shifttime">{clockLong(o.start)} – {clockLong(o.end)}{overnight(o.start, o.end) ? ' (next day)' : ''} <span className="muted">· {+shiftHours(o).toFixed(2)} hours</span></p>
+              <p className="muted">{[o.job, o.unit, o.client, o.location].filter(Boolean).join(' · ')}</p>
+              {o.notes && <p>{o.notes}</p>}
+              {o.status === 'open' ? <div className="row"><button className="btn" disabled={busy === o.id} onClick={() => answerOffer(o, true)}>I’ll take it</button><button className="btn ghost" disabled={busy === o.id} onClick={() => answerOffer(o, false)}>No thanks</button></div>
+                : <p className="muted">Someone else picked this one up. Thanks for looking!</p>}
+            </li>
+          ))}</ul>
+        </section>
+      )}
+      {(data.clock || !!data.onboarding?.length || !!data.offers?.length) && <h2 style={{ marginBottom: 4 }}>Your schedule</h2>}
       <p className="lede">{toConfirm ? `${toConfirm} shift${toConfirm === 1 ? '' : 's'} waiting for you to confirm.` : upcoming.length ? 'You’re all set.' : 'You have no upcoming shifts.'}</p>
       {note && <p className="card banner" role="status">{note}</p>}
       <ul className="shiftlist">
