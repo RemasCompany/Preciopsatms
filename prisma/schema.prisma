@@ -105,6 +105,7 @@ model Organization {
   backgroundChecks   BackgroundCheck[]
   accountingConnections AccountingConnection[]
   everifyCases       EVerifyCase[]
+  doNotReturns       DoNotReturn[]
   externalRefs       ExternalRef[]
 }
 
@@ -246,6 +247,7 @@ model Candidate {
   @@index([organizationId, phone])
   backgroundChecks BackgroundCheck[]
   everifyCases     EVerifyCase[]
+  doNotReturns     DoNotReturn[]
 }
 
 enum Stage {
@@ -614,6 +616,25 @@ model ExternalRef {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, provider, kind, localId])
+}
+
+/// A worker who must not be sent back to a client (clientId set) or to anyone (clientId null). Lifted, never deleted.
+model DoNotReturn {
+  id             String       @id @default(cuid())
+  organizationId String
+  candidateId    String
+  clientId       String?
+  reason         String
+  source         String       @default("staff") // staff | client feedback
+  createdById    String?
+  createdAt      DateTime     @default(now())
+  liftedAt       DateTime?
+  liftedById     String?
+  liftReason     String?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  candidate      Candidate    @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, candidateId])
 }
 
 /// An E-Verify case for a new hire, tracked against the three-business-day deadline. Created in E-Verify itself.

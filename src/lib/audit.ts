@@ -26,6 +26,8 @@ export const AUDIT_ACTIONS = {
   'data.export': { group: 'Data', label: 'Exported records' },
   'data.import': { group: 'Data', label: 'Imported records' },
   'data.audit_export': { group: 'Data', label: 'Exported the audit log' },
+  'dnr.add': { group: 'Team', label: 'Added to do-not-return' },
+  'dnr.lift': { group: 'Team', label: 'Lifted a do-not-return' },
   'screening.order': { group: 'Data', label: 'Ordered a background check' },
   'eeo.report_view': { group: 'EEO', label: 'Viewed the EEO report' },
   'eeo.export': { group: 'EEO', label: 'Exported the applicant flow log' },

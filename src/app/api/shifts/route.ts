@@ -3,14 +3,16 @@ import { hasFeature } from '@/lib/plans';
 import { CreateShift, assertNoOverlap, assignmentWhere, checkTimes, parse, shiftWarnings } from '@/lib/schedule-server';
 import { dayLabel } from '@/lib/schedule';
 import { onboardingGaps } from '@/lib/onboarding-server';
+import { assertNotBarred } from '@/lib/dnr';
 
 /** Add a shift on one or more days for a worker on assignment. Nothing is sent until the schedule is published. */
 export const POST = withApi(async (req: Request) => {
   const { tdb, org, user } = await requireApiContext({ minRole: 'RECRUITER', feature: 'scheduling', write: true });
   const b = parse(CreateShift, await req.json().catch(() => null));
   checkTimes(b);
-  const app = await tdb.application.findFirst({ where: { id: b.applicationId, ...assignmentWhere }, include: { candidate: { select: { id: true, name: true } } } });
+  const app = await tdb.application.findFirst({ where: { id: b.applicationId, ...assignmentWhere }, include: { candidate: { select: { id: true, name: true } }, job: { select: { client: { select: { id: true, name: true } } } } } });
   if (!app) throw new HttpError(404, 'That worker is no longer on this assignment.');
+  await assertNotBarred(tdb, app.candidate, app.job.client?.id ?? null, app.job.client?.name);
   const dates = [...new Set(b.dates)].sort();
   if (hasFeature(org, 'onboarding') && org.onboardingEnforcement === 'block') {
     const gaps = await onboardingGaps(tdb, app.candidateId);

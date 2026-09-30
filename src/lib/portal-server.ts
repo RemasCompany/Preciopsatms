@@ -9,6 +9,7 @@ import { lineCents, toCents } from './invoicing';
 import { balanceCents } from './invoicing-server';
 import { localDate } from './timeclock';
 import { ymd } from './weeks';
+import { addFromClientFeedback } from './dnr';
 
 const appUrl = () => process.env.APP_URL ?? 'http://localhost:3000';
 const LINK_DAYS = 90;
@@ -128,6 +129,7 @@ export async function portalAct(p: Portal, body: unknown) {
     if (!app) throw new HttpError(404, 'That worker isn’t on one of your assignments.');
     await tdb.feedback.create({ data: { candidateId: app.candidate.id, applicationId: app.id, source: 'CLIENT', rating: b.rating, wouldRehire: b.wouldRehire, comment: b.comment || null, authorName: contact.name, contactId: contact.id } as never });
     await logActivity(org.id, `${who} rated ${app.candidate.name} ${b.rating}/5 in the client portal${b.wouldRehire ? '' : ' — would NOT have them back'}`);
+    if (!b.wouldRehire) await addFromClientFeedback(tdb, org.id, app.candidate, client, contact.name, b.comment);
     return { message: `Thanks for rating ${first(app.candidate.name)}.` };
   }
   if (b.startDate < localDate(new Date(), org.timezone)) throw new HttpError(400, 'The start date is in the past.');

@@ -10,6 +10,7 @@ import RecordForm, { invalidateRefs } from './RecordForm';
 import { RECORDS, defaultsFor, labelFor, vendorCompliance, HOURS_PER_WEEK, type RecordKind, type RecordValues } from '@/lib/records';
 import { BOARD_STAGES, REJECTION_REASONS, stageLabel } from '@/lib/pipeline';
 import BackgroundChecks from './BackgroundChecks';
+import DoNotReturn from './DoNotReturn';
 
 type Open = { kind: RecordKind; id?: string; preset?: RecordValues };
 type Ctx = { open: (kind: RecordKind, id?: string, preset?: RecordValues) => void; toast: (text: string, error?: boolean) => void; canEdit: boolean; ai: boolean; credentials?: boolean; portal?: boolean };
@@ -137,6 +138,7 @@ function Extras(props: { kind: RecordKind; id: string; values: RecordValues; ext
     <RelatedExtras {...props} compose={setTo} />
     {kind === 'candidates' && credentials && <Credentials candidateId={id} self={self} canEdit={canEdit} compose={setTo} />}
     {kind === 'candidates' && credentials && <BackgroundChecks candidateId={id} canEdit={canEdit} />}
+    {kind === 'candidates' && <DoNotReturn candidateId={id} canEdit={canEdit} />}
     <MessageHistory messages={(extras.messages ?? []) as SentMessage[]} />
     {to && <ComposeDrawer to={to} onClose={() => setTo(null)} onSent={reload} />}
   </>;

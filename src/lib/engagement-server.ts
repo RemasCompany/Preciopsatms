@@ -7,6 +7,7 @@ import { newToken, sha256 } from './tokens';
 import { sendEmail } from './email';
 import { assignmentWhere, deliver, type Channel } from './schedule-server';
 import { localDate } from './timeclock';
+import { addFromClientFeedback } from './dnr';
 import { PULSE_DAYS, RECOGNITION_KINDS, birthdayMessage, nextBirthday, recognitionMessage, validBirthday } from './engagement';
 
 const appUrl = () => process.env.APP_URL ?? 'http://localhost:3000';
@@ -79,7 +80,7 @@ export async function resolveFeedbackLink(token: string) {
   const r = await db.feedbackRequest.findUnique({ where: { tokenHash: sha256(token) }, include: { organization: true } });
   if (!r || r.completedAt || r.expiresAt < new Date()) return null;
   const tdb = tenantDb(r.organizationId);
-  const app = await tdb.application.findFirst({ where: { id: r.applicationId }, include: { candidate: { select: { id: true, name: true } }, job: { select: { title: true, client: { select: { name: true } } } } } });
+  const app = await tdb.application.findFirst({ where: { id: r.applicationId }, include: { candidate: { select: { id: true, name: true } }, job: { select: { title: true, client: { select: { id: true, name: true } } } } } });
   const contact = await tdb.contact.findFirst({ where: { id: r.contactId }, select: { name: true } });
   if (!app || !contact) return null;
   return { r, tdb, app, contact };
@@ -98,6 +99,7 @@ export async function submitClientFeedback(token: string, body: unknown) {
   const f = await tdb.feedback.create({ data: { candidateId: app.candidate.id, applicationId: app.id, source: 'CLIENT', rating: b.rating, wouldRehire: b.wouldRehire, comment: b.comment || null, authorName: contact.name, contactId: r.contactId } as never });
   await tdb.feedbackRequest.updateMany({ where: { id: r.id, completedAt: null }, data: { completedAt: new Date(), feedbackId: f.id } });
   await logActivity(r.organizationId, `${contact.name} (${app.job.client?.name ?? 'client'}) rated ${app.candidate.name} ${b.rating}/5${b.wouldRehire ? '' : ' — would NOT have them back'}`);
+  if (!b.wouldRehire && app.job.client) await addFromClientFeedback(tdb, r.organizationId, app.candidate, app.job.client, contact.name, b.comment);
   return { ok: true };
 }
 

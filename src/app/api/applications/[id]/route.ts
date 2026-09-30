@@ -7,6 +7,7 @@ import { hasFeature } from '@/lib/plans';
 import { credentialLabel, placementIssues } from '@/lib/credentials';
 import { onboardingGaps } from '@/lib/onboarding-server';
 import { openCaseForPlacement } from '@/lib/everify-server';
+import { assertNotBarred } from '@/lib/dnr';
 
 const Body = z.object({ stage: z.nativeEnum(Stage), rejectionReason: z.enum(REJECTION_REASONS).optional() });
 
@@ -19,6 +20,7 @@ export const PATCH = withApi(async (req: Request, { params }: { params: { id: st
   if (!app) throw new HttpError(404, 'Not found');
   if (app.stage === stage) return Response.json({ ok: true });
 
+  if (stage === 'PLACED' || stage === 'OFFER') await assertNotBarred(tdb, app.candidate, app.job.clientId, app.job.clientId ? (await tdb.client.findFirst({ where: { id: app.job.clientId }, select: { name: true } }))?.name : null);
   const maxStage = stage !== 'REJECTED' && ORDER.indexOf(stage) > ORDER.indexOf(app.maxStage) ? stage : app.maxStage;
   await tdb.application.updateMany({ where: { id: app.id }, data: { stage, maxStage, rejectionReason: stage === 'REJECTED' ? rejectionReason : null, stageChangedAt: new Date() } });
   await logActivity(org.id, `${app.candidate.name} moved to ${stage.toLowerCase()} for ${app.job.title}`, user.id);

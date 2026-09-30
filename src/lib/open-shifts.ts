@@ -3,6 +3,7 @@ import type { Organization, User } from '@prisma/client';
 import { HttpError, logActivity, tenantDb, type TenantDb } from './tenant';
 import { hasFeature } from './plans';
 import { onboardingGaps } from './onboarding-server';
+import { barredFrom } from './dnr';
 import { ShiftFields, assertNoOverlap, assignmentWhere, checkTimes, deliver, parse, workerLink, type Channel } from './schedule-server';
 import { clockLong, dayLabel, overlaps, overnight } from './schedule';
 
@@ -32,7 +33,7 @@ export async function createOpenShifts(tdb: TenantDb, org: Organization, user: U
 }
 
 async function loadOpen(tdb: TenantDb, id: string) {
-  const os = await tdb.openShift.findFirst({ where: { id }, include: { job: { select: { id: true, title: true, location: true, client: { select: { name: true } } } } } });
+  const os = await tdb.openShift.findFirst({ where: { id }, include: { job: { select: { id: true, title: true, location: true, clientId: true, client: { select: { name: true } } } } } });
   if (!os) throw new HttpError(404, 'That open shift was deleted.');
   return os;
 }
@@ -50,7 +51,8 @@ export async function pool(tdb: TenantDb, org: Organization, id: string) {
   for (const a of apps) {
     const c = a.candidate;
     let reason: string | null = null;
-    if (busy.some((s) => s.application.candidateId === c.id && overlaps(times(os), times(s)))) reason = 'Already working then';
+    if (await barredFrom(tdb, c.id, os.job.clientId)) reason = 'On the do-not-return list';
+    else if (busy.some((s) => s.application.candidateId === c.id && overlaps(times(os), times(s)))) reason = 'Already working then';
     else if (block && (await onboardingGaps(tdb, c.id))) reason = 'Onboarding isn’t finished';
     else if (!(c.phone && !c.smsOptOut) && !(c.email && !c.emailOptOut)) reason = 'No way to reach them';
     out.push({ candidateId: c.id, applicationId: a.id, name: c.name, canText: !!c.phone && !c.smsOptOut, canEmail: !!c.email && !c.emailOptOut, reason, offer: offers.find((o) => o.candidateId === c.id)?.status ?? null });
