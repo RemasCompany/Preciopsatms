@@ -220,3 +220,12 @@ fieldset.days{border:0;padding:0;margin:8px 0;display:flex;flex-wrap:wrap;gap:6p
 .shiftlist{list-style:none;padding:0;margin:0}.shiftcard{margin:12px 0}.shiftcard.cancelled .shifttime{text-decoration:line-through}
 .shifthead{display:flex;justify-content:space-between;align-items:center;gap:10px}.shifttime{font-size:18px;font-weight:700;color:var(--ink);margin:6px 0 2px}
 .shiftcard p{margin:4px 0}.shiftcard .row .btn{flex:1 1 0}
+
+/* ---------- payroll runs ---------- */
+.payform{grid-template-columns:repeat(3,minmax(0,1fr))}@media (max-width:820px){.payform{grid-template-columns:1fr}}
+.runhead{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-top:8px}.runhead h1 .pill{vertical-align:middle;font-size:13px}
+.warnbox{border-color:var(--red)}.warnbox ul,.infobox ul{margin:8px 0 0;padding-left:20px}.warnbox li,.infobox li{margin:4px 0;font-size:14px}.infobox{border-color:var(--amber)}
+.payworker{margin:0 0 12px}.payworkerhead{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:8px}
+.payworkerhead>div{display:flex;flex-direction:column}.payworkerhead .muted{font-size:13px}.paytotal{text-align:right}.paytotal b{font-size:18px}
+.paylines{min-width:560px}.paylines th,.paylines td{padding:7px 10px}.paylines td .muted{font-size:12.5px}
+.adjlist{list-style:none;padding:0;margin:10px 0}.adjlist li{display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--soft);font-size:14px}.adjlist li b{margin-left:auto}

@@ -27,7 +27,7 @@ export const RECORDS: Record<RecordKind, { one: string; titleKey: string; featur
     f('sector', 'Sector', 'sel', { options: SECTORS }), f('yearsExp', 'Years of experience', 'num', { min: 0, max: 80, int: true }), f('desiredRate', 'Desired rate ($/hr)', 'num', { min: 0 }),
     f('availability', 'Availability', 'sel', { options: ['Immediately', '2 weeks', '30 days', 'Passive'] }),
     f('source', 'Source', 'sel', { options: ['Job board', 'Referral', 'LinkedIn', 'Vendor', 'Walk-in', 'Website', 'Careers page', 'Other'] }),
-    f('vendorId', 'Supplied by vendor', 'ref', { ref: 'vendors' }),
+    f('vendorId', 'Supplied by vendor', 'ref', { ref: 'vendors' }), f('payrollId', 'Payroll employee ID'),
     f('status', 'Status', 'sel', { notNull: true, options: ['Active', 'On assignment', 'Placed', 'Inactive', 'Do not use'] }),
     f('skills', 'Skills (comma separated)', 'tags'), f('certs', 'Licenses & certifications', 'tags'), f('summary', 'Summary / resume notes', 'area'),
   ] },

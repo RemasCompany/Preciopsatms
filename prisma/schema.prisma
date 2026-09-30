@@ -43,6 +43,8 @@ model Organization {
   careersIntro         String?
   showPayOnCareers     Boolean   @default(true)
   showClientOnCareers  Boolean   @default(false)
+  payrollProvider      String?   // adp | paychex | quickbooks | gusto | csv: default export format
+  payrollCompanyCode   String?   // company code some providers need in imports (e.g. ADP Co Code)
   // Billing
   plan                 PlanId    @default(starter)
   stripeCustomerId     String?   @unique
@@ -55,6 +57,7 @@ model Organization {
   credentials          Credential[]
   shifts               Shift[]
   workerLinks          WorkerLink[]
+  payrollRuns          PayrollRun[]
   aiCreditsUsed        Int       @default(0) // reset each billing period by webhook
   // Indeed Apply (candidates apply on Indeed; Indeed POSTs applications to /api/public/<slug>/indeed-apply)
   indeedApplyApiToken  String?
@@ -179,6 +182,7 @@ model Candidate {
   skills         String[]
   certs          String[]
   summary        String?
+  payrollId      String?       // employee ID in the payroll provider, used to match export rows
   resumeFileId   String?
   emailOptOut    Boolean       @default(false)
   smsOptOut      Boolean       @default(false) // set by Twilio STOP webhook (TCPA)
@@ -370,6 +374,7 @@ model Timesheet {
   payRate        Decimal         @db.Decimal(10, 2) // snapshot at entry
   billRate       Decimal         @db.Decimal(10, 2) // snapshot at entry
   status         TimesheetStatus @default(DRAFT)
+  payrollRunId   String?         // the non-void payroll run that includes these hours
   approvedAt     DateTime?
   approvedById   String?
   paidAt         DateTime?
@@ -545,4 +550,86 @@ model WorkerLink {
   candidate      Candidate    @relation(fields: [candidateId], references: [id], onDelete: Cascade)
 
   @@index([candidateId])
+}
+
+enum PayrollRunStatus {
+  DRAFT
+  APPROVED
+  PAID
+  VOID
+}
+
+enum PayrollAdjustmentKind {
+  BONUS          // taxable
+  OTHER_EARNING  // taxable (e.g. shift differential, holiday pay)
+  REIMBURSEMENT  // not taxable (mileage, scrubs, parking)
+  DEDUCTION      // after-tax (e.g. advance repayment, uniform)
+}
+
+// A pay run for one pay period: approved timesheets are snapshotted into items. Taxes, direct deposit and filings
+// happen in the agency's payroll provider, which imports the run's export.
+model PayrollRun {
+  id             String           @id @default(cuid())
+  organizationId String
+  number         String
+  frequency      String           // WEEKLY | BIWEEKLY
+  periodStart    DateTime         @db.Date
+  periodEnd      DateTime         @db.Date // a Sunday
+  payDate        DateTime         @db.Date
+  status         PayrollRunStatus @default(DRAFT)
+  notes          String?
+  createdById    String?
+  approvedById   String?
+  approvedAt     DateTime?
+  paidAt         DateTime?
+  voidedAt       DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  items          PayrollItem[]
+
+  @@unique([organizationId, number])
+  @@index([organizationId, periodEnd])
+}
+
+// One approved timesheet (one worker, one assignment, one week) in a run, with names and rates snapshotted.
+model PayrollItem {
+  id             String              @id @default(cuid())
+  organizationId String
+  runId          String
+  timesheetId    String
+  applicationId  String
+  candidateId    String
+  workerName     String
+  payrollId      String?
+  position       String
+  clientId       String?
+  clientName     String?
+  weekEnding     DateTime            @db.Date
+  regularHours   Decimal             @db.Decimal(6, 2)
+  overtimeHours  Decimal             @db.Decimal(6, 2)
+  payRate        Decimal             @db.Decimal(10, 2)
+  billRate       Decimal             @db.Decimal(10, 2)
+  regularPay     Decimal             @db.Decimal(12, 2)
+  overtimePay    Decimal             @db.Decimal(12, 2)
+  createdAt      DateTime            @default(now())
+  run            PayrollRun          @relation(fields: [runId], references: [id], onDelete: Cascade)
+  adjustments    PayrollAdjustment[]
+
+  @@index([runId])
+  @@index([organizationId, candidateId])
+}
+
+model PayrollAdjustment {
+  id             String                @id @default(cuid())
+  organizationId String
+  itemId         String
+  kind           PayrollAdjustmentKind
+  description    String
+  amount         Decimal               @db.Decimal(12, 2)
+  createdById    String?
+  createdAt      DateTime              @default(now())
+  item           PayrollItem           @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([itemId])
 }

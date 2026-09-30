@@ -2,7 +2,7 @@
 export type PlanId = 'starter' | 'growth' | 'enterprise';
 export type Feature =
   | 'ats' | 'crm' | 'leads' | 'careers' | 'vendors' | 'messaging'
-  | 'timesheets' | 'esign' | 'ai' | 'eeo' | 'api' | 'sso' | 'whitelabel' | 'credentials' | 'scheduling';
+  | 'timesheets' | 'esign' | 'ai' | 'eeo' | 'api' | 'sso' | 'whitelabel' | 'credentials' | 'scheduling' | 'payrollRuns';
 
 export const PLANS: Record<PlanId, {
   name: string; priceEnv: string; perSeat: boolean; maxSeats: number | null;
@@ -20,8 +20,8 @@ export const PLANS: Record<PlanId, {
   },
   enterprise: {
     name: 'Enterprise / MSP', priceEnv: 'STRIPE_PRICE_ENTERPRISE', perSeat: true, maxSeats: null, monthlyAiCredits: 10000,
-    features: ['ats', 'crm', 'leads', 'careers', 'messaging', 'vendors', 'timesheets', 'esign', 'ai', 'credentials', 'scheduling', 'eeo', 'api', 'sso', 'whitelabel'],
-    blurb: 'EEO/OFCCP reporting, API, SSO, white-label and dedicated onboarding.', displayPrice: 'Custom',
+    features: ['ats', 'crm', 'leads', 'careers', 'messaging', 'vendors', 'timesheets', 'esign', 'ai', 'credentials', 'scheduling', 'payrollRuns', 'eeo', 'api', 'sso', 'whitelabel'],
+    blurb: 'Payroll runs with provider exports, EEO/OFCCP reporting, API, SSO, white-label and dedicated onboarding.', displayPrice: 'Custom',
   },
 };
 
