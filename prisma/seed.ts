@@ -103,6 +103,21 @@ async function main() {
     await ts(aJames, 40, 4, 18.5, 27, 'APPROVED');
     await ts(aTom, 32, 0, 18.5, 27, 'DRAFT');
     await ts(aLuis, 40, 0, 17, 24.5, 'DRAFT');
+
+    // ---- earlier invoices, so receivables and aging have something to show (last week's approved hours are left to invoice) ----
+    const year = today.getUTCFullYear();
+    const invoice = async (n: number, clientId: string, issued: number, termsDays: number, lines: [string, string, number, number, number][], status: 'SENT' | 'PARTIAL' | 'PAID', paid: [number, number, string, string?][] = []) => {
+      const total = lines.reduce((t, [, , reg, ot, rate]) => t + Math.round(reg * rate * 100) + Math.round(ot * rate * 1.5 * 100), 0) / 100;
+      const amountPaid = paid.reduce((t, [a]) => t + a, 0);
+      const inv = await tx.invoice.create({ data: { ...o, clientId, number: `INV-${year}-${String(n).padStart(4, '0')}`, status, issueDate: days(issued), dueDate: days(issued + termsDays), periodStart: days(issued - 20), periodEnd: days(issued - 7),
+        terms: `Net ${termsDays}`, total, amountPaid, sentAt: days(issued), sentTo: 'accounts payable', paidAt: status === 'PAID' ? days(paid[paid.length - 1][1]) : null, createdById: owner.id } });
+      await tx.invoiceLine.createMany({ data: lines.map(([worker, description, reg, ot, rate]) => ({ ...o, invoiceId: inv.id, worker, description, regularHours: reg, overtimeHours: ot, rate, amount: (Math.round(reg * rate * 100) + Math.round(ot * rate * 1.5 * 100)) / 100 })) });
+      for (const [amount, on, method, reference] of paid) await tx.payment.create({ data: { ...o, invoiceId: inv.id, amount, receivedOn: days(on), method, reference: reference ?? null, createdById: owner.id } });
+    };
+    await invoice(1, harbor.id, -75, 30, [['James Carter', 'Forklift Operator — 2nd shift', 160, 12, 27], ['Tom Nguyen', 'Forklift Operator — 2nd shift', 120, 0, 27]], 'PAID', [[8046, -41, 'ach', 'ACH 55120']]);
+    await invoice(2, stmary.id, -60, 45, [['Maria Lopez', 'ICU Registered Nurse', 144, 0, 82]], 'PARTIAL', [[5000, -12, 'check', '10417']]);
+    await invoice(3, sunbelt.id, -100, 30, [['Luis Ortega', 'Line Cook', 120, 6, 24.5]], 'SENT');
+    await invoice(4, harbor.id, -12, 30, [['James Carter', 'Forklift Operator — 2nd shift', 80, 8, 27], ['Tom Nguyen', 'Forklift Operator — 2nd shift', 64, 0, 27]], 'SENT');
   
     // ---- sales: deals over six months, leads, monthly targets ----
     const deal = (title: string, clientId: string | null, value: number, stage: string, ownerId: string, created: number, closed: number | null, extra: Record<string, unknown> = {}) =>

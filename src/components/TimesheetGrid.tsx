@@ -13,8 +13,9 @@ const PILL = { NOT_ENTERED: '', DRAFT: ' a', APPROVED: ' g', PAID: ' g' } as con
 
 type Draft = { reg: string; ot: string };
 
-export default function TimesheetGrid({ week, prev, next, rows: initial, canEdit, admin }: {
-  week: string; prev: string; next: string; rows: TimesheetRow[]; canEdit: boolean; admin: boolean;
+export default function TimesheetGrid({ week, prev, next, rows: initial, canEdit, admin, schedule, invoiced = {} }: {
+  week: string; prev: string; next: string; rows: TimesheetRow[]; canEdit: boolean; admin: boolean; schedule?: boolean;
+  invoiced?: Record<string, { id: string; number: string }>; // client id → this week's invoice
 }) {
   const router = useRouter();
   const { toast } = useRecords();
@@ -72,6 +73,25 @@ export default function TimesheetGrid({ week, prev, next, rows: initial, canEdit
     toast(`${j.updated} timesheet${j.updated === 1 ? '' : 's'} ${action === 'approve' ? 'approved' : action === 'markPaid' ? 'marked paid' : 'reopened'}.`);
     router.refresh();
   }
+  async function fillSchedule() {
+    setBusy('schedule');
+    const res = await fetch('/api/timesheets/fill-schedule', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ week }) });
+    setBusy('');
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) return toast(j.error ?? 'Could not fill from the schedule.', true);
+    const notes = [j.kept?.length ? `${j.kept.length} already had hours` : '', j.clocked?.length ? `${j.clocked.length} use the time clock` : ''].filter(Boolean).join('; ');
+    toast(j.filled ? `Filled ${j.filled} timesheet${j.filled === 1 ? '' : 's'} from the schedule${notes ? ` (${notes})` : ''}. Check and approve them.` : `Nothing to fill${notes ? `: ${notes}` : ' — no scheduled shifts this week'}.`);
+    router.refresh();
+  }
+  async function invoice(clientId: string) {
+    setBusy(`inv-${clientId}`);
+    const from = new Date(Date.parse(`${week}T00:00:00Z`) - 6 * 864e5).toISOString().slice(0, 10);
+    const res = await fetch('/api/invoices', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientId, from, to: week }) });
+    const j = await res.json().catch(() => ({}));
+    setBusy('');
+    if (!res.ok) return toast(j.error ?? 'Could not create the invoice.', true);
+    router.push(`/app/invoices/${j.id}`);
+  }
   const withHours = live.filter((r) => r.status === 'DRAFT' && r.reg + r.ot > 0).map((r) => r.applicationId);
   const hasApproved = live.some((r) => r.status === 'APPROVED');
 
@@ -82,6 +102,7 @@ export default function TimesheetGrid({ week, prev, next, rows: initial, canEdit
         <b>Week ending {fmt(week)}</b>
         <Link className="btn ghost" href={`?week=${next}`} aria-label="Next week">›</Link>
         <span className="grow" />
+        {canEdit && schedule && <button className="btn ghost" disabled={!!busy} onClick={fillSchedule} title="Fills blank timesheets with this week’s scheduled hours (over 40 goes to overtime)">Fill from schedule</button>}
         {admin && <>
           <button className="btn ghost" disabled={!!busy || Object.keys(drafts).length > 0} onClick={() => act('approve', withHours)}>Approve all with hours</button>
           <button className="btn ghost" disabled={!!busy || !hasApproved} onClick={() => act('markPaid')}>Mark approved as paid</button>
@@ -126,8 +147,10 @@ export default function TimesheetGrid({ week, prev, next, rows: initial, canEdit
       {admin && invoiceClients.length > 0 && (
         <div className="card">
           <h2 style={{ marginTop: 0 }}>Client invoices for this week</h2>
-          <p className="muted">Built from approved hours. PDFs include worker, hours, rate, overtime and due date from each client’s payment terms.</p>
-          <div className="row">{invoiceClients.map(([id, c]) => <a key={id} className="btn ghost" href={`/api/invoices/pdf?week=${week}&client=${id}`}>{c.name} — {money(c.total)}</a>)}</div>
+          <p className="muted">Built from approved hours, with worker, hours, rate, overtime and a due date from each client’s payment terms. Email them and record payments on the <Link href="/app/invoices">Invoices</Link> page.</p>
+          <div className="row">{invoiceClients.map(([id, c]) => invoiced[id]
+            ? <Link key={id} className="btn ghost" href={`/app/invoices/${invoiced[id].id}`}>{c.name}: {invoiced[id].number}</Link>
+            : <button key={id} className="btn ghost" disabled={!!busy} onClick={() => invoice(id)}>Create invoice: {c.name} — {money(c.total)}</button>)}</div>
         </div>
       )}
     </>

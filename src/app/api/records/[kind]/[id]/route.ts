@@ -53,6 +53,9 @@ export const DELETE = withApi(async (_req: Request, { params }: Ctx) => {
     const locked = await tdb.timesheet.count({ where: { status: { in: ['APPROVED', 'PAID'] }, application: { [kind === 'jobs' ? 'jobId' : 'candidateId']: row.id } } });
     if (locked) throw new HttpError(409, `This ${RECORDS[kind].one} has approved timesheets, so it can’t be deleted. ${kind === 'jobs' ? 'Close the job' : 'Mark the candidate inactive'} instead.`);
   }
+  if (kind === 'clients' && (await tdb.invoice.count({ where: { clientId: String(row.id) } }))) {
+    throw new HttpError(409, 'This client has invoices, so it can’t be deleted (they’re financial records). Set its status to Inactive instead.');
+  }
   if (kind === 'candidates') await tdb.eeoSelfId.deleteMany({ where: { candidateId: params.id } });
   await delegate(tdb, kind).deleteMany({ where: { id: row.id } });
   await logActivity(org.id, `Deleted ${RECORDS[kind].one} ${row[RECORDS[kind].titleKey]}`, user.id);

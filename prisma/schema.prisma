@@ -94,6 +94,9 @@ model Organization {
   files        StoredFile[]
   auditLogs          AuditLog[]
   backgroundTasks    BackgroundTask[]
+  invoices           Invoice[]
+  invoiceLines       InvoiceLine[]
+  payments           Payment[]
 }
 
 model User {
@@ -300,6 +303,7 @@ model Client {
   contacts       Contact[]
   jobs           Job[]
   deals          Deal[]
+  invoices       Invoice[]
 }
 
 model Contact {
@@ -476,6 +480,85 @@ model Message {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, relatedType, relatedId])
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PARTIAL
+  PAID
+  VOID
+}
+
+/// A client invoice built from approved hours. Lines snapshot the hours and bill rates; each timesheet is billed once.
+model Invoice {
+  id             String        @id @default(cuid())
+  organizationId String
+  clientId       String
+  number         String
+  status         InvoiceStatus @default(DRAFT)
+  issueDate      DateTime      @db.Date
+  dueDate        DateTime      @db.Date
+  periodStart    DateTime      @db.Date
+  periodEnd      DateTime      @db.Date
+  terms          String
+  total          Decimal       @db.Decimal(12, 2)
+  amountPaid     Decimal       @default(0) @db.Decimal(12, 2)
+  notes          String?
+  sentAt         DateTime?
+  sentTo         String?
+  paidAt         DateTime?
+  voidedAt       DateTime?
+  voidReason     String?
+  payrollRunId   String?
+  createdById    String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client         Client        @relation(fields: [clientId], references: [id], onDelete: NoAction) // invoices are financial records: a client with invoices can't be deleted
+  lines          InvoiceLine[]
+  payments       Payment[]
+
+  @@unique([organizationId, number])
+  @@index([organizationId, status, dueDate])
+  @@index([organizationId, clientId])
+}
+
+model InvoiceLine {
+  id             String       @id @default(cuid())
+  organizationId String
+  invoiceId      String
+  timesheetId    String?
+  worker         String
+  description    String
+  weekEnding     DateTime?    @db.Date
+  regularHours   Decimal      @default(0) @db.Decimal(6, 2)
+  overtimeHours  Decimal      @default(0) @db.Decimal(6, 2)
+  rate           Decimal      @db.Decimal(10, 2)
+  amount         Decimal      @db.Decimal(12, 2)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoice        Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, timesheetId])
+  @@index([invoiceId])
+}
+
+model Payment {
+  id             String       @id @default(cuid())
+  organizationId String
+  invoiceId      String
+  amount         Decimal      @db.Decimal(12, 2)
+  receivedOn     DateTime     @db.Date
+  method         String       // ach | check | card | wire | other
+  reference      String?
+  notes          String?
+  createdById    String?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoice        Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, receivedOn])
+  @@index([invoiceId])
 }
 
 /// Work that runs outside the request (bulk messaging, …). Claimed with SKIP LOCKED so two workers never run the same task.
