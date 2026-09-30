@@ -74,6 +74,10 @@ Each recruiter, admin and owner gets one email listing credentials that reached 
 `/api/cron/tasks` works through the background queue. Large sends (more than 25 people from “Message this list”) are queued; the browser that queued them starts them right away and shows progress, so the scheduled run only finishes work whose browser went away and retries failures (1, 4 and 16 minutes apart, then it gives up and reports the error). Vercel's Hobby plan allows one run a day (`30 3 * * *` in `vercel.json`); on Pro, change it to `*/5 * * * *` so leftovers finish within minutes.
 On other hosts, call these yourself: `curl -H "Authorization: Bearer $CRON_SECRET" https://app.preciopsatms.com/api/cron/credential-alerts` daily (and the same for `/api/cron/shift-reminders` and `/api/cron/engagement`), and `/api/cron/tasks` every 5 minutes.
 
+## Background checks (Checkr, optional)
+
+Set `CHECKR_API_KEY` (and `CHECKR_ENV=production` when you go live; anything else uses Checkr's staging sandbox). In the Checkr dashboard, add the webhook URL `https://<your-app>/api/webhooks/checkr`. Recruiters then order checks from the candidate drawer: Checkr emails the candidate to consent and enter SSN and date of birth on Checkr's site (that information never passes through Preciops), status updates arrive by webhook, and a clear report is saved as a verified background-check credential for a year. “Consider” results are flagged for review with a reminder to follow the FCRA adverse-action process.
+
 ## Error monitoring and rate limits (optional)
 
 With `SENTRY_DSN` set, server errors (API 500s, failed scheduled jobs, background tasks that gave up) and browser crashes are sent to Sentry. Emails, phone numbers and private-link tokens are masked, query strings are dropped, and only the user's internal id is attached. Without it, errors go to the server log only.

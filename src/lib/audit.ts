@@ -25,6 +25,7 @@ export const AUDIT_ACTIONS = {
   'data.export': { group: 'Data', label: 'Exported records' },
   'data.import': { group: 'Data', label: 'Imported records' },
   'data.audit_export': { group: 'Data', label: 'Exported the audit log' },
+  'screening.order': { group: 'Data', label: 'Ordered a background check' },
   'eeo.report_view': { group: 'EEO', label: 'Viewed the EEO report' },
   'eeo.export': { group: 'EEO', label: 'Exported the applicant flow log' },
   'payroll.approve': { group: 'Payroll', label: 'Approved a payroll run' },

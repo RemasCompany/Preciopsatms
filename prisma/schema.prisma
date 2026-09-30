@@ -101,6 +101,7 @@ model Organization {
   clientPortalLinks  ClientPortalLink[]
   openShifts         OpenShift[]
   shiftOffers        ShiftOffer[]
+  backgroundChecks   BackgroundCheck[]
 }
 
 model User {
@@ -239,6 +240,7 @@ model Candidate {
 
   @@index([organizationId, email])
   @@index([organizationId, phone])
+  backgroundChecks BackgroundCheck[]
 }
 
 enum Stage {
@@ -572,6 +574,29 @@ model Payment {
 
   @@index([organizationId, receivedOn])
   @@index([invoiceId])
+}
+
+/// A background check ordered through a screening provider (Checkr). The candidate enters SSN and consent on the provider's own page.
+model BackgroundCheck {
+  id                   String       @id @default(cuid())
+  organizationId       String
+  candidateId          String
+  provider             String       @default("checkr")
+  package              String
+  status               String       @default("invited") // invited | pending | clear | consider | suspended | canceled | dispute | expired
+  externalCandidateId  String?
+  externalInvitationId String?
+  externalReportId     String?      @unique
+  invitationUrl        String?
+  orderedById          String?
+  orderedAt            DateTime     @default(now())
+  completedAt          DateTime?
+  updatedAt            DateTime     @updatedAt
+  organization         Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  candidate            Candidate    @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, candidateId])
+  @@index([externalInvitationId])
 }
 
 /// A shift nobody is on yet, offered to the job's worker pool; the first to accept gets it.
