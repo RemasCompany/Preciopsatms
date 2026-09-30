@@ -4,6 +4,8 @@ import { vendorCompliance } from '@/lib/records';
 import ListToolbar, { pickFilters } from '@/components/ListToolbar';
 import { OpenRecord, Pill } from '@/components/Records';
 import Gate from '@/components/Gate';
+import BulkMessage from '@/components/BulkMessage';
+import { reachOf } from '@/lib/bulk-messaging';
 
 const FILTERS = ['status', 'category'];
 const ymd = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
@@ -22,7 +24,8 @@ export default async function Vendors({ searchParams }: { searchParams: Record<s
     <>
       <h1>Vendors</h1>
       <p className="lede">Suppliers and partners, what they’ve delivered, and whether their paperwork is current.</p>
-      <ListToolbar kind="vendors" q={q} filters={FILTERS} active={active} canEdit={canEdit(ctx)} placeholder="Search vendor or contact…" />
+      <ListToolbar kind="vendors" q={q} filters={FILTERS} active={active} canEdit={canEdit(ctx)} placeholder="Search vendor or contact…"
+        extra={canEdit(ctx) && hasFeature(ctx.org, 'messaging') && <BulkMessage type="vendor" noun="vendors" ids={list.map((v) => v.id)} reach={reachOf(list)} />} />
       {list.length ? (
         <div className="tablewrap"><table><thead><tr><th>Vendor</th><th>Category</th><th>Candidates supplied</th><th>Rating</th><th>Compliance</th><th>Status</th></tr></thead><tbody>
           {list.map((v) => {

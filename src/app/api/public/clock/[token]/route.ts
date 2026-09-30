@@ -2,14 +2,12 @@ import { hasFeature } from '@/lib/plans';
 import { HttpError } from '@/lib/tenant';
 import { resolveWorkerLink } from '@/lib/schedule-server';
 import { PunchBody, punch } from '@/lib/timeclock-server';
+import { limited } from '@/lib/rate-limit';
 
-// Simple per-instance rate limit. Replace with Upstash/Redis in production (see CLAUDE.md).
-const hits = new Map<string, number[]>();
-function limited(key: string) { const now = Date.now(); const h = (hits.get(key) ?? []).filter((t) => now - t < 600e3); h.push(now); hits.set(key, h); return h.length > 30; }
 
 /** Clock in, start or end a break, or clock out, from the worker's private link. */
 export async function POST(req: Request, { params }: { params: { token: string } }) {
-  if (limited(params.token.slice(0, 20))) return Response.json({ error: 'Too many taps. Wait a minute and try again.' }, { status: 429 });
+  if (await limited('clock', params.token.slice(0, 20), 30, 600e3)) return Response.json({ error: 'Too many taps. Wait a minute and try again.' }, { status: 429 });
   const link = await resolveWorkerLink(params.token);
   if (!link) return Response.json({ error: 'This link has expired. Ask your recruiter for a new time clock link.' }, { status: 404 });
   if (!hasFeature(link.organization, 'timeclock')) return Response.json({ error: 'The time clock isn’t turned on for this company.' }, { status: 402 });

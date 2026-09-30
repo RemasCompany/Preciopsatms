@@ -12,7 +12,7 @@ export async function GET(_req: Request, { params }: { params: { token: string }
 }
 
 export async function POST(req: Request, { params }: { params: { token: string } }) {
-  if (limited('client-feedback', params.token.slice(0, 20), 10)) return Response.json({ error: 'Too many requests. Try again later.' }, { status: 429 });
+  if (await limited('client-feedback', params.token.slice(0, 20), 10)) return Response.json({ error: 'Too many requests. Try again later.' }, { status: 429 });
   try { return Response.json(await submitClientFeedback(params.token, await req.json().catch(() => null))); }
   catch (e) { if (e instanceof HttpError) return Response.json({ error: e.message }, { status: e.status }); console.error(e); return Response.json({ error: 'Something went wrong. Try again.' }, { status: 500 }); }
 }

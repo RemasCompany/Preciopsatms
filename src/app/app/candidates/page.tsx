@@ -1,6 +1,9 @@
 import { requirePageContext, canEdit } from '@/lib/tenant';
 import ListToolbar, { pickFilters } from '@/components/ListToolbar';
 import { OpenRecord, Pill } from '@/components/Records';
+import BulkMessage from '@/components/BulkMessage';
+import { reachOf } from '@/lib/bulk-messaging';
+import { hasFeature } from '@/lib/plans';
 
 const FILTERS = ['status', 'sector', 'availability', 'source'];
 
@@ -17,7 +20,8 @@ export default async function Candidates({ searchParams }: { searchParams: Recor
     <>
       <h1>Candidates</h1>
       <p className="lede">Your talent database. Add candidates, then submit them straight to a job.</p>
-      <ListToolbar kind="candidates" q={q} filters={FILTERS} active={active} canEdit={canEdit(ctx)} placeholder="Search name, title, email or exact skill…" />
+      <ListToolbar kind="candidates" q={q} filters={FILTERS} active={active} canEdit={canEdit(ctx)} placeholder="Search name, title, email or exact skill…"
+        extra={canEdit(ctx) && hasFeature(ctx.org, 'messaging') && <BulkMessage type="candidate" noun="candidates" ids={list.map((c) => c.id)} reach={reachOf(list)} />} />
       {list.length ? (
         <div className="tablewrap"><table><thead><tr><th>Candidate</th><th>Skills</th><th>Sector</th><th>Submissions</th><th>Availability</th><th>Source</th><th>Status</th></tr></thead><tbody>
           {list.map((c) => (

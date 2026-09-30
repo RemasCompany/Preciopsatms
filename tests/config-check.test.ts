@@ -12,7 +12,7 @@ describe('startup config report', () => {
   it('explains what each missing integration turns off', () => {
     const r = configReport(base);
     expect(r.errors).toEqual([]);
-    expect(r.warnings.map((w) => w.split(':')[0])).toEqual(['Stripe is not configured', 'Resend is not configured', 'File storage is not configured', 'ANTHROPIC_API_KEY is missing', 'CRON_SECRET is missing', 'Twilio is not configured']);
+    expect(r.warnings.map((w) => w.split(':')[0])).toEqual(['Stripe is not configured', 'Resend is not configured', 'File storage is not configured', 'ANTHROPIC_API_KEY is missing', 'CRON_SECRET is missing', 'Twilio is not configured', 'SENTRY_DSN is missing', 'Upstash is not configured']);
   });
   it('requires the partner secrets that make an integration work', () => {
     const r = configReport({ ...base, STRIPE_SECRET_KEY: 'sk_live_abcdefghijkl', RESEND_API_KEY: 're_abc123' });

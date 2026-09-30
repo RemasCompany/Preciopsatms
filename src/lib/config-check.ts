@@ -15,5 +15,8 @@ export function configReport(env: Record<string, string | undefined> = process.e
   if (!set('ANTHROPIC_API_KEY')) warnings.push('ANTHROPIC_API_KEY is missing: resume parsing and lead scoring are off.');
   if (!set('CRON_SECRET')) warnings.push('CRON_SECRET is missing: the daily credential-expiration emails, shift reminders and birthday greetings can’t run.');
   if (!set('TWILIO_ACCOUNT_SID')) warnings.push('Twilio is not configured: text messages are not sent.');
+  if (!set('SENTRY_DSN')) warnings.push('SENTRY_DSN is missing: server and browser errors are only written to the logs.');
+  if (set('UPSTASH_REDIS_REST_URL') !== set('UPSTASH_REDIS_REST_TOKEN')) warnings.push('Set both UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN, or neither.');
+  else if (!set('UPSTASH_REDIS_REST_URL') && env.NODE_ENV === 'production') warnings.push('Upstash is not configured: rate limits are counted per server instance, which is weaker when you run several.');
   return { errors, warnings };
 }

@@ -3,6 +3,8 @@ import { hasFeature } from '@/lib/plans';
 import ListToolbar, { pickFilters } from '@/components/ListToolbar';
 import { OpenRecord, Pill } from '@/components/Records';
 import Gate from '@/components/Gate';
+import BulkMessage from '@/components/BulkMessage';
+import { reachOf } from '@/lib/bulk-messaging';
 
 const FILTERS = ['status', 'industry'];
 const OPEN_DEAL = { notIn: ['Won', 'Lost'] };
@@ -15,17 +17,19 @@ export default async function Clients({ searchParams }: { searchParams: Record<s
   const list = await ctx.tdb.client.findMany({
     where: { ...active, ...(q ? { OR: [{ name: { contains: q, mode: 'insensitive' } }, { city: { contains: q, mode: 'insensitive' } }, { contacts: { some: { name: { contains: q, mode: 'insensitive' } } } }] } : {}) },
     include: {
-      contacts: { select: { name: true }, orderBy: { name: 'asc' }, take: 1 },
+      contacts: { select: { id: true, name: true, email: true, phone: true }, orderBy: { name: 'asc' } },
       jobs: { select: { status: true, applications: { where: { stage: 'PLACED' }, select: { id: true } } } },
       deals: { where: { stage: OPEN_DEAL }, select: { value: true } },
     },
     orderBy: { name: 'asc' },
   });
+  const contacts = list.flatMap((c) => c.contacts);
   return (
     <>
       <h1>Clients & contacts</h1>
       <p className="lede">Accounts you staff for, their contacts, open jobs and deals.</p>
-      <ListToolbar kind="clients" q={q} filters={FILTERS} active={active} canEdit={canEdit(ctx)} placeholder="Search company, city or contact…" />
+      <ListToolbar kind="clients" q={q} filters={FILTERS} active={active} canEdit={canEdit(ctx)} placeholder="Search company, city or contact…"
+        extra={canEdit(ctx) && hasFeature(ctx.org, 'messaging') && <BulkMessage type="contact" noun="client contacts" ids={contacts.map((c) => c.id)} reach={reachOf(contacts)} />} />
       {list.length ? (
         <div className="tablewrap"><table><thead><tr><th>Client</th><th>Industry</th><th>Open jobs</th><th>Placements</th><th>Open deals</th><th>Primary contact</th><th>Status</th></tr></thead><tbody>
           {list.map((c) => (

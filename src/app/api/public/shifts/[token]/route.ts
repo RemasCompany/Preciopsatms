@@ -6,14 +6,12 @@ import { hasFeature } from '@/lib/plans';
 import { clockState } from '@/lib/timeclock-server';
 import { workerOnboarding } from '@/lib/onboarding-server';
 import { workerEngagement } from '@/lib/engagement-server';
+import { limited } from '@/lib/rate-limit';
 
 type Ctx = { params: { token: string } };
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
 const gone = () => Response.json({ error: 'This link has expired. Ask your recruiter to send your schedule again.' }, { status: 404 });
 
-// Simple per-instance rate limit. Replace with Upstash/Redis in production (see CLAUDE.md).
-const hits = new Map<string, number[]>();
-function limited(key: string) { const now = Date.now(); const h = (hits.get(key) ?? []).filter((t) => now - t < 600e3); h.push(now); hits.set(key, h); return h.length > 60; }
 
 /** The worker's upcoming shifts they've been told about (from yesterday on, for 60 days). */
 export async function GET(_req: Request, { params }: Ctx) {
@@ -44,7 +42,7 @@ const Body = z.object({ shiftId: z.string(), response: z.enum(['CONFIRMED', 'DEC
 
 /** Confirm or decline one shift. */
 export async function POST(req: Request, { params }: Ctx) {
-  if (limited(params.token.slice(0, 20))) return Response.json({ error: 'Too many requests. Try again in a few minutes.' }, { status: 429 });
+  if (await limited('shifts', params.token.slice(0, 20), 60, 600e3)) return Response.json({ error: 'Too many requests. Try again in a few minutes.' }, { status: 429 });
   const link = await resolveWorkerLink(params.token);
   if (!link) return gone();
   const b = Body.safeParse(await req.json().catch(() => null));

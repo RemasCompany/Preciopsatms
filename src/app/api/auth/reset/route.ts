@@ -16,7 +16,7 @@ export async function GET(req: Request) {
 /** Sets the new password, signs out every other session and confirms the email (they proved they own the inbox). */
 export async function POST(req: Request) {
   const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim() || 'unknown';
-  if (limited('reset', ip, 20, 3600e3)) return Response.json({ error: 'Too many attempts. Try again later.' }, { status: 429 });
+  if (await limited('reset', ip, 20, 3600e3)) return Response.json({ error: 'Too many attempts. Try again later.' }, { status: 429 });
   const b = Body.safeParse(await req.json().catch(() => null));
   if (!b.success) return Response.json({ error: b.error.issues[0].message }, { status: 400 });
   const user = await consumeToken(b.data.token, 'reset');

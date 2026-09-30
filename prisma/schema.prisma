@@ -93,6 +93,7 @@ model Organization {
   activity     Activity[]
   files        StoredFile[]
   auditLogs          AuditLog[]
+  backgroundTasks    BackgroundTask[]
 }
 
 model User {
@@ -475,6 +476,29 @@ model Message {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, relatedType, relatedId])
+}
+
+/// Work that runs outside the request (bulk messaging, …). Claimed with SKIP LOCKED so two workers never run the same task.
+model BackgroundTask {
+  id             String       @id @default(cuid())
+  organizationId String
+  kind           String
+  payload        Json
+  status         String       @default("queued") // queued | running | done | failed
+  attempts       Int          @default(0)
+  maxAttempts    Int          @default(3)
+  runAt          DateTime     @default(now())
+  lockedAt       DateTime?
+  progress       Json?
+  result         Json?
+  lastError      String?
+  createdById    String?
+  createdAt      DateTime     @default(now())
+  finishedAt     DateTime?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([status, runAt])
+  @@index([organizationId, createdAt])
 }
 
 /// Append-only record of admin and security-sensitive actions. Never updated or deleted by the app.

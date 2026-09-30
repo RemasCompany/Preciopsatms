@@ -4,11 +4,12 @@ import { Prisma, type Role } from '@prisma/client';
 import { authOptions } from './auth';
 import { db } from './db';
 import { hasFeature, planIncludes, type Feature } from './plans';
+import { captureError, cleanPath } from './monitoring';
 
 // Models that carry organizationId. Every query through tenantDb() is forced into the caller's org.
 const TENANT_MODELS = new Set<string>([
   'Job', 'Candidate', 'Application', 'EeoSelfId', 'Client', 'Contact', 'Deal', 'Lead', 'Vendor', 'Task',
-  'Timesheet', 'SignDocument', 'Message', 'Activity', 'StoredFile', 'Invite', 'SalesTarget', 'Credential', 'Shift', 'WorkerLink', 'PayrollRun', 'PayrollItem', 'PayrollAdjustment', 'TimeEntry', 'OnboardingPackage', 'Onboarding', 'OnboardingStep', 'Feedback', 'FeedbackRequest', 'Recognition', 'AuditLog',
+  'Timesheet', 'SignDocument', 'Message', 'Activity', 'StoredFile', 'Invite', 'SalesTarget', 'Credential', 'Shift', 'WorkerLink', 'PayrollRun', 'PayrollItem', 'PayrollAdjustment', 'TimeEntry', 'OnboardingPackage', 'Onboarding', 'OnboardingStep', 'Feedback', 'FeedbackRequest', 'Recognition', 'AuditLog', 'BackgroundTask',
 ]);
 // Written once, never changed: the audit log is evidence.
 const APPEND_ONLY = new Set(['AuditLog']);
@@ -85,7 +86,8 @@ export function withApi<T extends unknown[]>(fn: (...args: T) => Promise<Respons
       if (e instanceof HttpError) return Response.json({ error: e.message }, { status: e.status });
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') return Response.json({ error: 'That record already exists' }, { status: 409 });
       if (e && typeof e === 'object' && 'issues' in e) return Response.json({ error: 'Invalid input', issues: (e as { issues: unknown }).issues }, { status: 400 });
-      console.error(e);
+      const r = args[0] instanceof Request ? args[0] : null;
+      await captureError(e, { route: r ? cleanPath(r.url) : undefined, method: r?.method });
       return Response.json({ error: 'Something went wrong' }, { status: 500 });
     }
   };

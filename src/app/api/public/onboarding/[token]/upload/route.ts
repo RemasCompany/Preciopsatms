@@ -6,7 +6,7 @@ import { limited } from '@/lib/rate-limit';
 
 /** The new hire uploads a file for a step (multipart: stepId, file). */
 export async function POST(req: Request, { params }: { params: { token: string } }) {
-  if (limited('onboarding', params.token.slice(0, 20), 40)) return Response.json({ error: 'Too many requests. Wait a minute and try again.' }, { status: 429 });
+  if (await limited('onboarding', params.token.slice(0, 20), 40)) return Response.json({ error: 'Too many requests. Wait a minute and try again.' }, { status: 429 });
   const link = await resolveWorkerLink(params.token);
   if (!link) return Response.json({ error: 'This link has expired. Ask your recruiter for a new onboarding link.' }, { status: 404 });
   if (!hasFeature(link.organization, 'onboarding')) return Response.json({ error: 'Onboarding isn’t turned on for this company.' }, { status: 402 });

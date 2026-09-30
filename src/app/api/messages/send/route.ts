@@ -1,65 +1,21 @@
-import { z } from 'zod';
 import { requireApiContext, withApi, HttpError, logActivity } from '@/lib/tenant';
-import { sendEmail } from '@/lib/email';
-import { sendSms } from '@/lib/sms';
-import { merge, orgContext } from '@/lib/merge';
+import { INLINE_MAX, SendBody, queueBulk, sendBulk, summary } from '@/lib/bulk-messaging';
 
-const Body = z.object({
-  channel: z.enum(['email', 'sms']),
-  recipientType: z.enum(['candidate', 'lead', 'vendor', 'contact']),
-  recipientIds: z.array(z.string()).min(1).max(500),
-  jobId: z.string().optional(),
-  subject: z.string().max(200).optional(),
-  body: z.string().min(1).max(5000),
-});
-
-type R = { id: string; name: string; email: string | null; phone: string | null; company?: string; emailOptOut?: boolean; smsOptOut?: boolean };
-
-/** Sends individually-merged messages (never one BCC blast) and logs each one. Honors opt-outs. */
+/**
+ * Sends individually merged messages (never one BCC blast) and logs each one. Honors opt-outs.
+ * Up to 25 recipients are sent right away; larger lists are queued and the answer is 202 with a task to follow.
+ */
 export const POST = withApi(async (req: Request) => {
-  const { tdb, org, user } = await requireApiContext({ minRole: 'RECRUITER', feature: 'messaging', write: true });
-  const b = Body.parse(await req.json());
-  if (b.channel === 'email' && !b.subject) throw new HttpError(400, 'Subject is required for email');
-
-  let recips: R[] = [];
-  if (b.recipientType === 'candidate') recips = await tdb.candidate.findMany({ where: { id: { in: b.recipientIds } } });
-  if (b.recipientType === 'lead') recips = (await tdb.lead.findMany({ where: { id: { in: b.recipientIds } } })).map((l) => ({ id: l.id, name: l.contact ?? '', email: l.email, phone: l.phone, company: l.company }));
-  if (b.recipientType === 'vendor') recips = (await tdb.vendor.findMany({ where: { id: { in: b.recipientIds } } })).map((v) => ({ id: v.id, name: v.contact ?? '', email: v.email, phone: v.phone, company: v.name }));
-  if (b.recipientType === 'contact') recips = (await tdb.contact.findMany({ where: { id: { in: b.recipientIds } }, include: { client: true } })).map((c) => ({ id: c.id, name: c.name, email: c.email, phone: c.phone, company: c.client.name }));
-
-  const job = b.jobId ? await tdb.job.findFirst({ where: { id: b.jobId } }) : null;
-  const base = { ...orgContext(org), job_title: job?.title, job_location: job?.location ?? undefined, pay_rate: job?.payRate ? `$${job.payRate}/hr` : undefined };
-  const results = { sent: 0, skipped: 0, failed: 0 };
-
-  for (const r of recips) {
-    const ctx = { ...base, first_name: r.name.split(' ')[0] || 'there', company: r.company };
-    const to = b.channel === 'email' ? r.email : r.phone;
-    const optedOut = b.channel === 'email' ? r.emailOptOut : r.smsOptOut;
-    const text = merge(b.body, ctx);
-    const subject = b.subject ? merge(b.subject, ctx) : undefined;
-    if (!to || optedOut) {
-      results.skipped++;
-      await tdb.message.create({ data: { channel: b.channel, toAddress: to ?? '(none)', subject, body: text, relatedType: b.recipientType, relatedId: r.id, status: optedOut ? 'blocked_opt_out' : 'failed', error: to ? 'Opted out' : 'No address', sentById: user.id } as never });
-      continue;
-    }
-    const blank = `${subject ?? ''} ${text}`.match(/\{\{(\w+)\}\}/);
-    if (blank) {
-      // Never send a message with a raw {{field}} in it.
-      results.failed++;
-      await tdb.message.create({ data: { channel: b.channel, toAddress: to, subject, body: text, relatedType: b.recipientType, relatedId: r.id, status: 'failed', error: `No value for {{${blank[1]}}} — edit the message or fill in the record first.`, sentById: user.id } as never });
-      continue;
-    }
-    try {
-      const res = b.channel === 'email'
-        ? await sendEmail({ to, subject: subject!, text, replyTo: user.email, fromName: `${user.name ?? ''} at ${org.shortName ?? org.name}`.trim() })
-        : await sendSms(to, text);
-      await tdb.message.create({ data: { channel: b.channel, toAddress: to, subject, body: text, relatedType: b.recipientType, relatedId: r.id, status: 'sent', providerId: res.id, sentById: user.id } as never });
-      results.sent++;
-    } catch (e) {
-      results.failed++;
-      await tdb.message.create({ data: { channel: b.channel, toAddress: to, subject, body: text, relatedType: b.recipientType, relatedId: r.id, status: 'failed', error: String((e as Error).message).slice(0, 300), sentById: user.id } as never });
-    }
+  const { org, user } = await requireApiContext({ minRole: 'RECRUITER', feature: 'messaging', write: true });
+  const p = SendBody.safeParse(await req.json().catch(() => null));
+  if (!p.success) throw new HttpError(400, p.error.issues[0]?.message ?? 'Invalid input');
+  const b = { ...p.data, recipientIds: [...new Set(p.data.recipientIds)] };
+  if (b.channel === 'email' && !b.subject?.trim()) throw new HttpError(400, 'Add a subject.');
+  if (b.recipientIds.length > INLINE_MAX) {
+    const task = await queueBulk(org.id, user.id, b);
+    return Response.json({ queued: true, taskId: task.id, total: b.recipientIds.length }, { status: 202 });
   }
-  await logActivity(org.id, `${b.channel === 'email' ? 'Emailed' : 'Texted'} ${results.sent} ${b.recipientType}${results.sent === 1 ? '' : 's'}`, user.id);
+  const results = await sendBulk(org, user, b);
+  await logActivity(org.id, summary(b, results), user.id);
   return Response.json(results);
 });

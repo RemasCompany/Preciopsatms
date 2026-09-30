@@ -11,6 +11,10 @@
     {
       "path": "/api/cron/engagement",
       "schedule": "0 14 * * *"
+    },
+    {
+      "path": "/api/cron/tasks",
+      "schedule": "30 3 * * *"
     }
   ]
 }

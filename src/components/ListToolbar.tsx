@@ -2,8 +2,8 @@ import { OpenRecord } from './Records';
 import { RECORDS, optLabel, optValue, type RecordKind } from '@/lib/records';
 
 /** Search box + field filters (plain GET form, so filters live in the URL) and an "Add" button. */
-export default function ListToolbar({ kind, q, filters, active, canEdit, placeholder }: {
-  kind: RecordKind; q?: string; filters: string[]; active: Record<string, string | undefined>; canEdit: boolean; placeholder: string;
+export default function ListToolbar({ kind, q, filters, active, canEdit, placeholder, extra }: {
+  kind: RecordKind; q?: string; filters: string[]; active: Record<string, string | undefined>; canEdit: boolean; placeholder: string; extra?: React.ReactNode;
 }) {
   const spec = RECORDS[kind];
   return (
@@ -19,6 +19,7 @@ export default function ListToolbar({ kind, q, filters, active, canEdit, placeho
         );
       })}
       <button className="btn ghost">Filter</button>
+      {extra}
       {canEdit && <OpenRecord kind={kind} className="btn">+ Add {spec.one}</OpenRecord>}
     </form>
   );

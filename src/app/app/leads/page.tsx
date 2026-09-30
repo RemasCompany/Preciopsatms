@@ -4,6 +4,8 @@ import { hasFeature } from '@/lib/plans';
 import ListToolbar, { pickFilters } from '@/components/ListToolbar';
 import { OpenRecord, Pill } from '@/components/Records';
 import Gate from '@/components/Gate';
+import BulkMessage from '@/components/BulkMessage';
+import { reachOf } from '@/lib/bulk-messaging';
 
 const FILTERS = ['status', 'industry', 'source'];
 const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
@@ -24,7 +26,8 @@ export default async function Leads({ searchParams }: { searchParams: Record<str
     <>
       <h1>Lead generation</h1>
       <p className="lede">Prospects to work. Score them, plan the next follow-up, and convert winners into clients.</p>
-      <ListToolbar kind="leads" q={q} filters={FILTERS} active={active} canEdit={canEdit(ctx)} placeholder="Search company, contact or city…" />
+      <ListToolbar kind="leads" q={q} filters={FILTERS} active={active} canEdit={canEdit(ctx)} placeholder="Search company, contact or city…"
+        extra={canEdit(ctx) && hasFeature(ctx.org, 'messaging') && <BulkMessage type="lead" noun="leads" ids={list.map((l) => l.id)} reach={reachOf(list)} />} />
       {list.length ? (
         <div className="tablewrap"><table><thead><tr><th>Company</th><th>Industry</th><th>Score</th><th>Source</th><th>Owner</th><th>Follow-up</th><th>Status</th></tr></thead><tbody>
           {list.map((l) => {

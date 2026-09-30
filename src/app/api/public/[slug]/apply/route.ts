@@ -5,6 +5,7 @@ import { db } from '@/lib/db';
 import { tenantDb } from '@/lib/tenant';
 import { putFile } from '@/lib/storage';
 import { sendEmail } from '@/lib/email';
+import { limited } from '@/lib/rate-limit';
 
 const Fields = z.object({
   jobId: z.string(), name: z.string().min(2).max(120), email: z.string().email(), phone: z.string().max(30).optional(),
@@ -14,14 +15,11 @@ const Fields = z.object({
   src: z.string().max(40).optional(), // job board the applicant came from (?src= on the apply link)
 });
 
-// Simple per-instance rate limit. Replace with Upstash/Redis in production (see CLAUDE.md).
-const hits = new Map<string, number[]>();
-function limited(ip: string) { const now = Date.now(); const h = (hits.get(ip) ?? []).filter((t) => now - t < 3600e3); h.push(now); hits.set(ip, h); return h.length > 10; }
 
 /** Public apply endpoint for the hosted careers pages and embed widget. */
 export async function POST(req: Request, { params }: { params: { slug: string } }) {
   const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim() || 'unknown';
-  if (limited(ip)) return Response.json({ error: 'Too many applications from this network. Try again later.' }, { status: 429 });
+  if (await limited('apply', ip, 10, 3600e3)) return Response.json({ error: 'Too many applications from this network. Try again later.' }, { status: 429 });
   const org = await db.organization.findUnique({ where: { slug: params.slug } });
   if (!org || !['trialing', 'active'].includes(org.subscriptionStatus)) return Response.json({ error: 'Not found' }, { status: 404 });
 

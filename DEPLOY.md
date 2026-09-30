@@ -30,7 +30,9 @@ Migrations run automatically on every Vercel deploy (`vercel-build` runs `prisma
 | `S3_BUCKET`, `S3_REGION`, `S3_ENDPOINT`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | AWS S3 or Cloudflare R2 (step 6) | resumes, signed PDFs |
 | `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` | console.anthropic.com | resume parsing, lead scoring |
 | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_MESSAGING_SERVICE_SID` | Twilio | text messages |
-| `CRON_SECRET` | output of `openssl rand -base64 32` | daily credential alerts, shift reminders and birthday greetings |
+| `CRON_SECRET` | output of `openssl rand -base64 32` | daily credential alerts, shift reminders, birthday greetings and the background queue |
+| `SENTRY_DSN` (optional) | sentry.io → Project settings → Client keys | error reports from the server and browsers |
+| `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` (optional) | upstash.com → Redis → REST API | rate limits shared by every server instance |
 
 Do **not** set `STORAGE_DRIVER=local` on Vercel: its disk is wiped between requests.
 
@@ -69,7 +71,13 @@ Create a Messaging Service, then set its **incoming message webhook** to `https:
 Each recruiter, admin and owner gets one email listing credentials that reached 60, 30 or 7 days before expiring, or expired. Each credential is reported once per window, and every email is logged under Messages.
 `/api/cron/shift-reminders` runs every day at 22:00 UTC (late afternoon in the US): each worker with a published shift tomorrow gets one text, or an email if they can't be texted. Declined and cancelled shifts are skipped.
 `/api/cron/engagement` runs every day at 14:00 UTC and sends birthday greetings for companies that turned them on (Engagement page), once a year per worker, honoring opt-outs.
-On other hosts, call all three daily yourself: `curl -H "Authorization: Bearer $CRON_SECRET" https://app.preciopsatms.com/api/cron/credential-alerts` (and the same for `/api/cron/shift-reminders` and `/api/cron/engagement`).
+`/api/cron/tasks` works through the background queue. Large sends (more than 25 people from “Message this list”) are queued; the browser that queued them starts them right away and shows progress, so the scheduled run only finishes work whose browser went away and retries failures (1, 4 and 16 minutes apart, then it gives up and reports the error). Vercel's Hobby plan allows one run a day (`30 3 * * *` in `vercel.json`); on Pro, change it to `*/5 * * * *` so leftovers finish within minutes.
+On other hosts, call these yourself: `curl -H "Authorization: Bearer $CRON_SECRET" https://app.preciopsatms.com/api/cron/credential-alerts` daily (and the same for `/api/cron/shift-reminders` and `/api/cron/engagement`), and `/api/cron/tasks` every 5 minutes.
+
+## Error monitoring and rate limits (optional)
+
+With `SENTRY_DSN` set, server errors (API 500s, failed scheduled jobs, background tasks that gave up) and browser crashes are sent to Sentry. Emails, phone numbers and private-link tokens are masked, query strings are dropped, and only the user's internal id is attached. Without it, errors go to the server log only.
+Sign-in, password reset, careers applications and worker links are rate-limited. With the two `UPSTASH_*` variables set, the counts are shared across all server instances; without them (or if Upstash is unreachable) each instance counts on its own.
 
 ## 9. Job boards and Indeed Apply
 
