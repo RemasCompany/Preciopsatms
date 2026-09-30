@@ -4,6 +4,7 @@ import { hasFeature, type Feature } from '@/lib/plans';
 import { RecordsProvider } from '@/components/Records';
 import AppNav, { type NavGroup } from '@/components/AppNav';
 import ResponsiveTables from '@/components/ResponsiveTables';
+import VerifyBanner from '@/components/VerifyBanner';
 
 const NAV: [string, [href: string, label: string, feature?: Feature][]][] = [
   ['Recruiting', [['/app', 'Dashboard'], ['/app/pipeline', 'Pipeline'], ['/app/jobs', 'Jobs'], ['/app/candidates', 'Candidates'], ['/app/onboarding', 'Onboarding', 'onboarding'], ['/app/credentials', 'Credentials', 'credentials'], ['/app/schedule', 'Schedule', 'scheduling'], ['/app/timeclock', 'Time clock', 'timeclock'], ['/app/engagement', 'Engagement', 'engagement'], ['/app/timesheets', 'Timesheets & payroll', 'timesheets'], ['/app/payroll', 'Payroll runs', 'payrollRuns']]],
@@ -19,6 +20,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <div className="shell">
       <AppNav company={org.shortName ?? org.name} groups={NAV.map(([g, items]) => [g, items.filter(([, , f]) => !f || hasFeature(org, f)).map(([h, l]) => [h, l])] as NavGroup).filter(([, items]) => items.length)} />
       <div className="main">
+        {!ctx.user.emailVerifiedAt && <VerifyBanner email={ctx.user.email} />}
         {org.subscriptionStatus === 'trialing' && trialDays > 0 && <p className="card banner">{trialDays} days left in your trial. <Link href="/app/billing">Choose a plan</Link></p>}
         {!['trialing', 'active'].includes(org.subscriptionStatus) && <p className="card banner error">Your subscription is {org.subscriptionStatus.replace('_', ' ')}. Your data is safe but read-only. <Link href="/app/billing">Update billing</Link></p>}
         <RecordsProvider canEdit={canEdit(ctx)} ai={hasFeature(org, 'ai')} credentials={hasFeature(org, 'credentials')}>{children}</RecordsProvider>

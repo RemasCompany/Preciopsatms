@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import Link from 'next/link';
 import { signIn } from 'next-auth/react';
 
 export default function Login() {
@@ -18,6 +19,7 @@ export default function Login() {
         {err && <p className="error" role="alert">{err}</p>}
         <button className="btn">Sign in</button>
       </form>
+      <p className="muted"><Link href="/forgot">Forgot password?</Link></p>
     </main>
   );
 }

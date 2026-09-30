@@ -260,3 +260,4 @@ fieldset.days{border:0;padding:0;margin:8px 0;display:flex;flex-wrap:wrap;gap:6p
 .stars{display:flex;gap:4px;align-items:center}.stars button{font-size:34px;line-height:1;background:none;border:0;color:var(--line);cursor:pointer;padding:2px;min-width:44px;min-height:44px}.stars button.on{color:#E5A400}
 .stars .muted{margin-left:8px}
 .fb-low{border-left:3px solid var(--red)}
+.linkbtn { background: none; border: 0; padding: 0; color: var(--accent, #2563eb); text-decoration: underline; cursor: pointer; font: inherit; }

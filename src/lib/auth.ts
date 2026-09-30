@@ -5,7 +5,7 @@ import { db } from './db';
 
 declare module 'next-auth' {
   interface Session {
-    user: { id: string; email: string; name?: string | null; orgId: string; role: string };
+    user: { id: string; email: string; name?: string | null; orgId: string; role: string; issuedAt?: number };
   }
 }
 declare module 'next-auth/jwt' {
@@ -40,7 +40,7 @@ export const authOptions: NextAuthOptions = {
       return token;
     },
     async session({ session, token }) {
-      session.user = { ...session.user, id: token.uid!, orgId: token.orgId!, role: token.role! } as never;
+      session.user = { ...session.user, id: token.uid!, orgId: token.orgId!, role: token.role!, issuedAt: typeof token.iat === 'number' ? token.iat : undefined } as never;
       return session;
     },
   },

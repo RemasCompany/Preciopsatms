@@ -99,8 +99,25 @@ model User {
   email        String       @unique
   name         String?
   passwordHash String
+  emailVerifiedAt   DateTime?
+  passwordChangedAt DateTime?  // sessions issued before this are signed out
   createdAt    DateTime     @default(now())
   memberships  Membership[]
+  authTokens   AuthToken[]
+}
+
+// One-time links for password reset and email verification. Only the hash is stored.
+model AuthToken {
+  id        String    @id @default(cuid())
+  userId    String
+  kind      String    // reset | verify
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, kind])
 }
 
 model Membership {

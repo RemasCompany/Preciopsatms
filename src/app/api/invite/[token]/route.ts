@@ -38,7 +38,8 @@ export const POST = withApi(async (req: Request, { params }: Ctx) => {
   } else {
     if (!name) throw new HttpError(400, 'Enter your full name.');
     if (password.length < 10) throw new HttpError(400, 'Use at least 10 characters for your password.');
-    user = await db.user.create({ data: { email: inv.email, name, passwordHash: await bcrypt.hash(password, 12) } });
+    // The invite link went to this address, so it's already confirmed.
+    user = await db.user.create({ data: { email: inv.email, name, passwordHash: await bcrypt.hash(password, 12), emailVerifiedAt: new Date() } });
   }
   const already = await db.membership.findUnique({ where: { userId_organizationId: { userId: user.id, organizationId: inv.organizationId } } });
   if (!already) {

@@ -46,7 +46,7 @@ export { HttpError };
 export async function requirePageContext(minRole: Role = 'VIEWER') {
   const session = await getServerSession(authOptions);
   if (!session?.user) redirect('/login');
-  const ctx = await loadContext(session.user.id, session.user.orgId);
+  const ctx = await loadContext(session.user.id, session.user.orgId, session.user.issuedAt);
   if (!ctx) redirect('/login');
   if (RANK[ctx.role] < RANK[minRole]) redirect('/app');
   return ctx;
@@ -56,7 +56,7 @@ export async function requirePageContext(minRole: Role = 'VIEWER') {
 export async function requireApiContext(opts: { minRole?: Role; feature?: Feature; write?: boolean } = {}) {
   const session = await getServerSession(authOptions);
   if (!session?.user) throw new HttpError(401, 'Sign in required');
-  const ctx = await loadContext(session.user.id, session.user.orgId);
+  const ctx = await loadContext(session.user.id, session.user.orgId, session.user.issuedAt);
   if (!ctx) throw new HttpError(401, 'Sign in required');
   if (RANK[ctx.role] < RANK[opts.minRole ?? 'VIEWER']) throw new HttpError(403, 'Your role does not allow this');
   if (opts.feature && !hasFeature(ctx.org, opts.feature)) {
@@ -67,9 +67,11 @@ export async function requireApiContext(opts: { minRole?: Role; feature?: Featur
   return ctx;
 }
 
-async function loadContext(userId: string, orgId: string) {
+async function loadContext(userId: string, orgId: string, issuedAt?: number) {
   const m = await db.membership.findUnique({ where: { userId_organizationId: { userId, organizationId: orgId } }, include: { organization: true, user: true } });
   if (!m) return null;
+  // A password reset signs out every session issued before it (issuedAt is the JWT's iat, in seconds).
+  if (m.user.passwordChangedAt && (!issuedAt || issuedAt * 1000 < m.user.passwordChangedAt.getTime() - 1000)) return null;
   return { user: m.user, org: m.organization, role: m.role, tdb: tenantDb(orgId) };
 }
 

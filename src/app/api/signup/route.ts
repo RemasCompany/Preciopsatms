@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { db } from '@/lib/db';
 import { stripe, stripeEnabled } from '@/lib/stripe';
 import { withApi, HttpError } from '@/lib/tenant';
+import { sendVerification } from '@/lib/account';
 
 const Body = z.object({
   company: z.string().min(2).max(120),
@@ -32,7 +33,9 @@ export const POST = withApi(async (req: Request) => {
     });
     const user = await tx.user.create({ data: { email, name: b.name, passwordHash: await bcrypt.hash(b.password, 12) } });
     await tx.membership.create({ data: { userId: user.id, organizationId: org.id, role: 'OWNER' } });
-    return org;
+    return { org, user };
   });
-  return Response.json({ ok: true, slug: org.slug });
+  // The account works right away; the banner in the app asks them to confirm the email.
+  await sendVerification(org.user).catch((e) => console.error('[signup] verification email failed', e));
+  return Response.json({ ok: true, slug: org.org.slug });
 });
