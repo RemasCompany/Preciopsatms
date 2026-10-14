@@ -2,9 +2,9 @@
 // Shared by the UI and the server — keep this file free of server imports.
 
 export type CredentialGroup = 'License' | 'Certification' | 'Equipment' | 'Health' | 'Screening' | 'Other';
-type TypeSpec = { group: CredentialGroup; number?: boolean; state?: boolean; expires?: boolean };
+type TypeSpec = { group: CredentialGroup; number?: boolean; state?: boolean; expires?: boolean; external?: boolean };
 
-/** Credential types. `number`/`state` mark what a verifier needs; `expires` marks ones that must carry an expiration date. */
+/** Credential types. `number`/`state` mark what a verifier needs; `expires` marks ones that must carry an expiration date; `external` ones are issued by an outside body, never by a course here. */
 export const CREDENTIAL_TYPES: Record<string, TypeSpec> = {
   'RN license': { group: 'License', number: true, state: true, expires: true },
   'LPN / LVN license': { group: 'License', number: true, state: true, expires: true },
@@ -30,6 +30,13 @@ export const CREDENTIAL_TYPES: Record<string, TypeSpec> = {
   'Forklift – order picker': { group: 'Equipment', expires: true },
   'Electric pallet jack': { group: 'Equipment', expires: true },
   'Rough-terrain forklift / telehandler': { group: 'Equipment', expires: true },
+  // Aerial lifts (ANSI A92.22/A92.24 MEWPs): Group A platforms stay inside the tipping lines (scissor lifts), Group B can reach outside them (booms).
+  'Scissor lift (MEWP Group A)': { group: 'Equipment', expires: true },
+  'Boom lift (MEWP Group B)': { group: 'Equipment', expires: true },
+  // Cranes (OSHA 1926.1427): operators need an accredited certification (NCCCO, NCCER…) for the crane type and capacity, valid up to 5 years,
+  // plus the employer's own evaluation before they operate.
+  'Crane operator certification (accredited)': { group: 'Equipment', number: true, expires: true, external: true },
+  'Crane operator – employer evaluation': { group: 'Equipment', expires: true },
   'TB test': { group: 'Health', expires: true },
   'Flu vaccine': { group: 'Health', expires: true },
   'COVID-19 vaccine': { group: 'Health' },

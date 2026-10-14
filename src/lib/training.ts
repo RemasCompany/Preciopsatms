@@ -13,8 +13,11 @@ export const STATUS_LABEL: Record<Status, string> = {
 };
 export const REASON_LABEL: Record<string, string> = { initial: 'First certification', recert: 'Recertification', refresher: 'Refresher' };
 
-/** Credential types a course can issue (the equipment ones). */
+/** Equipment credential types (what a job can require). */
 export const EQUIPMENT_TYPES = Object.keys(CREDENTIAL_TYPES).filter((t) => CREDENTIAL_TYPES[t].group === 'Equipment');
+/** The ones a course here can issue; the rest (e.g. accredited crane certification) come from outside bodies. */
+export const TRAINABLE_TYPES = EQUIPMENT_TYPES.filter((t) => !CREDENTIAL_TYPES[t].external);
+export const EXTERNAL_TYPES = EQUIPMENT_TYPES.filter((t) => CREDENTIAL_TYPES[t].external);
 
 /** When OSHA 1910.178(l)(4)(ii) requires refresher training (plus an evaluation) before someone operates again. */
 export const REFRESHER_TRIGGERS = [
@@ -32,7 +35,8 @@ export const RECERT_WINDOW_DAYS = 60;
 const https = z.string().trim().max(500).refine((u) => /^https:\/\/\S+$/.test(u), 'Video links must start with https://');
 export const CourseBody = z.object({
   title: z.string().trim().min(3, 'Give the course a name.').max(120),
-  certType: z.string().refine((t) => EQUIPMENT_TYPES.includes(t), 'Choose the certification this course issues.'),
+  certType: z.string().refine((t) => TRAINABLE_TYPES.includes(t), 'Choose the certification this course issues.'),
+  prerequisite: z.string().refine((t) => EXTERNAL_TYPES.includes(t), 'Choose a certification issued outside the company.').nullable().optional(),
   description: z.string().trim().max(2000).nullable().optional(),
   recertMonths: z.coerce.number().int().min(1).max(MAX_RECERT_MONTHS, `OSHA requires a new evaluation at least every ${MAX_RECERT_MONTHS} months.`),
   passScore: z.coerce.number().int().min(50, 'Set the passing score between 50% and 100%.').max(100, 'Set the passing score between 50% and 100%.'),
@@ -108,3 +112,19 @@ export const FORKLIFT_TEMPLATE: CourseInput = {
 
 /** Whether a quiz payload is a valid answer sheet for this course. */
 export const AnswersBody = z.object({ answers: z.array(z.number().int().min(0).nullable()).max(50) });
+
+/** The certificate heading, standard and retraining note for a certification type. */
+export function certificateText(certType: string) {
+  if (/crane/i.test(certType)) return {
+    heading: 'Crane Operator Employer Evaluation', standard: '29 CFR 1926.1427(f)',
+    footer: 'This records the employer evaluation required by OSHA 1926.1427(f). It is valid only together with a current certification from an accredited testing organization for the crane type and capacity. A new evaluation may be needed for different equipment or more demanding work.',
+  };
+  if (/MEWP|lift \(/i.test(certType)) return {
+    heading: 'Mobile Elevating Work Platform Operator Training', standard: 'ANSI A92.22 / A92.24',
+    footer: 'Familiarization is required on each make and model. Retraining is required after unsafe operation, an accident or near-miss, assignment to a different type of MEWP, or a change in site conditions.',
+  };
+  return {
+    heading: 'Powered Industrial Truck Operator Certification', standard: '29 CFR 1910.178(l)',
+    footer: 'Refresher training and a new evaluation are required after unsafe operation, an accident or near-miss, a change of truck type or workplace conditions, and at least every three years.',
+  };
+}

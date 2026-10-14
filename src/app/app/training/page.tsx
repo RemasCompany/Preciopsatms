@@ -2,7 +2,8 @@ import { requirePageContext, canEdit } from '@/lib/tenant';
 import { hasFeature } from '@/lib/plans';
 import { localDate } from '@/lib/timeclock';
 import { recertDue } from '@/lib/training-server';
-import { EQUIPMENT_TYPES, OPEN_STATUSES, type Lesson, type Question } from '@/lib/training';
+import { EQUIPMENT_TYPES, EXTERNAL_TYPES, OPEN_STATUSES, TRAINABLE_TYPES, type Lesson, type Question } from '@/lib/training';
+import { TEMPLATES } from '@/lib/training-templates';
 import TrainingBoard from '@/components/Training';
 import Gate from '@/components/Gate';
 
@@ -29,10 +30,11 @@ export default async function Training() {
   return (
     <>
       <h1>Training</h1>
-      <p className="lede">Train and certify equipment operators: online lessons and a quiz on the worker’s phone, then a hands-on evaluation that issues the certification. Recertify at least every three years, and require refresher training after an incident.</p>
+      <p className="lede">Train and certify equipment operators — forklifts, aerial lifts and crane operator evaluations: online lessons and a quiz on the worker’s phone, then a hands-on evaluation that issues the certification. Recertify on schedule, and require refresher training after an incident.</p>
       <TrainingBoard
-        today={today} isAdmin={admin} canEdit={canEdit(ctx)} certTypes={EQUIPMENT_TYPES}
-        courses={courses.map((c) => ({ id: c.id, title: c.title, certType: c.certType, description: c.description, recertMonths: c.recertMonths, passScore: c.passScore,
+        today={today} isAdmin={admin} canEdit={canEdit(ctx)} certTypes={EQUIPMENT_TYPES} trainable={TRAINABLE_TYPES} external={EXTERNAL_TYPES}
+        templates={Object.entries(TEMPLATES).map(([key, t]) => ({ key, label: t.label, title: t.course.title, added: courses.some((c) => c.title === t.course.title) }))}
+        courses={courses.map((c) => ({ id: c.id, title: c.title, certType: c.certType, prerequisite: c.prerequisite, description: c.description, recertMonths: c.recertMonths, passScore: c.passScore,
           lessons: c.lessons as Lesson[], questions: admin ? (c.questions as Question[]) : [], questionCount: (c.questions as Question[]).length, checklist: c.checklist as string[] }))}
         enrollments={enrollments.map((e) => ({
           id: e.id, candidateId: e.candidateId, name: e.candidate.name, course: e.course.title, certType: e.course.certType, status: e.status, reason: e.reason, trigger: e.trigger,

@@ -9,7 +9,8 @@ vi.mock('@/lib/sms', () => ({ sendSms: vi.fn(async (to: string, body: string) =>
 
 import { db } from '@/lib/db';
 import { tenantDb } from '@/lib/tenant';
-import { CourseBody, FORKLIFT_TEMPLATE, grade, recertDate } from '@/lib/training';
+import { CourseBody, FORKLIFT_TEMPLATE, certificateText, grade, recertDate } from '@/lib/training';
+import { TEMPLATES } from '@/lib/training-templates';
 import { certGaps, recertDue } from '@/lib/training-server';
 import { POST as ADD_COURSE } from '@/app/api/training/courses/route';
 import { POST as ASSIGN } from '@/app/api/training/enrollments/route';
@@ -38,6 +39,19 @@ describe('training rules', () => {
     expect(FORKLIFT_TEMPLATE.questions.every((q) => q.answer < q.choices.length)).toBe(true);
     expect(CourseBody.safeParse({ ...FORKLIFT_TEMPLATE, recertMonths: 48 }).success).toBe(false);
     expect(CourseBody.safeParse({ ...FORKLIFT_TEMPLATE, certType: 'RN license' }).success).toBe(false);
+  });
+  it('ships valid aerial lift and crane courses; the crane one only adds the employer evaluation', () => {
+    for (const t of Object.values(TEMPLATES)) {
+      const r = CourseBody.safeParse(t.course);
+      expect(r.success, t.label).toBe(true);
+      expect(t.course.questions.every((q) => q.answer < q.choices.length), t.label).toBe(true);
+    }
+    expect(TEMPLATES.crane.course.prerequisite).toBe('Crane operator certification (accredited)');
+    // Accredited crane certification comes from outside bodies, so no course may issue it.
+    expect(CourseBody.safeParse({ ...TEMPLATES.crane.course, certType: 'Crane operator certification (accredited)' }).success).toBe(false);
+    expect(certificateText('Boom lift (MEWP Group B)').standard).toBe('ANSI A92.22 / A92.24');
+    expect(certificateText('Crane operator – employer evaluation').standard).toBe('29 CFR 1926.1427(f)');
+    expect(certificateText('Forklift – order picker').standard).toBe('29 CFR 1910.178(l)');
   });
 });
 
@@ -150,5 +164,27 @@ describe('operator training', () => {
     await db.credential.create({ data: { organizationId: org, candidateId: ben, type: 'Forklift – sit-down counterbalance', expiresAt: new Date(Date.now() + 20 * 864e5), verifiedAt: new Date() } });
     const due = await recertDue(tenantDb(org), today());
     expect(due.map((d) => d.name)).toEqual(['Ben Walk']); // Ana's refresher is already under way
+  });
+
+  it('certifies a crane operator only once their accredited certification is on file', async () => {
+    as(owner);
+    const crane = (await (await ADD_COURSE(json('POST', { template: 'crane' }))).json()).id;
+    const cara = (await db.candidate.create({ data: { organizationId: org, name: 'Cara Crane', phone: '+15550100003' } })).id;
+    as(rec);
+    await ASSIGN(json('POST', { courseId: crane, candidateIds: [cara], channels: ['sms'] }));
+    const token = tokenFor('+15550100003');
+    const c = (await (await PAGE(new Request('http://x'), T(token))).json()).training.find((x: { title: string }) => x.title.startsWith('Crane'));
+    for (let i = 0; i < c.lessons.length; i++) await LEARN(json('POST', { enrollmentId: c.id, lesson: i }), T(token));
+    expect((await (await LEARN(json('POST', { enrollmentId: c.id, answers: TEMPLATES.crane.course.questions.map((q) => q.answer) }), T(token))).json()).passed).toBe(true);
+
+    const body = { action: 'evaluate', trainedAt: today(), evaluatedAt: today(), evaluatorName: 'Lee Director', evaluatorTitle: 'Lift director', equipment: 'Grove RT540E', passed: true,
+      checklist: TEMPLATES.crane.course.checklist.map((item) => ({ item, pass: true })) };
+    const blocked = await ENROLLMENT(json('PATCH', body), P(c.id));
+    expect(blocked.status).toBe(409);
+    expect((await blocked.json()).error).toMatch(/Crane operator certification \(accredited\).*not certified/);
+
+    await db.credential.create({ data: { organizationId: org, candidateId: cara, type: 'Crane operator certification (accredited)', number: 'NCCCO 123456', expiresAt: new Date(Date.now() + 900 * 864e5), verifiedAt: new Date() } });
+    expect(await (await ENROLLMENT(json('PATCH', body), P(c.id))).json()).toMatchObject({ certified: true });
+    expect(await db.credential.count({ where: { candidateId: cara, type: 'Crane operator – employer evaluation', verifiedAt: { not: null } } })).toBe(1);
   });
 });

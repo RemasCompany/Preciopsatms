@@ -25,7 +25,7 @@ const CHANNELS = z.array(z.enum(['sms', 'email'])).max(2).default([]);
 export function parseCourse(body: unknown) {
   const r = CourseBody.safeParse(body);
   if (!r.success) throw new HttpError(400, r.error.issues[0]?.message ?? 'Check the course and try again.');
-  return { ...r.data, description: r.data.description || null, lessons: r.data.lessons.map((l) => ({ title: l.title, body: l.body, videoUrl: l.videoUrl || null })) };
+  return { ...r.data, prerequisite: r.data.prerequisite || null, description: r.data.description || null, lessons: r.data.lessons.map((l) => ({ title: l.title, body: l.body, videoUrl: l.videoUrl || null })) };
 }
 
 export async function saveCourse(tdb: TenantDb, org: Organization, user: User, body: unknown, id?: string) {
@@ -150,7 +150,7 @@ export const EvaluateBody = z.object({
   trainedAt: DATE, evaluatedAt: DATE,
   evaluatorName: z.string().trim().min(2, 'Enter the evaluator’s name.').max(120),
   evaluatorTitle: z.string().trim().min(2, 'Enter the evaluator’s role or qualification (e.g. “Certified forklift trainer”).').max(160),
-  equipment: z.string().trim().min(2, 'Enter the truck they were evaluated on (make, model or class).').max(160),
+  equipment: z.string().trim().min(2, 'Enter the equipment they were evaluated on (make, model or type).').max(160),
   checklist: z.array(z.object({ item: z.string().max(200), pass: z.boolean() })).min(1),
   passed: z.boolean(),
   notes: z.string().trim().max(2000).optional(),
@@ -169,6 +169,11 @@ export async function evaluate(org: Organization, user: User, id: string, body: 
   const expected = e.course.checklist as string[];
   if (b.checklist.length !== expected.length || b.checklist.some((x, i) => x.item !== expected[i])) throw new HttpError(409, 'The course’s checklist changed. Reload the page and try again.');
   if (b.passed && b.checklist.some((x) => !x.pass)) throw new HttpError(400, 'Every checklist item must pass to certify. Record it as not passed and assign more training.');
+  // e.g. cranes: the employer evaluation only counts on top of a current accredited certification.
+  if (b.passed && e.course.prerequisite) {
+    const missing = await certGaps(tdb, e.candidateId, [e.course.prerequisite], b.evaluatedAt, today);
+    if (missing.length) throw new HttpError(409, `${e.candidate.name} needs a current ${e.course.prerequisite} on file before they can be certified here (${missing[0].split(': ').slice(1).join(': ')}). Add it under Credentials on their record, then record the evaluation.`);
+  }
   const record = { trainedAt: day(b.trainedAt), evaluatedAt: day(b.evaluatedAt), evaluatorName: b.evaluatorName, evaluatorTitle: b.evaluatorTitle, equipment: b.equipment, checklist: b.checklist, evalNotes: b.notes || null, recordedById: user.id };
 
   if (!b.passed) {

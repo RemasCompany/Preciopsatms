@@ -1231,6 +1231,7 @@ model TrainingCourse {
   lessons        Json // [{ title, body, videoUrl? }]
   questions      Json // [{ q, choices: string[], answer: index }] — answers never leave the server
   checklist      Json // string[]: the practical evaluation items
+  prerequisite   String? // a credential type (issued elsewhere) the worker must hold before they can be certified
   archived       Boolean              @default(false)
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt
