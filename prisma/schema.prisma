@@ -26,112 +26,114 @@ enum PlanId {
 }
 
 model Organization {
-  id                   String    @id @default(cuid())
-  name                 String
-  slug                 String    @unique // used in public careers URLs
-  shortName            String?
-  ownerName            String?
-  ownerTitle           String?
-  city                 String?
-  website              String?
-  services             String?
-  pitch                String?
-  logoUrl              String?
-  brandColor           String    @default("#0E7A6E")
-  applyEmail           String?
-  careersHeadline      String    @default("Find your next role")
-  careersIntro         String?
-  showPayOnCareers     Boolean   @default(true)
-  showClientOnCareers  Boolean   @default(false)
-  payrollProvider      String?   // adp | paychex | quickbooks | gusto | csv: default export format
-  payrollCompanyCode   String?   // company code some providers need in imports (e.g. ADP Co Code)
-  timezone             String    @default("America/New_York") // IANA zone for time clock days and workweeks
-  geofenceMode         String    @default("flag") // off | flag | block: time clock punches outside a job site's geofence
-  everifyEnabled       Boolean   @default(false)
-  smsNumber            String?   @unique // the company's own Twilio number (E.164); replies to it land in this company's inbox
-  referralBonus        Decimal?  @db.Decimal(10, 2) // paid per referred worker who reaches referralMinHours; null = no bonus
-  referralMinHours     Int       @default(80)  // the company is enrolled in E-Verify: open a case to track for each new hire
-  onboardingEnabled    Boolean   @default(true)    // the company can switch onboarding off (e.g. direct-hire only)
-  onboardingEnforcement String   @default("warn")  // warn | block: unfinished onboarding blocks scheduling and clock-in
-  birthdayGreetings    Boolean   @default(false)   // send workers on assignment a greeting on their birthday
+  id                    String              @id @default(cuid())
+  name                  String
+  slug                  String              @unique // used in public careers URLs
+  shortName             String?
+  ownerName             String?
+  ownerTitle            String?
+  city                  String?
+  website               String?
+  services              String?
+  pitch                 String?
+  logoUrl               String?
+  brandColor            String              @default("#0E7A6E")
+  applyEmail            String?
+  careersHeadline       String              @default("Find your next role")
+  careersIntro          String?
+  showPayOnCareers      Boolean             @default(true)
+  showClientOnCareers   Boolean             @default(false)
+  payrollProvider       String? // adp | paychex | quickbooks | gusto | csv: default export format
+  payrollCompanyCode    String? // company code some providers need in imports (e.g. ADP Co Code)
+  timezone              String              @default("America/New_York") // IANA zone for time clock days and workweeks
+  geofenceMode          String              @default("flag") // off | flag | block: time clock punches outside a job site's geofence
+  everifyEnabled        Boolean             @default(false)
+  smsNumber             String?             @unique // the company's own Twilio number (E.164); replies to it land in this company's inbox
+  referralBonus         Decimal?            @db.Decimal(10, 2) // paid per referred worker who reaches referralMinHours; null = no bonus
+  referralMinHours      Int                 @default(80) // the company is enrolled in E-Verify: open a case to track for each new hire
+  onboardingEnabled     Boolean             @default(true) // the company can switch onboarding off (e.g. direct-hire only)
+  onboardingEnforcement String              @default("warn") // warn | block: unfinished onboarding blocks scheduling and clock-in
+  birthdayGreetings     Boolean             @default(false) // send workers on assignment a greeting on their birthday
   // Billing
-  plan                 PlanId    @default(starter)
-  stripeCustomerId     String?   @unique
-  stripeSubscriptionId String?   @unique
-  subscriptionStatus   String    @default("trialing") // mirrors Stripe: trialing|active|past_due|canceled|unpaid|incomplete
-  trialEndsAt          DateTime?
-  currentPeriodEnd     DateTime?
-  seats                Int       @default(1)
-  salesTargets         SalesTarget[]
-  credentials          Credential[]
-  shifts               Shift[]
-  workerLinks          WorkerLink[]
-  payrollRuns          PayrollRun[]
-  timeEntries          TimeEntry[]
-  onboardingPackages   OnboardingPackage[]
-  onboardings          Onboarding[]
-  feedback             Feedback[]
-  feedbackRequests     FeedbackRequest[]
-  recognitions         Recognition[]
-  aiCreditsUsed        Int       @default(0) // reset each billing period by webhook
+  plan                  PlanId              @default(starter)
+  stripeCustomerId      String?             @unique
+  stripeSubscriptionId  String?             @unique
+  subscriptionStatus    String              @default("trialing") // mirrors Stripe: trialing|active|past_due|canceled|unpaid|incomplete
+  trialEndsAt           DateTime?
+  currentPeriodEnd      DateTime?
+  seats                 Int                 @default(1)
+  salesTargets          SalesTarget[]
+  credentials           Credential[]
+  shifts                Shift[]
+  workerLinks           WorkerLink[]
+  payrollRuns           PayrollRun[]
+  timeEntries           TimeEntry[]
+  onboardingPackages    OnboardingPackage[]
+  onboardings           Onboarding[]
+  feedback              Feedback[]
+  feedbackRequests      FeedbackRequest[]
+  recognitions          Recognition[]
+  aiCreditsUsed         Int                 @default(0) // reset each billing period by webhook
   // Indeed Apply (candidates apply on Indeed; Indeed POSTs applications to /api/public/<slug>/indeed-apply)
-  indeedApplyApiToken  String?
-  indeedApplySecret    String?   // shared secret for X-Indeed-Signature; never returned to the browser
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
+  indeedApplyApiToken   String?
+  indeedApplySecret     String? // shared secret for X-Indeed-Signature; never returned to the browser
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
 
-  members      Membership[]
-  invites      Invite[]
-  jobs         Job[]
-  candidates   Candidate[]
-  applications Application[]
-  clients      Client[]
-  contacts     Contact[]
-  deals        Deal[]
-  leads        Lead[]
-  vendors      Vendor[]
-  tasks        Task[]
-  timesheets   Timesheet[]
-  documents    SignDocument[]
-  messages     Message[]
-  eeo          EeoSelfId[]
-  activity     Activity[]
-  files        StoredFile[]
-  auditLogs          AuditLog[]
-  backgroundTasks    BackgroundTask[]
-  invoices           Invoice[]
-  invoiceLines       InvoiceLine[]
-  payments           Payment[]
-  clientPortalLinks  ClientPortalLink[]
-  openShifts         OpenShift[]
-  shiftOffers        ShiftOffer[]
-  backgroundChecks   BackgroundCheck[]
+  members               Membership[]
+  invites               Invite[]
+  jobs                  Job[]
+  candidates            Candidate[]
+  applications          Application[]
+  clients               Client[]
+  contacts              Contact[]
+  deals                 Deal[]
+  leads                 Lead[]
+  vendors               Vendor[]
+  tasks                 Task[]
+  timesheets            Timesheet[]
+  documents             SignDocument[]
+  messages              Message[]
+  eeo                   EeoSelfId[]
+  activity              Activity[]
+  files                 StoredFile[]
+  auditLogs             AuditLog[]
+  backgroundTasks       BackgroundTask[]
+  invoices              Invoice[]
+  invoiceLines          InvoiceLine[]
+  payments              Payment[]
+  clientPortalLinks     ClientPortalLink[]
+  openShifts            OpenShift[]
+  shiftOffers           ShiftOffer[]
+  backgroundChecks      BackgroundCheck[]
   accountingConnections AccountingConnection[]
-  everifyCases       EVerifyCase[]
-  doNotReturns       DoNotReturn[]
-  referrals          Referral[]
-  branches           Branch[]
-  reportSchedules    ReportSchedule[]
-  externalRefs       ExternalRef[]
+  everifyCases          EVerifyCase[]
+  doNotReturns          DoNotReturn[]
+  referrals             Referral[]
+  branches              Branch[]
+  reportSchedules       ReportSchedule[]
+  trainingCourses       TrainingCourse[]
+  trainingEnrollments   TrainingEnrollment[]
+  externalRefs          ExternalRef[]
 }
 
 model User {
-  id           String       @id @default(cuid())
-  email        String       @unique
-  name         String?
-  passwordHash String
+  id                String       @id @default(cuid())
+  email             String       @unique
+  name              String?
+  passwordHash      String
   emailVerifiedAt   DateTime?
-  passwordChangedAt DateTime?  // sessions issued before this are signed out
-  createdAt    DateTime     @default(now())
-  memberships  Membership[]
-  authTokens   AuthToken[]
+  passwordChangedAt DateTime? // sessions issued before this are signed out
+  createdAt         DateTime     @default(now())
+  memberships       Membership[]
+  authTokens        AuthToken[]
 }
 
 // One-time links for password reset and email verification. Only the hash is stored.
 model AuthToken {
   id        String    @id @default(cuid())
   userId    String
-  kind      String    // reset | verify
+  kind      String // reset | verify
   tokenHash String    @unique
   expiresAt DateTime
   usedAt    DateTime?
@@ -147,7 +149,7 @@ model Membership {
   organizationId String
   role           Role         @default(RECRUITER)
   createdAt      DateTime     @default(now())
-  branchId       String?      // home branch: the app opens filtered to it
+  branchId       String? // home branch: the app opens filtered to it
   branch         Branch?      @relation(fields: [branchId], references: [id], onDelete: SetNull)
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -189,7 +191,7 @@ model Job {
   clientId       String?
   title          String
   sector         String?
-  location       String?        // "City, ST" — job boards need city and state for organic visibility
+  location       String? // "City, ST" — job boards need city and state for organic visibility
   postalCode     String?
   remote         Boolean        @default(false) // fully remote: Google for Jobs TELECOMMUTE
   type           EmploymentType @default(CONTRACT)
@@ -201,65 +203,67 @@ model Job {
   startDate      DateTime?
   skills         String[]
   description    String?
-  posting        String?        // public-facing posting text
-  applyUrl       String?        // optional external apply link; default is the built-in apply form
+  posting        String? // public-facing posting text
+  applyUrl       String? // optional external apply link; default is the built-in apply form
   publish        Boolean        @default(true) // show on public careers page / feeds
-  postedTo       Json?          // { "Indeed": "2026-09-27", ... }
+  postedTo       Json? // { "Indeed": "2026-09-27", ... }
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
   organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   client         Client?        @relation(fields: [clientId], references: [id], onDelete: SetNull)
   applications   Application[]
-
-  @@index([organizationId, status])
   openShifts     OpenShift[]
-  siteLat        Float?         // job site, for time clock geofencing
+  siteLat        Float? // job site, for time clock geofencing
   siteLng        Float?
   geofenceMeters Int?
+  requiredCerts  String[]       @default([]) // equipment certifications (credential types) a worker needs for this job
   branchId       String?
-  branch         Branch?      @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  branch         Branch?        @relation(fields: [branchId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status])
 }
 
 model Candidate {
-  id             String        @id @default(cuid())
-  organizationId String
-  vendorId       String?
-  name           String
-  email          String?
-  phone          String?
-  title          String?
-  location       String?
-  sector         String?
-  yearsExp       Int?
-  desiredRate    Decimal?      @db.Decimal(10, 2)
-  availability   String?
-  source         String?
-  status         String        @default("Active")
-  skills         String[]
-  certs          String[]
-  summary        String?
-  payrollId      String?       // employee ID in the payroll provider, used to match export rows
-  birthMonth     Int?          // month and day only (never the year) — for workers on assignment; never used in matching
-  birthDay       Int?
-  lastGreetedYear Int?         // year of the last birthday greeting sent
-  resumeFileId   String?
-  emailOptOut    Boolean       @default(false)
-  smsOptOut      Boolean       @default(false) // set by Twilio STOP webhook (TCPA)
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  vendor         Vendor?       @relation(fields: [vendorId], references: [id], onDelete: SetNull)
-  workerLinks    WorkerLink[]
-  credentials    Credential[]
-  applications   Application[]
-
-  @@index([organizationId, email])
-  @@index([organizationId, phone])
+  id               String               @id @default(cuid())
+  organizationId   String
+  vendorId         String?
+  name             String
+  email            String?
+  phone            String?
+  title            String?
+  location         String?
+  sector           String?
+  yearsExp         Int?
+  desiredRate      Decimal?             @db.Decimal(10, 2)
+  availability     String?
+  source           String?
+  status           String               @default("Active")
+  skills           String[]
+  certs            String[]
+  summary          String?
+  payrollId        String? // employee ID in the payroll provider, used to match export rows
+  birthMonth       Int? // month and day only (never the year) — for workers on assignment; never used in matching
+  birthDay         Int?
+  lastGreetedYear  Int? // year of the last birthday greeting sent
+  resumeFileId     String?
+  emailOptOut      Boolean              @default(false)
+  smsOptOut        Boolean              @default(false) // set by Twilio STOP webhook (TCPA)
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  organization     Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  vendor           Vendor?              @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  workerLinks      WorkerLink[]
+  credentials      Credential[]
+  applications     Application[]
   backgroundChecks BackgroundCheck[]
   everifyCases     EVerifyCase[]
   doNotReturns     DoNotReturn[]
-  branchId       String?
-  branch         Branch?      @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  trainings        TrainingEnrollment[]
+  branchId         String?
+  branch           Branch?              @relation(fields: [branchId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, email])
+  @@index([organizationId, phone])
 }
 
 enum Stage {
@@ -274,24 +278,24 @@ enum Stage {
 }
 
 model Application {
-  id               String       @id @default(cuid())
-  organizationId   String
-  candidateId      String
-  jobId            String
-  stage            Stage        @default(SOURCED)
-  maxStage         Stage        @default(SOURCED) // furthest stage reached, for EEO applicant-flow reporting
-  rejectionReason  String?      // required when stage = REJECTED
-  matchScore       Int?
-  stageChangedAt   DateTime     @default(now())
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
-  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  candidate        Candidate    @relation(fields: [candidateId], references: [id], onDelete: Cascade)
-  job              Job          @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  onboardings      Onboarding[]
-  timeEntries      TimeEntry[]
-  shifts           Shift[]
-  timesheets       Timesheet[]
+  id              String       @id @default(cuid())
+  organizationId  String
+  candidateId     String
+  jobId           String
+  stage           Stage        @default(SOURCED)
+  maxStage        Stage        @default(SOURCED) // furthest stage reached, for EEO applicant-flow reporting
+  rejectionReason String? // required when stage = REJECTED
+  matchScore      Int?
+  stageChangedAt  DateTime     @default(now())
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  candidate       Candidate    @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  job             Job          @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  onboardings     Onboarding[]
+  timeEntries     TimeEntry[]
+  shifts          Shift[]
+  timesheets      Timesheet[]
 
   @@unique([candidateId, jobId])
   @@index([organizationId, stage])
@@ -313,41 +317,41 @@ model EeoSelfId {
 // ---------------- Sales / CRM ----------------
 
 model Client {
-  id             String       @id @default(cuid())
-  organizationId String
-  name           String
-  industry       String?
-  status         String       @default("Active")
-  city           String?
-  website        String?
-  markupPct      Decimal?     @db.Decimal(5, 2)
-  msaSignedAt    DateTime?
-  paymentTerms   String       @default("Net 30")
-  onboardingMode      String   @default("ask") // ask (recruiter picks) | package (always onboardingPackageId) | none (not required)
+  id                  String       @id @default(cuid())
+  organizationId      String
+  name                String
+  industry            String?
+  status              String       @default("Active")
+  city                String?
+  website             String?
+  markupPct           Decimal?     @db.Decimal(5, 2)
+  msaSignedAt         DateTime?
+  paymentTerms        String       @default("Net 30")
+  onboardingMode      String       @default("ask") // ask (recruiter picks) | package (always onboardingPackageId) | none (not required)
   onboardingPackageId String?
-  notes          String?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  contacts       Contact[]
-  jobs           Job[]
-  deals          Deal[]
-  invoices       Invoice[]
+  notes               String?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+  organization        Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contacts            Contact[]
+  jobs                Job[]
+  deals               Deal[]
+  invoices            Invoice[]
 }
 
 model Contact {
-  id             String       @id @default(cuid())
+  id             String             @id @default(cuid())
   organizationId String
   clientId       String
   name           String
   title          String?
   email          String?
   phone          String?
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  client         Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client         Client             @relation(fields: [clientId], references: [id], onDelete: Cascade)
   portalLinks    ClientPortalLink[]
-  emailOptOut    Boolean      @default(false)
-  smsOptOut      Boolean      @default(false) // replied STOP
+  emailOptOut    Boolean            @default(false)
+  smsOptOut      Boolean            @default(false) // replied STOP
 }
 
 model Deal {
@@ -357,10 +361,10 @@ model Deal {
   title          String
   value          Decimal?     @db.Decimal(12, 2)
   stage          String       @default("Prospect") // Prospect|Qualified|Proposal|Negotiation|Won|Lost
-  closeDate      DateTime?    // expected close
-  closedAt       DateTime?    // when it was actually marked Won or Lost
+  closeDate      DateTime? // expected close
+  closedAt       DateTime? // when it was actually marked Won or Lost
   stageChangedAt DateTime     @default(now())
-  ownerId        String?      // sales rep (User); null = unassigned
+  ownerId        String? // sales rep (User); null = unassigned
   service        String?
   notes          String?
   createdAt      DateTime     @default(now())
@@ -382,7 +386,7 @@ model Lead {
   city           String?
   source         String?
   status         String       @default("New")
-  ownerId        String?      // sales rep (User); null = unassigned
+  ownerId        String? // sales rep (User); null = unassigned
   convertedAt    DateTime?
   score          Int?
   nextStepAt     DateTime?
@@ -439,27 +443,27 @@ enum TimesheetStatus {
 }
 
 model Timesheet {
-  id             String          @id @default(cuid())
-  organizationId String
-  applicationId  String
-  weekEnding     DateTime        @db.Date
-  regularHours   Decimal         @default(0) @db.Decimal(6, 2)
-  overtimeHours  Decimal         @default(0) @db.Decimal(6, 2)
-  payRate        Decimal         @db.Decimal(10, 2) // snapshot at entry
-  billRate       Decimal         @db.Decimal(10, 2) // snapshot at entry
-  status         TimesheetStatus @default(DRAFT)
-  payrollRunId   String?         // the non-void payroll run that includes these hours
-  clientApprovedAt DateTime?     // the client signed off on these hours in the client portal
-  clientApprovedBy String?       // contact name, as they appeared then
-  clientDisputeNote String?      // the client questioned these hours (cleared when they approve)
+  id                String          @id @default(cuid())
+  organizationId    String
+  applicationId     String
+  weekEnding        DateTime        @db.Date
+  regularHours      Decimal         @default(0) @db.Decimal(6, 2)
+  overtimeHours     Decimal         @default(0) @db.Decimal(6, 2)
+  payRate           Decimal         @db.Decimal(10, 2) // snapshot at entry
+  billRate          Decimal         @db.Decimal(10, 2) // snapshot at entry
+  status            TimesheetStatus @default(DRAFT)
+  payrollRunId      String? // the non-void payroll run that includes these hours
+  clientApprovedAt  DateTime? // the client signed off on these hours in the client portal
+  clientApprovedBy  String? // contact name, as they appeared then
+  clientDisputeNote String? // the client questioned these hours (cleared when they approve)
   clientDisputedAt  DateTime?
-  approvedAt     DateTime?
-  approvedById   String?
-  paidAt         DateTime?
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  application    Application     @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  approvedAt        DateTime?
+  approvedById      String?
+  paidAt            DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  organization      Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  application       Application     @relation(fields: [applicationId], references: [id], onDelete: Cascade)
 
   @@unique([applicationId, weekEnding])
   @@index([organizationId, weekEnding])
@@ -474,37 +478,37 @@ enum SignStatus {
 }
 
 model SignDocument {
-  id              String       @id @default(cuid())
-  organizationId  String
-  type            String       // offer|assignment|vendor|client|custom
-  title           String
-  body            String
-  relatedType     String       // candidate|vendor|client
-  relatedId       String
-  signerName      String
-  signerEmail     String
-  status          SignStatus   @default(DRAFT)
-  tokenHash       String?      @unique // sha256 of the one-time signing token; raw token only ever lives in the emailed link
-  tokenExpiresAt  DateTime?
-  bodySha256      String?      // fingerprint of the exact text signed
-  signerSignature String?      // PNG data URL
-  signedAt        DateTime?
-  signerIp        String?
-  signerUserAgent String?
-  counterName     String?
+  id               String       @id @default(cuid())
+  organizationId   String
+  type             String // offer|assignment|vendor|client|custom
+  title            String
+  body             String
+  relatedType      String // candidate|vendor|client
+  relatedId        String
+  signerName       String
+  signerEmail      String
+  status           SignStatus   @default(DRAFT)
+  tokenHash        String?      @unique // sha256 of the one-time signing token; raw token only ever lives in the emailed link
+  tokenExpiresAt   DateTime?
+  bodySha256       String? // fingerprint of the exact text signed
+  signerSignature  String? // PNG data URL
+  signedAt         DateTime?
+  signerIp         String?
+  signerUserAgent  String?
+  counterName      String?
   counterSignature String?
-  counterSignedAt DateTime?
-  pdfFileId       String?
-  audit           Json         @default("[]")
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
-  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  counterSignedAt  DateTime?
+  pdfFileId        String?
+  audit            Json         @default("[]")
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 }
 
 model Message {
   id             String       @id @default(cuid())
   organizationId String
-  channel        String       // email|sms
+  channel        String // email|sms
   toAddress      String
   subject        String?
   body           String
@@ -554,7 +558,7 @@ model Invoice {
   voidReason     String?
   payrollRunId   String?
   createdById    String?
-  syncedAt       DateTime?     // pushed to the connected accounting system
+  syncedAt       DateTime? // pushed to the connected accounting system
   syncError      String?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
@@ -593,7 +597,7 @@ model Payment {
   invoiceId      String
   amount         Decimal      @db.Decimal(12, 2)
   receivedOn     DateTime     @db.Date
-  method         String       // ach | check | card | wire | other
+  method         String // ach | check | card | wire | other
   reference      String?
   notes          String?
   createdById    String?
@@ -609,8 +613,8 @@ model Payment {
 model AccountingConnection {
   id              String       @id @default(cuid())
   organizationId  String
-  provider        String       // quickbooks | xero
-  externalTenant  String       // QuickBooks realmId or Xero tenantId
+  provider        String // quickbooks | xero
+  externalTenant  String // QuickBooks realmId or Xero tenantId
   tenantName      String?
   accessTokenEnc  String
   refreshTokenEnc String
@@ -629,7 +633,7 @@ model ExternalRef {
   id             String       @id @default(cuid())
   organizationId String
   provider       String
-  kind           String       // customer | invoice | payment | item
+  kind           String // customer | invoice | payment | item
   localId        String
   externalId     String
   createdAt      DateTime     @default(now())
@@ -642,11 +646,11 @@ model ExternalRef {
 model ReportSchedule {
   id             String       @id @default(cuid())
   organizationId String
-  report         String       // key in REPORTS
-  frequency      String       // weekly (Mondays, last week) | monthly (the 1st, last month)
-  userIds        String[]     // teammates who get it
+  report         String // key in REPORTS
+  frequency      String // weekly (Mondays, last week) | monthly (the 1st, last month)
+  userIds        String[] // teammates who get it
   branchId       String?
-  lastSentOn     String?      // YYYY-MM-DD (company time) of the last send, so a day is never sent twice
+  lastSentOn     String? // YYYY-MM-DD (company time) of the last send, so a day is never sent twice
   createdById    String?
   createdAt      DateTime     @default(now())
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -673,20 +677,20 @@ model Branch {
 
 /// A worker referred a friend. The bonus (if the company pays one) is due after the friend works enough approved hours.
 model Referral {
-  id             String       @id @default(cuid())
-  organizationId String
-  referrerId     String       // the worker who referred
-  candidateId    String       // the friend
-  jobId          String?
-  note           String?
-  status         String       @default("submitted") // submitted | paid | ineligible
-  bonus          Decimal?     @db.Decimal(10, 2)   // snapshot of the company's bonus when referred
-  minHours       Int?
-  paidAt         DateTime?
-  paidById       String?
+  id               String       @id @default(cuid())
+  organizationId   String
+  referrerId       String // the worker who referred
+  candidateId      String // the friend
+  jobId            String?
+  note             String?
+  status           String       @default("submitted") // submitted | paid | ineligible
+  bonus            Decimal?     @db.Decimal(10, 2) // snapshot of the company's bonus when referred
+  minHours         Int?
+  paidAt           DateTime?
+  paidById         String?
   ineligibleReason String?
-  createdAt      DateTime     @default(now())
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt        DateTime     @default(now())
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, candidateId]) // the first referral wins
   @@index([organizationId, referrerId])
@@ -717,8 +721,8 @@ model EVerifyCase {
   organizationId String
   candidateId    String
   applicationId  String?
-  startDate      DateTime     @db.Date   // first day of work for pay
-  dueDate        DateTime     @db.Date   // create the case by this day
+  startDate      DateTime     @db.Date // first day of work for pay
+  dueDate        DateTime     @db.Date // create the case by this day
   status         String       @default("to_create") // see STATUSES in everify.ts
   caseNumber     String?
   notes          String?
@@ -898,9 +902,9 @@ model Credential {
   organizationId String
   candidateId    String
   type           String
-  name           String?      // for type "Other", or a specialty (e.g. "Med-Surg")
+  name           String? // for type "Other", or a specialty (e.g. "Med-Surg")
   number         String?
-  state          String?      // issuing state, two letters
+  state          String? // issuing state, two letters
   issuedAt       DateTime?    @db.Date
   expiresAt      DateTime?    @db.Date
   verifiedAt     DateTime?
@@ -908,7 +912,7 @@ model Credential {
   verifyMethod   String?
   verifyNote     String?
   fileId         String?
-  alertedLevel   Int?         // smallest alert window already emailed (60, 30, 7, 0 = expired)
+  alertedLevel   Int? // smallest alert window already emailed (60, 30, 7, 0 = expired)
   notes          String?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
@@ -935,11 +939,11 @@ model Shift {
   start          String
   end            String
   breakMinutes   Int           @default(0)
-  unit           String?       // unit, department or post
+  unit           String? // unit, department or post
   notes          String?
   cancelled      Boolean       @default(false)
   notified       Boolean       @default(false) // the worker has been told about this version of the shift
-  notifiedAt     DateTime?     // last notice sent; null = the worker has never heard about it
+  notifiedAt     DateTime? // last notice sent; null = the worker has never heard about it
   response       ShiftResponse @default(PENDING)
   respondedAt    DateTime?
   declineReason  String?
@@ -977,10 +981,10 @@ enum PayrollRunStatus {
 }
 
 enum PayrollAdjustmentKind {
-  BONUS          // taxable
-  OTHER_EARNING  // taxable (e.g. shift differential, holiday pay)
-  REIMBURSEMENT  // not taxable (mileage, scrubs, parking)
-  DEDUCTION      // after-tax (e.g. advance repayment, uniform)
+  BONUS // taxable
+  OTHER_EARNING // taxable (e.g. shift differential, holiday pay)
+  REIMBURSEMENT // not taxable (mileage, scrubs, parking)
+  DEDUCTION // after-tax (e.g. advance repayment, uniform)
 }
 
 // A pay run for one pay period: approved timesheets are snapshotted into items. Taxes, direct deposit and filings
@@ -989,7 +993,7 @@ model PayrollRun {
   id             String           @id @default(cuid())
   organizationId String
   number         String
-  frequency      String           // WEEKLY | BIWEEKLY
+  frequency      String // WEEKLY | BIWEEKLY
   periodStart    DateTime         @db.Date
   periodEnd      DateTime         @db.Date // a Sunday
   payDate        DateTime         @db.Date
@@ -1057,7 +1061,7 @@ model TimeEntry {
   id               String       @id @default(cuid())
   organizationId   String
   applicationId    String
-  shiftId          String?      // the scheduled shift this punch matched, if any
+  shiftId          String? // the scheduled shift this punch matched, if any
   clockIn          DateTime
   clockOut         DateTime?
   breakMinutes     Int          @default(0)
@@ -1069,9 +1073,9 @@ model TimeEntry {
   outLat           Float?
   outLng           Float?
   outAccuracy      Float?
-  inDistanceM      Int?      // metres from the job site at clock-in (when the job has a site)
+  inDistanceM      Int? // metres from the job site at clock-in (when the job has a site)
   outDistanceM     Int?
-  offSite          Boolean   @default(false) // a punch was outside the geofence or had no location
+  offSite          Boolean      @default(false) // a punch was outside the geofence or had no location
   note             String?
   originalClockIn  DateTime?
   originalClockOut DateTime?
@@ -1140,18 +1144,18 @@ model OnboardingStep {
   organizationId String
   onboardingId   String
   position       Int
-  kind           String               // SIGN | UPLOAD | FORM | STAFF | CREDENTIAL
+  kind           String // SIGN | UPLOAD | FORM | STAFF | CREDENTIAL
   label          String
   hint           String?
   required       Boolean              @default(true)
   config         Json                 @default("{}")
   status         OnboardingStepStatus @default(PENDING)
   completedAt    DateTime?
-  completedBy    String?              // "worker" or a user id
+  completedBy    String? // "worker" or a user id
   note           String?
   signDocumentId String?
   fileId         String?
-  data           Json?                // form answers (emergency contact)
+  data           Json? // form answers (emergency contact)
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt
   onboarding     Onboarding           @relation(fields: [onboardingId], references: [id], onDelete: Cascade)
@@ -1166,11 +1170,11 @@ model Feedback {
   organizationId String
   candidateId    String
   applicationId  String?
-  source         String       // WORKER | CLIENT | STAFF
-  rating         Int          // 1–5
-  wouldRehire    Boolean?     // client: would you have them back?
+  source         String // WORKER | CLIENT | STAFF
+  rating         Int // 1–5
+  wouldRehire    Boolean? // client: would you have them back?
   comment        String?
-  authorName     String?      // client contact's name, as typed
+  authorName     String? // client contact's name, as typed
   contactId      String?
   createdById    String?
   createdAt      DateTime     @default(now())
@@ -1203,7 +1207,7 @@ model Recognition {
   organizationId  String
   candidateId     String
   applicationId   String?
-  kind            String       // attendance | client_praise | above_beyond | safety | milestone | other
+  kind            String // attendance | client_praise | above_beyond | safety | milestone | other
   message         String
   visibleToWorker Boolean      @default(true)
   notifiedAt      DateTime?
@@ -1213,4 +1217,61 @@ model Recognition {
 
   @@index([organizationId, createdAt])
   @@index([candidateId])
+}
+
+// Operator training (Enterprise): online lessons and a quiz, then a hands-on evaluation that issues a certification.
+model TrainingCourse {
+  id             String               @id @default(cuid())
+  organizationId String
+  title          String
+  certType       String // the credential type a pass issues, e.g. "Forklift – sit-down counterbalance"
+  description    String?
+  recertMonths   Int                  @default(36)
+  passScore      Int                  @default(80) // percent
+  lessons        Json // [{ title, body, videoUrl? }]
+  questions      Json // [{ q, choices: string[], answer: index }] — answers never leave the server
+  checklist      Json // string[]: the practical evaluation items
+  archived       Boolean              @default(false)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  enrollments    TrainingEnrollment[]
+
+  @@index([organizationId, archived])
+}
+
+model TrainingEnrollment {
+  id             String         @id @default(cuid())
+  organizationId String
+  courseId       String
+  candidateId    String
+  reason         String         @default("initial") // initial | recert | refresher
+  trigger        String? // why a refresher was required
+  status         String         @default("assigned") // assigned | evaluation | certified | failed | cancelled
+  dueDate        DateTime?      @db.Date
+  assignedById   String?
+  invitedAt      DateTime?
+  lessonsDone    Int[]          @default([])
+  quizAttempts   Int            @default(0)
+  quizScore      Int?
+  quizPassedAt   DateTime?
+  trainedAt      DateTime?      @db.Date // hands-on practical training
+  evaluatedAt    DateTime?      @db.Date
+  evaluatorName  String?
+  evaluatorTitle String?
+  equipment      String? // truck evaluated on (make, model, class)
+  checklist      Json? // [{ item, pass }]
+  evalNotes      String?
+  recordedById   String?
+  credentialId   String?
+  certifiedAt    DateTime?
+  expiresAt      DateTime?      @db.Date
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  course         TrainingCourse @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  candidate      Candidate      @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status])
+  @@index([organizationId, candidateId])
 }

@@ -1,4 +1,5 @@
 'use client';
+import { jsonWithOverride } from '@/lib/cert-override';
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Stage } from '@prisma/client';
@@ -161,7 +162,7 @@ function StageSelect({ appId, stage, onMoved, canEdit }: { appId: string; stage:
   const { toast } = useRecords();
   const [pending, setPending] = useState<Stage | null>(null);
   async function move(to: Stage, rejectionReason?: string) {
-    try { const r = await api(`/api/applications/${appId}`, 'PATCH', { stage: to, rejectionReason }); setPending(null); onMoved(); if (to === 'PLACED') toast(r.warning ?? 'Placed. Nice work.', !!r.warning); }
+    try { const r = await jsonWithOverride(`/api/applications/${appId}`, 'PATCH', { stage: to, rejectionReason }); setPending(null); onMoved(); if (to === 'PLACED') toast(r.warning ?? 'Placed. Nice work.', !!r.warning); }
     catch (e) { toast((e as Error).message, true); }
   }
   if (pending === 'REJECTED') return (

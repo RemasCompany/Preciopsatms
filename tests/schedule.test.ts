@@ -52,6 +52,9 @@ let maria: { app: string; cand: string }, ben: { app: string }, maria2: string, 
 const as = (u: string, o = org) => { session.current = { user: { id: u, orgId: o } }; };
 const req = (method: string, body?: object) => new Request('http://x', { method, body: body ? JSON.stringify(body) : undefined });
 const WEEK = '2026-10-11';
+// The fixtures are a fixed week in October 2026, so the clock is pinned to just before it (dates only; timers stay real).
+vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-10-02T15:00:00Z') });
+afterAll(() => { vi.useRealTimers(); });
 const add = (body: object) => ADD(req('POST', { start: '07:00', end: '19:00', breakMinutes: 30, ...body }));
 const tokenFrom = (text: string) => text.match(/\/shifts\/([\w-]+)/)![1];
 

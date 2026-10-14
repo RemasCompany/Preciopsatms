@@ -5,13 +5,14 @@ import TimeClock, { type ClockData } from '@/components/TimeClock';
 import WorkerOnboarding, { type WorkerOb } from '@/components/WorkerOnboarding';
 import WorkerEngagement, { type WorkerEng } from '@/components/WorkerEngagement';
 import WorkerReferrals, { type WorkerRef } from '@/components/WorkerReferrals';
+import WorkerTraining, { type WorkerCourse } from '@/components/WorkerTraining';
 
 type Shift = {
   id: string; date: string; start: string; end: string; breakMinutes: number; unit: string | null; notes: string | null;
   job: string; client: string | null; location: string | null; state: 'pending' | 'confirmed' | 'declined' | 'cancelled' | 'updating'; past: boolean;
 };
 type Offer = { id: string; status: 'open' | 'taken'; date: string; start: string; end: string; breakMinutes: number; unit: string | null; notes: string | null; job: string; client: string | null; location: string | null };
-type Data = { referrals?: WorkerRef | null; offers?: Offer[]; company: string; brandColor: string; contactEmail: string | null; logoUrl: string | null; firstName: string; shifts: Shift[]; clock: ClockData | null; onboarding?: WorkerOb[]; engagement?: WorkerEng | null };
+type Data = { training?: WorkerCourse[]; referrals?: WorkerRef | null; offers?: Offer[]; company: string; brandColor: string; contactEmail: string | null; logoUrl: string | null; firstName: string; shifts: Shift[]; clock: ClockData | null; onboarding?: WorkerOb[]; engagement?: WorkerEng | null };
 
 const STATE: Record<Shift['state'], { text: string; cls: string }> = {
   pending: { text: 'Please confirm', cls: 'a' }, confirmed: { text: 'Confirmed', cls: 'g' }, declined: { text: 'You can’t make it', cls: 'r' },
@@ -62,8 +63,9 @@ export default function MyShifts({ params }: { params: { token: string } }) {
       {/* eslint-disable-next-line @next/next/no-img-element */}
       {data.logoUrl && /^https:\/\//.test(data.logoUrl) && <img className="careers-logo" src={data.logoUrl} alt={data.company} />}
       <p className="muted" style={{ margin: 0 }}>{data.company}</p>
-      <h1>Hi {data.firstName}{data.clock || data.onboarding?.length ? '' : ', here’s your schedule'}</h1>
+      <h1>Hi {data.firstName}{data.clock || data.onboarding?.length || data.training?.length ? '' : ', here’s your schedule'}</h1>
       {!!data.onboarding?.length && <WorkerOnboarding token={params.token} items={data.onboarding} onChange={load} />}
+      {!!data.training?.length && <WorkerTraining token={params.token} items={data.training} onChange={load} />}
       {data.clock && <TimeClock token={params.token} data={data.clock} onChange={load} />}
       {data.engagement && <WorkerEngagement token={params.token} data={data.engagement} onChange={load} />}
       {!!data.offers?.length && (
@@ -81,7 +83,7 @@ export default function MyShifts({ params }: { params: { token: string } }) {
           ))}</ul>
         </section>
       )}
-      {(data.clock || !!data.onboarding?.length || !!data.offers?.length) && <h2 style={{ marginBottom: 4 }}>Your schedule</h2>}
+      {(data.clock || !!data.onboarding?.length || !!data.offers?.length || !!data.training?.length) && <h2 style={{ marginBottom: 4 }}>Your schedule</h2>}
       <p className="lede">{toConfirm ? `${toConfirm} shift${toConfirm === 1 ? '' : 's'} waiting for you to confirm.` : upcoming.length ? 'You’re all set.' : 'You have no upcoming shifts.'}</p>
       {note && <p className="card banner" role="status">{note}</p>}
       <ul className="shiftlist">

@@ -8,19 +8,25 @@ import { credentialLabel, placementIssues } from '@/lib/credentials';
 import { onboardingGaps } from '@/lib/onboarding-server';
 import { openCaseForPlacement } from '@/lib/everify-server';
 import { assertNotBarred } from '@/lib/dnr';
+import { enforceCerts } from '@/lib/training-server';
+import { localDate } from '@/lib/timeclock';
 
-const Body = z.object({ stage: z.nativeEnum(Stage), rejectionReason: z.enum(REJECTION_REASONS).optional() });
+const Body = z.object({ stage: z.nativeEnum(Stage), rejectionReason: z.enum(REJECTION_REASONS).optional(), override: z.string().max(500).optional() });
 
 /** Move an application through the pipeline. Placing someone auto-fills the job when every opening is filled. */
 export const PATCH = withApi(async (req: Request, { params }: { params: { id: string } }) => {
-  const { tdb, org, user } = await requireApiContext({ minRole: 'RECRUITER', write: true });
-  const { stage, rejectionReason } = Body.parse(await req.json());
+  const { tdb, org, user, role } = await requireApiContext({ minRole: 'RECRUITER', write: true });
+  const { stage, rejectionReason, override } = Body.parse(await req.json());
   if (stage === 'REJECTED' && !rejectionReason) throw new HttpError(400, 'A rejection reason is required for EEO record-keeping');
   const app = await tdb.application.findFirst({ where: { id: params.id }, include: { candidate: true, job: true } });
   if (!app) throw new HttpError(404, 'Not found');
   if (app.stage === stage) return Response.json({ ok: true });
 
   if (stage === 'PLACED' || stage === 'OFFER') await assertNotBarred(tdb, app.candidate, app.job.clientId, app.job.clientId ? (await tdb.client.findFirst({ where: { id: app.job.clientId }, select: { name: true } }))?.name : null);
+  if (stage === 'PLACED' || stage === 'OFFER') {
+    const today = localDate(new Date(), org.timezone), start = app.job.startDate?.toISOString().slice(0, 10);
+    await enforceCerts({ tdb, org, user, role }, app.candidate, app.job, stage === 'PLACED' ? 'place' : 'make an offer to', start && start > today ? start : today, override);
+  }
   const maxStage = stage !== 'REJECTED' && ORDER.indexOf(stage) > ORDER.indexOf(app.maxStage) ? stage : app.maxStage;
   await tdb.application.updateMany({ where: { id: app.id }, data: { stage, maxStage, rejectionReason: stage === 'REJECTED' ? rejectionReason : null, stageChangedAt: new Date() } });
   await logActivity(org.id, `${app.candidate.name} moved to ${stage.toLowerCase()} for ${app.job.title}`, user.id);

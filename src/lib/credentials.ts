@@ -1,7 +1,7 @@
 // Candidate credentials for healthcare staffing: licenses, certifications, health records and screenings.
 // Shared by the UI and the server — keep this file free of server imports.
 
-export type CredentialGroup = 'License' | 'Certification' | 'Health' | 'Screening' | 'Other';
+export type CredentialGroup = 'License' | 'Certification' | 'Equipment' | 'Health' | 'Screening' | 'Other';
 type TypeSpec = { group: CredentialGroup; number?: boolean; state?: boolean; expires?: boolean };
 
 /** Credential types. `number`/`state` mark what a verifier needs; `expires` marks ones that must carry an expiration date. */
@@ -24,6 +24,12 @@ export const CREDENTIAL_TYPES: Record<string, TypeSpec> = {
   NRP: { group: 'Certification', expires: true },
   TNCC: { group: 'Certification', expires: true },
   'Specialty certification': { group: 'Certification', number: true, expires: true },
+  // Powered industrial trucks (OSHA 1910.178): certification is per truck type, re-evaluated at least every 3 years.
+  'Forklift – sit-down counterbalance': { group: 'Equipment', expires: true },
+  'Forklift – stand-up / reach truck': { group: 'Equipment', expires: true },
+  'Forklift – order picker': { group: 'Equipment', expires: true },
+  'Electric pallet jack': { group: 'Equipment', expires: true },
+  'Rough-terrain forklift / telehandler': { group: 'Equipment', expires: true },
   'TB test': { group: 'Health', expires: true },
   'Flu vaccine': { group: 'Health', expires: true },
   'COVID-19 vaccine': { group: 'Health' },

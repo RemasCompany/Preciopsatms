@@ -12,7 +12,7 @@ export type Cred = {
 };
 type Draft = { type: string; name: string; number: string; state: string; issuedAt: string; expiresAt: string; notes: string };
 
-const GROUPS: CredentialGroup[] = ['License', 'Certification', 'Health', 'Screening', 'Other'];
+const GROUPS: CredentialGroup[] = ['License', 'Certification', 'Equipment', 'Health', 'Screening', 'Other'];
 const PILL = { warn: 'r', soon: 'a', ok: 'g' } as const;
 const blank: Draft = { type: 'RN license', name: '', number: '', state: '', issuedAt: '', expiresAt: '', notes: '' };
 const fmt = (d: string) => new Date(d.length === 10 ? `${d}T00:00:00Z` : d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });

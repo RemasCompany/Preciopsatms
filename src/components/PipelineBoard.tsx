@@ -1,4 +1,5 @@
 'use client';
+import { withCertOverride } from '@/lib/cert-override';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Stage } from '@prisma/client';
@@ -54,7 +55,7 @@ export default function PipelineBoard({ apps: initial, jobs, candidates, initial
     const from = a.stage;
     setApps((xs) => xs.map((x) => (x.id === a.id ? { ...x, stage, stageChangedAt: new Date().toISOString() } : x)));
     const run = (saving.current.get(a.id) ?? Promise.resolve()).then(async () => {
-      const res = await fetch(`/api/applications/${a.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stage, rejectionReason }) });
+      const res = await withCertOverride((override) => fetch(`/api/applications/${a.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stage, rejectionReason, override }) }));
       if (!res.ok) {
         setApps((xs) => xs.map((x) => (x.id === a.id && x.stage === stage ? { ...x, stage: from } : x)));
         say((await res.json().catch(() => ({}))).error ?? 'Could not move this candidate. Try again.', true); return;

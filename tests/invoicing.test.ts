@@ -56,6 +56,9 @@ describe('invoice math', () => {
 const RUN = `inv${Date.now()}`;
 let org: string, other: string, admin: string, rec: string, outsider: string, client: string, contact: string, noEmail: string, appA: string, appB: string;
 const WEEK = '2026-09-20', PREV = '2026-09-13';
+// The fixtures are fixed weeks in September 2026, so aging is measured from a pinned date (dates only; timers stay real).
+vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-09-30T15:00:00Z') });
+afterAll(() => { vi.useRealTimers(); });
 const as = (u: string, o = org) => { session.current = { user: { id: u, orgId: o } }; };
 const req = (method: string, body?: object) => new Request('http://x', { method, body: body ? JSON.stringify(body) : undefined });
 const P = (id: string) => ({ params: { id } });

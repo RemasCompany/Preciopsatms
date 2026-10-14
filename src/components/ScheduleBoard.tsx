@@ -1,4 +1,5 @@
 'use client';
+import { jsonWithOverride } from '@/lib/cert-override';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Drawer from './Drawer';
@@ -55,7 +56,7 @@ export default function ScheduleBoard({ week, days, rows, canEdit, today }: { we
         const r = await api(`/api/shifts/${form.id}`, 'PATCH', { date: form.date, ...fields });
         done(r.needsNotice ? 'Saved. Publish to send the change.' : 'Saved.', r.warnings);
       } else {
-        const r = await api('/api/shifts', 'POST', { applicationId: form.applicationId, dates: form.dates, ...fields });
+        const r = await jsonWithOverride('/api/shifts', 'POST', { applicationId: form.applicationId, dates: form.dates, ...fields });
         done(`${r.created} shift${r.created === 1 ? '' : 's'} added. Publish when the week is ready.`, r.warnings);
       }
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }

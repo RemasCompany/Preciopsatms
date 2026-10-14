@@ -127,3 +127,42 @@ export async function renderPaySummariesPdf(o: {
   if (!o.workers.length) pdf.addPage([W, H]);
   return pdf.save();
 }
+
+/** An operator certificate with what OSHA 1910.178(l)(6) asks for: name, training and evaluation dates, and who trained and evaluated them. */
+export async function renderTrainingCertificate(c: {
+  company: string; operator: string; course: string; certType: string; equipment: string; reason: string;
+  quizPassed: string | null; quizScore: number | null; trainedAt: string; evaluatedAt: string; evaluator: string; evaluatorTitle: string; expiresAt: string;
+  checklist: { item: string; pass: boolean }[]; id: string;
+}) {
+  const pdf = await PDFDocument.create();
+  const font = await pdf.embedFont(StandardFonts.Helvetica), bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const page = pdf.addPage([W, H]);
+  let y = H - 72;
+  const center = (t: string, size: number, f = font) => { const s = ansi(t); page.drawText(s, { x: (W - f.widthOfTextAtSize(s, size)) / 2, y, size, font: f }); };
+  center(c.company, 12); y -= 30;
+  center('Powered Industrial Truck Operator Certification', 17, bold); y -= 22;
+  center('29 CFR 1910.178(l)', 10); y -= 40;
+  center('This certifies that', 11); y -= 28;
+  center(c.operator, 22, bold); y -= 28;
+  center(`has been trained and evaluated as an operator of: ${c.certType}`, 11); y -= 42;
+  const row = (label: string, value: string) => { page.drawText(ansi(label), { x: M, y, size: 10, font: bold }); for (const l of wrap(ansi(value), font, 10, W - M - 220)) { page.drawText(l, { x: 220, y, size: 10, font }); y -= 14; } y -= 4; };
+  row('Training type', c.reason);
+  row('Formal instruction', `${c.course}${c.quizPassed ? ` - completed ${c.quizPassed}${c.quizScore !== null ? ` (quiz ${c.quizScore}%)` : ''}` : ''}`);
+  row('Practical training', c.trainedAt);
+  row('Evaluation date', c.evaluatedAt);
+  row('Trained and evaluated by', `${c.evaluator}, ${c.evaluatorTitle}`);
+  row('Equipment evaluated on', c.equipment);
+  row('Re-evaluate by', c.expiresAt);
+  y -= 10;
+  page.drawText('Practical evaluation', { x: M, y, size: 11, font: bold }); y -= 16;
+  for (const x of c.checklist) for (const [i, l] of wrap(ansi(`${x.pass ? 'Pass' : 'Not passed'} - ${x.item}`), font, 9.5, W - 2 * M).entries()) { page.drawText(l, { x: M + (i ? 10 : 0), y, size: 9.5, font }); y -= 13; }
+  y = Math.min(y - 30, 150);
+  page.drawLine({ start: { x: M, y }, end: { x: 300, y }, thickness: 0.8, color: rgb(0.3, 0.3, 0.3) });
+  page.drawText('Evaluator signature', { x: M, y: y - 12, size: 9, font });
+  page.drawLine({ start: { x: 330, y }, end: { x: W - M, y }, thickness: 0.8, color: rgb(0.3, 0.3, 0.3) });
+  page.drawText('Operator signature', { x: 330, y: y - 12, size: 9, font });
+  const foot = ansi(`Refresher training and a new evaluation are required after unsafe operation, an accident or near-miss, a change of truck type or workplace conditions, and at least every three years. Record ${c.id}.`);
+  let fy = 60;
+  for (const l of wrap(foot, font, 8, W - 2 * M).reverse()) { page.drawText(l, { x: M, y: fy, size: 8, font, color: rgb(0.35, 0.35, 0.35) }); fy += 10; }
+  return pdf.save();
+}

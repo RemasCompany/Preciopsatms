@@ -9,6 +9,7 @@ import { workerEngagement } from '@/lib/engagement-server';
 import { limited } from '@/lib/rate-limit';
 import { respondToOffer, workerOffers } from '@/lib/open-shifts';
 import { workerReferrals } from '@/lib/referrals';
+import { workerTraining } from '@/lib/training-server';
 import { HttpError } from '@/lib/tenant';
 
 type Ctx = { params: { token: string } };
@@ -31,6 +32,7 @@ export async function GET(_req: Request, { params }: Ctx) {
     referrals: hasFeature(o, 'engagement') ? await workerReferrals(o, link.candidateId) : null,
     offers: hasFeature(o, 'scheduling') ? await workerOffers(link.organizationId, link.candidateId) : [],
     engagement: hasFeature(o, 'engagement') ? await workerEngagement(link.organizationId, link.candidateId) : null,
+    training: hasFeature(o, 'training') ? await workerTraining(link.organizationId, link.candidateId) : [],
     onboarding: hasFeature(o, 'onboarding') ? await workerOnboarding(link.organizationId, link.candidateId) : [],
     clock: hasFeature(o, 'timeclock') ? await clockState(link.organizationId, link.candidateId, o.timezone) : null,
     company: o.shortName ?? o.name, brandColor: o.brandColor, contactEmail: o.applyEmail ?? null, logoUrl: o.logoUrl ?? null, firstName: link.candidate.name.split(' ')[0],

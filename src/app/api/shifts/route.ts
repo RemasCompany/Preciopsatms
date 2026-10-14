@@ -6,13 +6,16 @@ import { shiftRuleWarnings } from '@/lib/state-rules';
 import { localDate } from '@/lib/timeclock';
 import { onboardingGaps } from '@/lib/onboarding-server';
 import { assertNotBarred } from '@/lib/dnr';
+import { enforceCerts } from '@/lib/training-server';
 
 /** Add a shift on one or more days for a worker on assignment. Nothing is sent until the schedule is published. */
 export const POST = withApi(async (req: Request) => {
-  const { tdb, org, user } = await requireApiContext({ minRole: 'RECRUITER', feature: 'scheduling', write: true });
-  const b = parse(CreateShift, await req.json().catch(() => null));
+  const { tdb, org, user, role } = await requireApiContext({ minRole: 'RECRUITER', feature: 'scheduling', write: true });
+  const raw = await req.json().catch(() => null);
+  const b = parse(CreateShift, raw);
+  const override = typeof raw?.override === 'string' ? raw.override.slice(0, 500) : undefined;
   checkTimes(b);
-  const app = await tdb.application.findFirst({ where: { id: b.applicationId, ...assignmentWhere }, include: { candidate: { select: { id: true, name: true } }, job: { select: { location: true, client: { select: { id: true, name: true } } } } } });
+  const app = await tdb.application.findFirst({ where: { id: b.applicationId, ...assignmentWhere }, include: { candidate: { select: { id: true, name: true } }, job: { select: { id: true, title: true, requiredCerts: true, location: true, client: { select: { id: true, name: true } } } } } });
   if (!app) throw new HttpError(404, 'That worker is no longer on this assignment.');
   await assertNotBarred(tdb, app.candidate, app.job.client?.id ?? null, app.job.client?.name);
   const dates = [...new Set(b.dates)].sort();
@@ -20,6 +23,7 @@ export const POST = withApi(async (req: Request) => {
     const gaps = await onboardingGaps(tdb, app.candidateId);
     if (gaps) throw new HttpError(409, `${app.candidate.name} can’t be scheduled until onboarding is finished (${gaps.left} required step${gaps.left === 1 ? '' : 's'} left).`);
   }
+  await enforceCerts({ tdb, org, user, role }, app.candidate, app.job, 'schedule', dates[dates.length - 1], override);
   await assertNoOverlap(tdb, app.candidateId, dates.map((date) => ({ date, start: b.start, end: b.end, breakMinutes: b.breakMinutes })));
   await tdb.shift.createMany({ data: dates.map((date) => ({ organizationId: org.id, applicationId: app.id, date: new Date(`${date}T00:00:00Z`), start: b.start, end: b.end, breakMinutes: b.breakMinutes, unit: b.unit ?? null, notes: b.notes ?? null })) });
   await logActivity(org.id, `Scheduled ${app.candidate.name}: ${dates.length === 1 ? dayLabel(dates[0]) : `${dates.length} shifts`}`, user.id);
