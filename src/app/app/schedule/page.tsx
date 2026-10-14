@@ -43,7 +43,7 @@ export default async function Schedule({ searchParams }: { searchParams: { week?
     return null;
   };
   const rows: BoardRow[] = apps.map((a) => ({
-    applicationId: a.id, candidateId: a.candidateId, worker: a.candidate.name, job: a.job.title, client: a.job.client?.name ?? null,
+    applicationId: a.id, candidateId: a.candidateId, jobId: a.jobId, worker: a.candidate.name, job: a.job.title, client: a.job.client?.name ?? null,
     email: a.candidate.email, phone: a.candidate.phone, emailOptOut: a.candidate.emailOptOut, smsOptOut: a.candidate.smsOptOut, credIssue: credIssue(a.candidateId),
     shifts: a.shifts.filter((s) => !s.cancelled || s.notifiedAt).map((s) => ({
       id: s.id, date: ymd(s.date), start: s.start, end: s.end, breakMinutes: s.breakMinutes, unit: s.unit, notes: s.notes,

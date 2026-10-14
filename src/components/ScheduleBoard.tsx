@@ -1,6 +1,7 @@
 'use client';
 import { jsonWithOverride } from '@/lib/cert-override';
 import { useState } from 'react';
+import { BuildDrawer, BulkDrawer, type Picked } from './ScheduleTools';
 import { useRouter } from 'next/navigation';
 import Drawer from './Drawer';
 import { useRecords } from './Records';
@@ -11,7 +12,7 @@ export type BoardShift = {
   cancelled: boolean; notified: boolean; everSent: boolean; response: 'PENDING' | 'CONFIRMED' | 'DECLINED'; declineReason: string | null;
 };
 export type BoardRow = {
-  applicationId: string; candidateId: string; worker: string; job: string; client: string | null;
+  applicationId: string; candidateId: string; jobId: string; worker: string; job: string; client: string | null;
   email: string | null; phone: string | null; emailOptOut: boolean; smsOptOut: boolean; credIssue: string | null; shifts: BoardShift[];
 };
 type Form = { id?: string; applicationId: string; dates: string[]; date: string; start: string; end: string; breakMinutes: number; unit: string; notes: string };
@@ -31,6 +32,8 @@ export function shiftState(s: BoardShift): { key: string; label: string } {
 }
 const needsSend = (s: BoardShift) => !s.notified && (!s.cancelled || s.everSent);
 const ICON: Record<string, string> = { confirmed: '✓', declined: '✕', sent: '•', draft: '', changed: '', 'cancel-unsent': '', cancelled: '' };
+const dayDiff = (a: string, b: string) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 864e5);
+const copyKey = (e: React.DragEvent) => e.altKey || e.ctrlKey || e.metaKey;
 
 export default function ScheduleBoard({ week, days, rows, canEdit, today }: { week: string; days: string[]; rows: BoardRow[]; canEdit: boolean; today: string }) {
   const router = useRouter();
@@ -39,10 +42,63 @@ export default function ScheduleBoard({ week, days, rows, canEdit, today }: { we
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [publishing, setPublishing] = useState(false);
+  const [building, setBuilding] = useState(false);
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [bulk, setBulk] = useState<'times' | 'move' | null>(null);
+  const [drag, setDrag] = useState<{ id: string; app: string; date: string } | null>(null);
+  const [over, setOver] = useState('');
 
   const pending = rows.filter((r) => r.shifts.some(needsSend));
   const pendingShifts = rows.reduce((n, r) => n + r.shifts.filter(needsSend).length, 0);
-  const done = (msg: string, warnings: string[] = []) => { toast(warnings.length ? `${msg} Heads up: ${warnings.join(' ')}` : msg, false); setForm(null); router.refresh(); };
+  const done = (msg: string, warnings: string[] = []) => { toast(warnings.length ? `${msg} Heads up: ${warnings.join(' ')}` : msg, false); setForm(null); setBuilding(false); setBulk(null); setSelected([]); router.refresh(); };
+  const live = rows.flatMap((r) => r.shifts.filter((s) => !s.cancelled).map((s) => ({ r, s })));
+  const picked: Picked[] = live.filter((x) => selected.includes(x.s.id));
+  const toggle = (ids: string[], on?: boolean) => {
+    const add = on ?? !ids.every((id) => selected.includes(id));
+    setSelected(add ? [...new Set([...selected, ...ids])] : selected.filter((id) => !ids.includes(id)));
+  };
+  const stopSelecting = () => { setSelecting(false); setSelected([]); };
+
+  async function removeSelected() {
+    const told = picked.filter((p) => p.s.everSent).length;
+    if (!confirm(`Remove ${picked.length} shift${picked.length === 1 ? '' : 's'}?${told ? ` ${told} the worker${told === 1 ? ' was' : 's were'} told about become${told === 1 ? 's a cancellation' : ' cancellations'}, sent when you publish.` : ''}`)) return;
+    setBusy(true);
+    try {
+      const r = await api('/api/shifts/bulk', 'DELETE', { ids: picked.map((p) => p.s.id) });
+      done([r.deleted && `${r.deleted} deleted`, r.cancelled && `${r.cancelled} cancelled — publish to tell the workers`].filter(Boolean).join(', ') + '.');
+    } catch (e) { toast((e as Error).message, true); } finally { setBusy(false); }
+  }
+
+  /** Drop a dragged shift on a day: moves it (and the rest of the selection), or copies it with Alt, Ctrl or ⌘ held. */
+  async function drop(e: React.DragEvent, r: BoardRow, date: string) {
+    e.preventDefault(); setOver('');
+    const from = drag; setDrag(null);
+    if (!from) return;
+    const src = live.find((x) => x.s.id === from.id);
+    if (!src) return;
+    const copy = copyKey(e);
+    const delta = dayDiff(from.date, date);
+    if (!copy && !delta && r.applicationId === from.app) return;
+    setBusy(true);
+    try {
+      if (copy) {
+        const s = src.s;
+        const res = await jsonWithOverride('/api/shifts', 'POST', { applicationId: r.applicationId, dates: [date], start: s.start, end: s.end, breakMinutes: s.breakMinutes, unit: s.unit, notes: s.notes });
+        done(`Copied to ${r.worker}, ${dayLabel(date)}. Publish when the week is ready.`, res.warnings);
+        return;
+      }
+      const group = selecting && selected.includes(from.id) ? picked.map((p) => p.s.id) : [from.id];
+      const change = { ...(delta ? (group.length === 1 ? { date } : { moveDays: delta }) : {}), ...(r.applicationId !== from.app ? { applicationId: r.applicationId } : {}) };
+      const res = await jsonWithOverride('/api/shifts/bulk', 'PATCH', { ids: group, change });
+      done(`Moved ${group.length === 1 ? 'the shift' : `${group.length} shifts`}${r.applicationId !== from.app ? ` to ${r.worker}` : ''}.${res.needsNotice ? ' Publish to send the change.' : ''}`, res.warnings);
+    } catch (err) { toast((err as Error).message, true); } finally { setBusy(false); }
+  }
+  const dropProps = (r: BoardRow, d: string) => canEdit ? {
+    onDragOver: (e: React.DragEvent) => { if (!drag) return; e.preventDefault(); e.dataTransfer.dropEffect = copyKey(e) ? 'copy' : 'move'; if (over !== `${r.applicationId}|${d}`) setOver(`${r.applicationId}|${d}`); },
+    onDragLeave: (e: React.DragEvent) => { if (!(e.currentTarget as Node).contains(e.relatedTarget as Node)) setOver(''); },
+    onDrop: (e: React.DragEvent) => drop(e, r, d),
+  } : {};
 
   const newShift = (applicationId: string, date: string) => { setError(''); setForm({ applicationId, dates: [date], date, start: '07:00', end: '19:00', breakMinutes: 30, unit: '', notes: '' }); };
   const editShift = (r: BoardRow, s: BoardShift) => { setError(''); setForm({ id: s.id, applicationId: r.applicationId, dates: [s.date], date: s.date, start: s.start, end: s.end, breakMinutes: s.breakMinutes, unit: s.unit ?? '', notes: s.notes ?? '' }); };
@@ -83,9 +139,14 @@ export default function ScheduleBoard({ week, days, rows, canEdit, today }: { we
 
   const Chip = ({ r, s }: { r: BoardRow; s: BoardShift }) => {
     const st = shiftState(s);
+    const on = selected.includes(s.id);
+    const movable = canEdit && !s.cancelled;
     return (
-      <button type="button" className={`shift ${st.key}`} onClick={() => (canEdit && !s.cancelled ? editShift(r, s) : undefined)} disabled={!canEdit || s.cancelled}
-        title={`${st.label}${s.declineReason ? `: “${s.declineReason}”` : ''}`} aria-label={`${r.worker}, ${dayLabel(s.date)} ${clock(s.start)} to ${clock(s.end)}${s.unit ? `, ${s.unit}` : ''}. ${st.label}.`}>
+      <button type="button" className={`shift ${st.key}${on ? ' selected' : ''}${drag?.id === s.id ? ' dragging' : ''}`} disabled={!movable}
+        onClick={() => (!movable ? undefined : selecting ? toggle([s.id]) : editShift(r, s))} aria-pressed={selecting ? on : undefined}
+        draggable={movable} onDragStart={(e) => { e.dataTransfer.effectAllowed = 'copyMove'; e.dataTransfer.setData('text/plain', s.id); setDrag({ id: s.id, app: r.applicationId, date: s.date }); }}
+        onDragEnd={() => { setDrag(null); setOver(''); }}
+        title={`${st.label}${s.declineReason ? `: “${s.declineReason}”` : ''}${movable ? ' — drag to move, hold Alt or Ctrl to copy' : ''}`} aria-label={`${r.worker}, ${dayLabel(s.date)} ${clock(s.start)} to ${clock(s.end)}${s.unit ? `, ${s.unit}` : ''}. ${st.label}.${selecting ? (on ? ' Selected.' : '') : ''}`}>
         <span className="t">{clock(s.start)}–{clock(s.end)}{overnight(s.start, s.end) ? '⁺' : ''}{ICON[st.key] && <i aria-hidden="true">{ICON[st.key]}</i>}</span>
         {s.unit && <span className="u">{s.unit}</span>}
         <span className="st">{st.label}</span>
@@ -96,6 +157,8 @@ export default function ScheduleBoard({ week, days, rows, canEdit, today }: { we
   return (
     <>
       <div className="bar">
+        {canEdit && rows.length > 0 && <button className="btn" onClick={() => setBuilding(true)}>Create schedule</button>}
+        {canEdit && rows.length > 0 && <button className={`btn ghost${selecting ? ' on' : ''}`} aria-pressed={selecting} onClick={() => (selecting ? stopSelecting() : setSelecting(true))}>{selecting ? 'Done selecting' : 'Select shifts'}</button>}
         {canEdit && <button className="btn ghost" onClick={copyLast} disabled={busy}>Copy last week</button>}
         <span className="grow" />
         {canEdit && <button className="btn" onClick={() => setPublishing(true)} disabled={!pending.length}>{pending.length ? `Publish & notify (${pendingShifts})` : 'All changes sent'}</button>}
@@ -105,18 +168,23 @@ export default function ScheduleBoard({ week, days, rows, canEdit, today }: { we
         <div className="card empty"><b>No one on assignment</b>Place candidates on a contract, temp or per diem job from the Pipeline, and they appear here to schedule.</div>
       ) : <>
         <div className="tablewrap scroll schedwrap">
-          <table className="sched">
-            <thead><tr><th scope="col">Worker</th>{days.map((d) => <th key={d} scope="col" className={d === today ? 'today' : undefined}>{dayLabel(d, { weekday: 'short' })}<small>{dayLabel(d, { month: 'short', day: 'numeric' })}</small></th>)}<th scope="col">Hours</th></tr></thead>
+          <table className={`sched${selecting ? ' selecting' : ''}${drag ? ' dragmode' : ''}`}>
+            <thead><tr><th scope="col">Worker</th>{days.map((d) => {
+              const ids = live.filter((x) => x.s.date === d).map((x) => x.s.id);
+              return <th key={d} scope="col" className={d === today ? 'today' : undefined}>
+                {selecting && ids.length > 0 ? <label className="selall"><input type="checkbox" checked={ids.every((id) => selected.includes(id))} onChange={(e) => toggle(ids, e.target.checked)} aria-label={`Select every shift on ${dayLabel(d)}`} />{dayLabel(d, { weekday: 'short' })}</label> : dayLabel(d, { weekday: 'short' })}
+                <small>{dayLabel(d, { month: 'short', day: 'numeric' })}</small></th>;
+            })}<th scope="col">Hours</th></tr></thead>
             <tbody>{rows.map((r) => {
-              const live = r.shifts.filter((s) => !s.cancelled);
-              const h = weekHours(live);
+              const mine = r.shifts.filter((s) => !s.cancelled);
+              const h = weekHours(mine);
               return (
                 <tr key={r.applicationId}>
-                  <th scope="row"><b>{r.worker}</b><span className="muted">{[r.job, r.client].filter(Boolean).join(' · ')}</span>{r.credIssue && <span className="warn">{r.credIssue}</span>}</th>
+                  <th scope="row">{selecting && mine.length > 0 && <input type="checkbox" className="rowsel" checked={mine.every((s) => selected.includes(s.id))} onChange={(e) => toggle(mine.map((s) => s.id), e.target.checked)} aria-label={`Select all of ${r.worker}’s shifts`} />}<b>{r.worker}</b><span className="muted">{[r.job, r.client].filter(Boolean).join(' · ')}</span>{r.credIssue && <span className="warn">{r.credIssue}</span>}</th>
                   {days.map((d) => (
-                    <td key={d} className={d === today ? 'today' : undefined}>
+                    <td key={d} className={[d === today && 'today', over === `${r.applicationId}|${d}` && 'dropover'].filter(Boolean).join(' ') || undefined} {...dropProps(r, d)}>
                       {r.shifts.filter((s) => s.date === d).map((s) => <Chip key={s.id} r={r} s={s} />)}
-                      {canEdit && <button type="button" className="addshift" onClick={() => newShift(r.applicationId, d)} aria-label={`Add a shift for ${r.worker} on ${dayLabel(d)}`}>+</button>}
+                      {canEdit && !selecting && <button type="button" className="addshift" onClick={() => newShift(r.applicationId, d)} aria-label={`Add a shift for ${r.worker} on ${dayLabel(d)}`}>+</button>}
                     </td>
                   ))}
                   <td className="hrs"><b>{+h.total.toFixed(2)}</b>{h.overtime > 0 && <span className="soon">{+h.overtime.toFixed(2)} OT</span>}</td>
@@ -141,6 +209,7 @@ export default function ScheduleBoard({ week, days, rows, canEdit, today }: { we
             );
           })}
         </div>
+        {canEdit && <p className="muted schedhint">Drag a shift to another day or worker to move it; hold Alt (Option) or Ctrl while dropping to copy it. Use <b>Select shifts</b> to change, move or remove many at once.</p>}
         <p className="legend schedlegend" aria-label="Legend">
           <span><i className="shiftdot draft" />Not sent</span><span><i className="shiftdot sent" />Sent, awaiting reply</span>
           <span><i className="shiftdot confirmed" />Confirmed</span><span><i className="shiftdot declined" />Can’t make it</span><span><i className="shiftdot cancelled" />Cancelled</span>
@@ -188,6 +257,19 @@ export default function ScheduleBoard({ week, days, rows, canEdit, today }: { we
         </Drawer>
       )}
 
+      {selecting && (
+        <div className="selbar" role="region" aria-label="Selected shifts">
+          <b>{picked.length ? `${picked.length} selected` : 'Click shifts to select them'}</b>
+          <button className="btn sm" onClick={() => setBulk('times')} disabled={!picked.length || busy}>Change times</button>
+          <button className="btn ghost sm" onClick={() => setBulk('move')} disabled={!picked.length || busy}>Move…</button>
+          <button className="btn ghost sm danger" onClick={removeSelected} disabled={!picked.length || busy}>Remove</button>
+          {picked.length > 0 && <button className="btn ghost sm" onClick={() => setSelected([])}>Clear</button>}
+          <span className="grow" />
+          <button className="btn ghost sm" onClick={stopSelecting}>Done</button>
+        </div>
+      )}
+      {building && <BuildDrawer rows={rows} days={days} onClose={() => setBuilding(false)} onDone={done} />}
+      {bulk && picked.length > 0 && <BulkDrawer mode={bulk} picked={picked} rows={rows} onClose={() => setBulk(null)} onDone={done} />}
       {publishing && <PublishDrawer week={week} rows={pending} onClose={() => setPublishing(false)} onDone={() => router.refresh()} />}
     </>
   );
