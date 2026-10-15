@@ -233,6 +233,8 @@ async function endNow(tdb: TenantDb, employeeId: string, lastDay: string) {
   if (!e) return 0;
   await tdb.employee.updateMany({ where: { id: e.id }, data: { status: 'TERMINATED' } });
   await tdb.candidate.updateMany({ where: { id: e.candidateId }, data: { status: 'Former employee' } });
+  // Their private employee page (schedule, time clock, pay) stops working.
+  await tdb.workerLink.updateMany({ where: { candidateId: e.candidateId, kind: 'timeclock', revokedAt: null }, data: { revokedAt: new Date() } });
   const after = { application: { candidateId: e.candidateId }, date: { gt: day(lastDay) }, cancelled: false };
   const { count: del } = await tdb.shift.deleteMany({ where: { ...after, notifiedAt: null } });
   const { count: can } = await tdb.shift.updateMany({ where: after, data: { cancelled: true, notified: false } });

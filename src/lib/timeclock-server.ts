@@ -145,7 +145,7 @@ export async function assertWeekOpen(tdb: TenantDb, applicationId: string, at: D
 }
 
 /** Sends a worker a long-lived private time clock link (replacing any earlier one). */
-export async function sendClockLink(org: Organization, user: User, candidateId: string, channels: Channel[]) {
+export async function sendClockLink(org: Organization, user: User, candidateId: string, channels: Channel[], opts: { employee?: boolean } = {}) {
   const tdb = tenantDb(org.id);
   const c = await tdb.candidate.findFirst({ where: { id: candidateId } });
   if (!c) throw new HttpError(404, 'That candidate was deleted.');
@@ -154,12 +154,16 @@ export async function sendClockLink(org: Organization, user: User, candidateId: 
   const token = newToken();
   await tdb.workerLink.create({ data: { candidateId: c.id, tokenHash: sha256(token), kind: 'timeclock', expiresAt: new Date(Date.now() + 365 * 864e5) } as never });
   const link = `${appUrl()}/shifts/${token}`, company = org.shortName ?? org.name, first = c.name.split(' ')[0] || 'there';
-  const msg = (ch: Channel) => ch === 'sms'
+  // Employees get the same private page, which also has their time off, pay and documents.
+  const msg = (ch: Channel) => opts.employee ? (ch === 'sms'
+    ? { subject: '', text: `${company}: hi ${first}, your employee page — schedule, time off, pay and documents (save this link): ${link}` }
+    : { subject: `Your employee page at ${company}`, text: `Hi ${first},\n\nThis private link is your employee page: see your schedule${hasFeature(org, 'timeclock') ? ', clock in and out' : ''}, request time off and see your balances, download pay summaries and signed documents, and keep your contact details current. Save it to your phone’s home screen — it’s just for you, so please don’t share it.\n\n${link}\n\nThank you,\n${company}` })
+    : ch === 'sms'
     ? { subject: '', text: `${company}: hi ${first}, clock in and out for your shifts here (save this link): ${link}` }
     : { subject: `Your time clock for ${company}`, text: `Hi ${first},\n\nUse this private link to clock in and out, take breaks and see your shifts. Save it to your phone’s home screen — it’s just for you, so please don’t share it.\n\n${link}\n\nThank you,\n${company}` };
   const results: { channel: Channel; problem: string | null }[] = [];
   for (const ch of channels) results.push({ channel: ch, problem: await deliver(tdb, c, ch, msg(ch), { name: company, replyTo: user.email }, user.id) });
   const sent = results.filter((r) => !r.problem).map((r) => r.channel);
-  await logActivity(org.id, sent.length ? `Sent ${c.name} a time clock link by ${sent.map((x) => (x === 'sms' ? 'text' : 'email')).join(' and ')}` : `Couldn’t send ${c.name} a time clock link`, user.id);
+  await logActivity(org.id, sent.length ? `Sent ${c.name} ${opts.employee ? 'their employee page link' : 'a time clock link'} by ${sent.map((x) => (x === 'sms' ? 'text' : 'email')).join(' and ')}` : `Couldn’t send ${c.name} a time clock link`, user.id);
   return { sent, problems: results.filter((r) => r.problem).map((r) => `${r.channel === 'sms' ? 'Text' : 'Email'}: ${r.problem}`) };
 }

@@ -319,3 +319,7 @@ tr.clickrow{cursor:pointer}tr.clickrow:hover td{background:var(--soft)}tr.clickr
 @media (max-width:640px){.leavecal{gap:2px}.leavecal .d{min-height:56px;padding:3px}.leavecal .who{font-size:10.5px;padding:0 3px}}
 .shift.leave{border-left-color:var(--accent);background:repeating-linear-gradient(135deg,var(--card),var(--card) 6px,color-mix(in srgb,var(--accent) 8%,var(--card)) 6px,color-mix(in srgb,var(--accent) 8%,var(--card)) 12px);cursor:default}
 .shift.leave.pending{border-left-color:var(--amber);border-style:dashed;border-left-style:solid}
+/* employee self-service */
+.selfserve .card{margin:12px 0}
+ul.plainlist{list-style:none;padding:0;margin:10px 0 0}ul.plainlist li{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--soft)}
+ul.plainlist li:first-child{border-top:0}ul.plainlist li .muted{font-size:13px}

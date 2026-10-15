@@ -10,6 +10,7 @@ import { limited } from '@/lib/rate-limit';
 import { respondToOffer, workerOffers } from '@/lib/open-shifts';
 import { workerReferrals } from '@/lib/referrals';
 import { workerTraining } from '@/lib/training-server';
+import { employeeHub } from '@/lib/self-service';
 import { HttpError } from '@/lib/tenant';
 
 type Ctx = { params: { token: string } };
@@ -29,6 +30,7 @@ export async function GET(_req: Request, { params }: Ctx) {
   });
   const o = link.organization;
   return Response.json({
+    me: await employeeHub(link),
     referrals: hasFeature(o, 'engagement') ? await workerReferrals(o, link.candidateId) : null,
     offers: hasFeature(o, 'scheduling') ? await workerOffers(link.organizationId, link.candidateId) : [],
     engagement: hasFeature(o, 'engagement') ? await workerEngagement(link.organizationId, link.candidateId) : null,

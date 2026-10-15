@@ -144,6 +144,11 @@ function EmployeeDrawer({ id, everyone, departments, branches, canEdit, admin, o
     <Drawer title={e.name} kicker={`${e.title}${e.department ? ` · ${e.department}` : ''}`} onClose={onClose} footer={canEdit && !ended && mode === 'view' ? <>
       <button className="btn" onClick={save} disabled={busy}>Save changes</button>
       <button className="btn ghost" onClick={() => openRecord('candidates', e.candidateId)}>Documents & credentials</button>
+      <button className="btn ghost" disabled={busy} onClick={() => run(async () => {
+        const r = await api(`/api/employees/${id}/portal`, 'POST', { channels: ['email', 'sms'] });
+        if (!r.sent.length) throw new Error(`Couldn’t send it: ${r.problems.join('; ') || 'add an email or mobile number first'}.`);
+        return `Sent ${e.name} their employee page by ${r.sent.map((c: string) => (c === 'sms' ? 'text' : 'email')).join(' and ')}.`;
+      })} title="Email and text a private link: their schedule, time clock, time off, pay summaries and documents">Send employee page</button>
       <span style={{ flex: 1 }} />
       {admin && <button className="btn danger" onClick={() => setMode('end')}>End employment</button>}
     </> : undefined}>
