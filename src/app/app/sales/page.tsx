@@ -23,7 +23,7 @@ function Quota({ k }: { k: Pick<SalesKpis, 'attainment' | 'target'> }) {
 
 export default async function Sales({ searchParams }: { searchParams: { period?: string; rep?: string } }) {
   const ctx = await requirePageContext();
-  if (!hasFeature(ctx.org, 'crm')) return <Gate title="Sales metrics" feature="CRM" />;
+  if (!hasFeature(ctx.org, 'crm')) return <Gate title="Sales metrics" feature="CRM" employer={ctx.org.kind === 'EMPLOYER'} />;
   const { tdb, org, role } = ctx;
   const period = isPeriod(searchParams.period) ? searchParams.period : 'month';
   const { from, to } = periodRange(period);

@@ -115,19 +115,20 @@ export async function clockState(orgId: string, candidateId: string, tz: string)
  */
 export async function fillTimesheets(tdb: TenantDb, weekEnding: string, tz: string) {
   const { from, to } = weekRange(weekEnding, tz);
-  const rows = await tdb.timeEntry.findMany({ where: { clockIn: { gte: from, lt: to } }, include: { application: { include: { candidate: { select: { name: true } }, job: true } } } });
+  const rows = await tdb.timeEntry.findMany({ where: { clockIn: { gte: from, lt: to } }, include: { application: { include: { candidate: { select: { name: true } }, job: true, employee: { select: { payType: true, payRate: true } } } } } });
   const entries: Entry[] = rows.map((r) => ({ id: r.id, applicationId: r.applicationId, candidateId: r.application.candidateId, clockIn: r.clockIn, clockOut: r.clockOut, breakMinutes: r.breakMinutes }));
   const open = rows.filter((r) => !r.clockOut).map((r) => r.application.candidate.name);
   const week = new Date(`${weekEnding}T00:00:00Z`);
   const filled: string[] = [], locked: string[] = [];
   for (const s of splitWeek(entries, tz).filter((x) => x.weekEnding === weekEnding)) {
     const app = rows.find((r) => r.applicationId === s.applicationId)!.application;
+    if (app.employee?.payType === 'SALARY') continue; // paid their salary, not from hours
     const hrs = { regularHours: s.regularHours, overtimeHours: s.overtimeHours };
     const existing = await tdb.timesheet.findFirst({ where: { applicationId: app.id, weekEnding: week } });
     if (existing && existing.status !== 'DRAFT') { locked.push(app.candidate.name); continue; }
     if (existing) await tdb.timesheet.updateMany({ where: { id: existing.id, status: 'DRAFT' }, data: hrs });
     else {
-      try { await tdb.timesheet.create({ data: { applicationId: app.id, weekEnding: week, ...hrs, payRate: app.job.payRate ?? 0, billRate: app.job.billRate ?? 0 } as never }); }
+      try { await tdb.timesheet.create({ data: { applicationId: app.id, weekEnding: week, ...hrs, payRate: app.employee?.payRate ?? app.job.payRate ?? 0, billRate: app.job.billRate ?? 0 } as never }); }
       catch (e) { if (!(e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002')) throw e; await tdb.timesheet.updateMany({ where: { applicationId: app.id, weekEnding: week, status: 'DRAFT' }, data: hrs }); }
     }
     filled.push(app.candidate.name);

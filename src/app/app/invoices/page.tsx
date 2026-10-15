@@ -17,7 +17,7 @@ const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'n
 
 export default async function Invoices({ searchParams }: { searchParams: { tab?: string } }) {
   const ctx = await requirePageContext();
-  if (!hasFeature(ctx.org, 'timesheets')) return <Gate title="Invoices" feature="Client invoicing and receivables" />;
+  if (!hasFeature(ctx.org, 'invoicing')) return <Gate title="Invoices" feature="Client invoicing and receivables" employer={ctx.org.kind === 'EMPLOYER'} />;
   if (ctx.role !== 'OWNER' && ctx.role !== 'ADMIN') return (<><h1>Invoices</h1><p className="card">Only owners and admins can see invoices and receivables.</p></>);
   const tab: Tab = (searchParams.tab as Tab) in TABS ? (searchParams.tab as Tab) : 'open';
   const today = localDate(new Date(), ctx.org.timezone), todayD = new Date(`${today}T00:00:00Z`);

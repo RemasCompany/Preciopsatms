@@ -1,3 +1,4 @@
+import { hourlyWhere } from './schedule-server';
 import { Prisma } from '@prisma/client';
 import { HttpError, type TenantDb } from './tenant';
 import { wages, dollars, runChecks, type Frequency, type RunItem } from './payroll-run';
@@ -62,7 +63,7 @@ export async function leftOut(tdb: TenantDb, run: { periodEnd: Date; frequency: 
   if (run.status !== 'DRAFT') return [];
   const weeks = weeksIn(ymd(run.periodEnd), run.frequency as Frequency);
   const apps = await tdb.application.findMany({
-    where: { stage: 'PLACED', job: { type: { not: 'DIRECT_HIRE' } } },
+    where: hourlyWhere,
     include: { candidate: { select: { name: true } }, timesheets: { where: { weekEnding: { in: weeks } }, select: { weekEnding: true, status: true } } },
   });
   return apps.flatMap((a) => weeks.flatMap((w) => {

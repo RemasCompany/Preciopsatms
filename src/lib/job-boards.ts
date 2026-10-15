@@ -11,7 +11,7 @@ export { BOARDS, isBoard, type Board };
 export const sourceFor = (src: string | null | undefined) => (isBoard(src) ? BOARDS[src] : src === 'google' ? 'Google for Jobs' : 'Careers page');
 
 // Indeed's <jobtype> values.
-const JOBTYPE: Record<string, string> = { CONTRACT: 'contract', CONTRACT_TO_HIRE: 'contract', DIRECT_HIRE: 'fulltime', TEMP: 'temporary', PER_DIEM: 'parttime' };
+const JOBTYPE: Record<string, string> = { CONTRACT: 'contract', CONTRACT_TO_HIRE: 'contract', DIRECT_HIRE: 'fulltime', TEMP: 'temporary', PER_DIEM: 'parttime', FULL_TIME: 'fulltime', PART_TIME: 'parttime', SEASONAL: 'temporary' };
 
 export type FeedJob = {
   id: string; title: string; type: string; location: string; postalCode: string | null; remote: boolean; sector: string;

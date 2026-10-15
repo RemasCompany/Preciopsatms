@@ -10,6 +10,7 @@ const Body = z.object({
   name: z.string().min(2).max(120),
   email: z.string().email(),
   password: z.string().min(10, 'Use at least 10 characters'),
+  kind: z.enum(['STAFFING', 'EMPLOYER'], { errorMap: () => ({ message: 'Choose staffing agency or employer.' }) }).default('STAFFING'),
 });
 
 const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 40) || 'company';
@@ -28,7 +29,7 @@ export const POST = withApi(async (req: Request) => {
 
   const org = await db.$transaction(async (tx) => {
     const org = await tx.organization.create({
-      data: { name: b.company, shortName: b.company.replace(/,?\s*(LLC|Inc\.?|Corp\.?)$/i, ''), slug, ownerName: b.name, applyEmail: email,
+      data: { name: b.company, kind: b.kind, shortName: b.company.replace(/,?\s*(LLC|Inc\.?|Corp\.?)$/i, ''), slug, ownerName: b.name, applyEmail: email,
         stripeCustomerId: customer?.id ?? null, subscriptionStatus: 'trialing', trialEndsAt: new Date(Date.now() + trialDays * 864e5) },
     });
     const user = await tx.user.create({ data: { email, name: b.name, passwordHash: await bcrypt.hash(b.password, 12) } });

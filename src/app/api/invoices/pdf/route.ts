@@ -7,7 +7,7 @@ import { renderInvoicePdf } from '@/lib/pdf';
 export const dynamic = 'force-dynamic';
 
 export const GET = withApi(async (req: Request) => {
-  const { tdb, org, user } = await requireApiContext({ minRole: 'ADMIN', feature: 'timesheets' });
+  const { tdb, org, user } = await requireApiContext({ minRole: 'ADMIN', feature: 'invoicing' });
   const u = new URL(req.url); const week = parseWeek(u.searchParams.get('week')); const clientId = u.searchParams.get('client');
   const client = clientId ? await tdb.client.findFirst({ where: { id: clientId } }) : null;
   if (!client) throw new HttpError(404, 'Client not found');

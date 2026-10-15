@@ -12,7 +12,7 @@ const ymd = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
 
 export default async function Vendors({ searchParams }: { searchParams: Record<string, string | undefined> }) {
   const ctx = await requirePageContext();
-  if (!hasFeature(ctx.org, 'vendors')) return <Gate title="Vendors" feature="Vendor management" />;
+  if (!hasFeature(ctx.org, 'vendors')) return <Gate title="Vendors" feature="Vendor management" employer={ctx.org.kind === 'EMPLOYER'} />;
   const q = searchParams.q?.trim();
   const active = pickFilters('vendors', FILTERS, searchParams);
   const list = await ctx.tdb.vendor.findMany({

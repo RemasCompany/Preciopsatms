@@ -1,5 +1,6 @@
 import { requirePageContext, canEdit } from '@/lib/tenant';
 import SettingsForm from '@/components/SettingsForm';
+import CompanyType from '@/components/CompanyType';
 import DataTools from '@/components/DataTools';
 import JobBoards from '@/components/JobBoards';
 import { feedWarnings } from '@/lib/job-boards';
@@ -11,7 +12,7 @@ import { PROVIDERS, providerEnabled, type Provider } from '@/lib/accounting';
 export default async function Settings({ searchParams }: { searchParams: { accounting?: string; accounting_error?: string } }) {
   const ctx = await requirePageContext();
   const { org, tdb, role } = ctx;
-  const showBooks = hasFeature(org, 'timesheets') && (role === 'OWNER' || role === 'ADMIN');
+  const showBooks = hasFeature(org, 'invoicing') && (role === 'OWNER' || role === 'ADMIN');
   const conns = showBooks ? await tdb.accountingConnection.findMany() : [];
   const [openJobs, published, emailApply, feedJobs] = await Promise.all([
     tdb.job.count({ where: { status: 'OPEN' } }),
@@ -28,6 +29,7 @@ export default async function Settings({ searchParams }: { searchParams: { accou
     <>
       <h1>Settings & data</h1>
       <p className="lede">Your company profile brands the app, emails, documents, invoices and careers page. Import and export your records here.</p>
+      <CompanyType kind={org.kind} hrEnabled={org.hrEnabled} owner={role === 'OWNER' && canEdit(ctx)} paid={!!org.stripeSubscriptionId} />
       <SettingsForm initial={pick(org)} readOnly={!admin} />
       <section className="card">
         <h2 style={{ marginTop: 0 }}>Careers page, widget and job feed</h2>

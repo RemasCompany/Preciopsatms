@@ -21,19 +21,20 @@ export function scheduledHours(shifts: { applicationId: string; start: string; e
 export async function fillFromSchedule(tdb: TenantDb, weekEnding: Date, tz: string) {
   const start = new Date(weekEnding); start.setUTCDate(start.getUTCDate() - 6);
   const shifts = await tdb.shift.findMany({ where: { date: { gte: start, lte: weekEnding }, cancelled: false, response: { not: 'DECLINED' } },
-    include: { application: { include: { candidate: { select: { name: true } }, job: { select: { payRate: true, billRate: true } } } } } });
+    include: { application: { include: { candidate: { select: { name: true } }, job: { select: { payRate: true, billRate: true } }, employee: { select: { payType: true, payRate: true } } } } } });
   const { from, to } = weekRange(ymd(weekEnding), tz);
   const punched = new Set((await tdb.timeEntry.findMany({ where: { clockIn: { gte: from, lt: to } }, select: { applicationId: true } })).map((e) => e.applicationId));
   const filled: string[] = [], kept: string[] = [], clocked: string[] = [];
   for (const h of scheduledHours(shifts)) {
     const app = shifts.find((s) => s.applicationId === h.applicationId)!.application;
     if (punched.has(app.id)) { clocked.push(app.candidate.name); continue; } // the time clock is the better record
+    if (app.employee?.payType === 'SALARY') continue; // paid their salary, not from hours
     const existing = await tdb.timesheet.findFirst({ where: { applicationId: app.id, weekEnding } });
     if (existing && (existing.status !== 'DRAFT' || Number(existing.regularHours) + Number(existing.overtimeHours) > 0)) { kept.push(app.candidate.name); continue; }
     const hrs = { regularHours: h.regularHours, overtimeHours: h.overtimeHours };
     if (existing) await tdb.timesheet.updateMany({ where: { id: existing.id, status: 'DRAFT', regularHours: 0, overtimeHours: 0 }, data: hrs });
     else {
-      try { await tdb.timesheet.create({ data: { applicationId: app.id, weekEnding, ...hrs, payRate: app.job.payRate ?? 0, billRate: app.job.billRate ?? 0 } as never }); }
+      try { await tdb.timesheet.create({ data: { applicationId: app.id, weekEnding, ...hrs, payRate: app.employee?.payRate ?? app.job.payRate ?? 0, billRate: app.job.billRate ?? 0 } as never }); }
       catch (e) { if (!(e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002')) throw e; kept.push(app.candidate.name); continue; }
     }
     filled.push(app.candidate.name);

@@ -12,7 +12,7 @@ const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'n
 
 export default async function Leads({ searchParams }: { searchParams: Record<string, string | undefined> }) {
   const ctx = await requirePageContext();
-  if (!hasFeature(ctx.org, 'leads')) return <Gate title="Lead generation" feature="Lead tracking" />;
+  if (!hasFeature(ctx.org, 'leads')) return <Gate title="Lead generation" feature="Lead tracking" employer={ctx.org.kind === 'EMPLOYER'} />;
   const q = searchParams.q?.trim();
   const active = pickFilters('leads', FILTERS, searchParams);
   const list = await ctx.tdb.lead.findMany({

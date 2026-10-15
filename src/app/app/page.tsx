@@ -15,6 +15,9 @@ export default async function Dashboard() {
     tdb.application.count({ where: { ...appInBranch(branch), stage: 'PLACED', stageChangedAt: { gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) } } }),
     tdb.activity.findMany({ orderBy: { createdAt: 'desc' }, take: 10 }),
   ]);
+  const people = hasFeature(org, 'people') ? {
+    active: await tdb.employee.count({ where: { status: 'ACTIVE' } }), leave: await tdb.employee.count({ where: { status: 'ON_LEAVE' } }),
+  } : null;
   // Credentials that are expired or expire within 30 days, for active candidates.
   const creds = hasFeature(org, 'credentials') ? await tdb.credential.findMany({
     where: { expiresAt: { lte: new Date(Date.now() + SOON_DAYS * 864e5) }, candidate: { status: { notIn: ['Inactive', 'Do not use'] } } },
@@ -24,7 +27,10 @@ export default async function Dashboard() {
   return (
     <>
       <h1>Welcome back, {user.name?.split(' ')[0] ?? 'there'}.</h1>
-      <div className="kpis"><div className="kpi"><b>{openJobs}</b>Open jobs</div><div className="kpi"><b>{active}</b>Active submissions</div><div className="kpi"><b>{placed}</b>Placements this month</div></div>
+      {org.kind === 'EMPLOYER'
+        ? <div className="kpis"><div className="kpi"><b>{openJobs}</b>Open jobs</div><div className="kpi"><b>{active}</b>Candidates in process</div><div className="kpi"><b>{placed}</b>Hires this month</div>
+            {people && <><Link className="kpi" href="/app/employees"><b>{people.active}</b>Employees</Link><Link className="kpi" href="/app/employees?status=ON_LEAVE"><b>{people.leave}</b>On leave</Link></>}</div>
+        : <div className="kpis"><div className="kpi"><b>{openJobs}</b>Open jobs</div><div className="kpi"><b>{active}</b>Active submissions</div><div className="kpi"><b>{placed}</b>Placements this month</div></div>}
       {creds && (
         <>
           <h2>Credentials <Link className="btn ghost sm" href="/app/credentials">View all</Link></h2>

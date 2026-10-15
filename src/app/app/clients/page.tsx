@@ -11,7 +11,7 @@ const OPEN_DEAL = { notIn: ['Won', 'Lost'] };
 
 export default async function Clients({ searchParams }: { searchParams: Record<string, string | undefined> }) {
   const ctx = await requirePageContext();
-  if (!hasFeature(ctx.org, 'crm')) return <Gate title="Clients & contacts" feature="CRM" />;
+  if (!hasFeature(ctx.org, 'crm')) return <Gate title="Clients & contacts" feature="CRM" employer={ctx.org.kind === 'EMPLOYER'} />;
   const q = searchParams.q?.trim();
   const active = pickFilters('clients', FILTERS, searchParams);
   const list = await ctx.tdb.client.findMany({

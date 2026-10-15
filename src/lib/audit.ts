@@ -40,6 +40,12 @@ export const AUDIT_ACTIONS = {
   'payroll.pay': { group: 'Payroll', label: 'Marked a payroll run paid' },
   'payroll.void': { group: 'Payroll', label: 'Voided a payroll run' },
   'payroll.export': { group: 'Payroll', label: 'Exported a payroll run' },
+  'settings.company_type': { group: 'Settings', label: 'Changed company type' },
+  'employee.create': { group: 'People', label: 'Added an employee' },
+  'employee.update': { group: 'People', label: 'Changed an employee' },
+  'employee.pay': { group: 'People', label: 'Changed pay' },
+  'employee.terminate': { group: 'People', label: 'Ended employment' },
+  'employee.department': { group: 'People', label: 'Changed departments' },
 } as const;
 export type AuditAction = keyof typeof AUDIT_ACTIONS;
 export const AUDIT_GROUPS = [...new Set(Object.values(AUDIT_ACTIONS).map((a) => a.group))];

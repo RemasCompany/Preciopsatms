@@ -15,7 +15,7 @@ export const RECORDS: Record<RecordKind, { one: string; titleKey: string; featur
   jobs: { one: 'job', titleKey: 'title', feature: 'ats', fields: [
     f('title', 'Job title', 'text', { required: true }), f('clientId', 'Client', 'ref', { ref: 'clients' }), f('branchId', 'Branch', 'ref', { ref: 'branches' }), f('sector', 'Sector', 'sel', { options: SECTORS }),
     f('location', 'Location (City, ST)'), f('postalCode', 'ZIP code'), f('remote', 'Fully remote', 'chk'),
-    f('type', 'Employment type', 'sel', { notNull: true, options: [['CONTRACT', 'Contract'], ['CONTRACT_TO_HIRE', 'Contract-to-hire'], ['DIRECT_HIRE', 'Direct hire'], ['TEMP', 'Temp'], ['PER_DIEM', 'Per diem']] }),
+    f('type', 'Employment type', 'sel', { notNull: true, options: [['CONTRACT', 'Contract'], ['CONTRACT_TO_HIRE', 'Contract-to-hire'], ['DIRECT_HIRE', 'Direct hire'], ['TEMP', 'Temp'], ['PER_DIEM', 'Per diem'], ['FULL_TIME', 'Full-time'], ['PART_TIME', 'Part-time'], ['SEASONAL', 'Seasonal']] }),
     f('openings', 'Openings', 'num', { min: 1, max: 999, int: true }), f('payRate', 'Pay rate ($/hr)', 'num', { min: 0 }), f('billRate', 'Bill rate ($/hr)', 'num', { min: 0 }),
     f('status', 'Status', 'sel', { notNull: true, options: [['OPEN', 'Open'], ['ON_HOLD', 'On hold'], ['FILLED', 'Filled'], ['CLOSED', 'Closed']] }),
     f('hot', 'Hot job (highlighted on the careers page)', 'chk'), f('startDate', 'Target start', 'date'),
@@ -28,7 +28,7 @@ export const RECORDS: Record<RecordKind, { one: string; titleKey: string; featur
     f('availability', 'Availability', 'sel', { options: ['Immediately', '2 weeks', '30 days', 'Passive'] }),
     f('source', 'Source', 'sel', { options: ['Job board', 'Referral', 'LinkedIn', 'Vendor', 'Walk-in', 'Website', 'Careers page', 'Other'] }),
     f('vendorId', 'Supplied by vendor', 'ref', { ref: 'vendors' }), f('branchId', 'Branch', 'ref', { ref: 'branches' }), f('payrollId', 'Payroll employee ID'),
-    f('status', 'Status', 'sel', { notNull: true, options: ['Active', 'On assignment', 'Placed', 'Inactive', 'Do not use'] }),
+    f('status', 'Status', 'sel', { notNull: true, options: ['Active', 'On assignment', 'Placed', 'Employee', 'Former employee', 'Inactive', 'Do not use'] }),
     f('skills', 'Skills (comma separated)', 'tags'), f('certs', 'Licenses & certifications', 'tags'), f('summary', 'Summary / resume notes', 'area'),
   ] },
   clients: { one: 'client', titleKey: 'name', feature: 'crm', fields: [
@@ -113,3 +113,14 @@ export const HOURS_PER_WEEK = 40;
 
 /** Record kinds that belong to a sales rep; new ones default to the person creating them. */
 export const OWNED_KINDS: RecordKind[] = ['deals', 'leads'];
+
+/** Employers have no clients or bill rates on jobs, and call branches locations; employer job types come first. */
+export function fieldsFor(kind: RecordKind, orgKind?: 'STAFFING' | 'EMPLOYER'): Field[] {
+  const fields = RECORDS[kind].fields;
+  if (orgKind !== 'EMPLOYER' || kind !== 'jobs') return fields;
+  return fields.filter((fl) => fl.key !== 'clientId' && fl.key !== 'billRate').map((fl) => {
+    if (fl.key === 'branchId') return { ...fl, label: 'Location' };
+    if (fl.key === 'type') return { ...fl, options: [...fl.options!.slice(5), ...fl.options!.slice(0, 5).filter((o) => optValue(o) !== 'CONTRACT_TO_HIRE' && optValue(o) !== 'DIRECT_HIRE')] };
+    return fl;
+  });
+}

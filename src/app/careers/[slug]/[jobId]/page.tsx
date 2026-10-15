@@ -4,7 +4,7 @@ import { publicJobs } from '@/lib/public-jobs';
 import ApplyForm from '@/components/ApplyForm';
 
 export const revalidate = 60;
-const EMP: Record<string, string> = { Contract: 'CONTRACTOR', 'Contract-to-hire': 'CONTRACTOR', 'Direct hire': 'FULL_TIME', Temp: 'TEMPORARY', 'Per diem': 'PER_DIEM' };
+const EMP: Record<string, string> = { Contract: 'CONTRACTOR', 'Contract-to-hire': 'CONTRACTOR', 'Direct hire': 'FULL_TIME', Temp: 'TEMPORARY', 'Per diem': 'PER_DIEM', 'Full-time': 'FULL_TIME', 'Part-time': 'PART_TIME', Seasonal: 'TEMPORARY' };
 
 async function load(slug: string, jobId: string) {
   const d = await publicJobs(slug); const job = d?.jobs.find((j) => j.id === jobId);

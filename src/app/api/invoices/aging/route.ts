@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 
 /** AR aging by client as CSV. */
 export const GET = withApi(async () => {
-  const { tdb, org } = await requireApiContext({ minRole: 'ADMIN', feature: 'timesheets' });
+  const { tdb, org } = await requireApiContext({ minRole: 'ADMIN', feature: 'invoicing' });
   const today = localDate(new Date(), org.timezone);
   const { rows, totals } = aging(await openInvoices(tdb), today);
   const csv = toCsv([

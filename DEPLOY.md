@@ -28,7 +28,7 @@ Migrations run automatically on every Vercel deploy (`vercel-build` runs `prisma
 | `NEXTAUTH_SECRET` | output of `openssl rand -base64 32` | **required** |
 | `NEXTAUTH_URL` | `https://app.preciopsatms.com` (or the `*.vercel.app` URL at first) | **required** |
 | `APP_URL` | same as `NEXTAUTH_URL` | **required** (links in emails, feeds, Indeed Apply) |
-| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_STARTER`, `STRIPE_PRICE_GROWTH`, `STRIPE_PRICE_ENTERPRISE`, `TRIAL_DAYS` | Stripe dashboard (step 4) | buying plans |
+| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_STARTER`, `STRIPE_PRICE_GROWTH`, `STRIPE_PRICE_ENTERPRISE`, `STRIPE_PRICE_*_EMPLOYER`, `TRIAL_DAYS` | Stripe dashboard (step 4) | buying plans |
 | `RESEND_API_KEY`, `EMAIL_FROM` | Resend (step 5) | all email |
 | `S3_BUCKET`, `S3_REGION`, `S3_ENDPOINT`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | AWS S3 or Cloudflare R2 (step 6) | resumes, signed PDFs |
 | `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `ANTHROPIC_ASSISTANT_MODEL` | console.anthropic.com | resume parsing, lead scoring, the in-app assistant (defaults to `claude-opus-5-5`) |
@@ -48,7 +48,7 @@ Vercel → Project → **Settings → Domains** → add `app.preciopsatms.com` (
 
 ## 4. Stripe (billing)
 
-1. In Stripe (start in **test mode**), create three recurring prices: Starter (flat monthly), Growth (per seat), Enterprise (per seat). Put their IDs in `STRIPE_PRICE_*`.
+1. In Stripe (start in **test mode**), create three recurring prices: Starter (flat monthly), Growth (per seat), Enterprise (per seat). Put their IDs in `STRIPE_PRICE_*`. For companies that sign up as employers, also create three per-employee prices and put them in `STRIPE_PRICE_STARTER_EMPLOYER`, `STRIPE_PRICE_GROWTH_EMPLOYER` and `STRIPE_PRICE_ENTERPRISE_EMPLOYER` (the quantity is kept equal to active employees automatically).
 2. Turn on **Stripe Tax** and the **Customer Portal**.
 3. **Developers → Webhooks → Add endpoint**: `https://app.preciopsatms.com/api/stripe/webhook`, with events
    `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `customer.subscription.trial_will_end`, `invoice.paid`, `invoice.payment_failed`.
@@ -75,6 +75,7 @@ Each recruiter, admin and owner gets one email listing credentials that reached 
 `/api/cron/shift-reminders` runs every day at 22:00 UTC (late afternoon in the US): each worker with a published shift tomorrow gets one text, or an email if they can't be texted. Declined and cancelled shifts are skipped.
 `/api/cron/engagement` runs every day at 14:00 UTC and sends birthday greetings for companies that turned them on (Engagement page), once a year per worker, honoring opt-outs.
 `/api/cron/reports` runs every day at 12:00 UTC and emails scheduled reports: weekly ones on Mondays (last week) and monthly ones on the 1st (last month), in each company's time zone.
+`/api/cron/people` runs every day at 06:15 UTC: pay changes and last days entered with a future date take effect (raises and promotions apply; employees whose last day has passed come off the schedule and out of billing).
 `/api/cron/tasks` works through the background queue. Large sends (more than 25 people from “Message this list”) are queued; the browser that queued them starts them right away and shows progress, so the scheduled run only finishes work whose browser went away and retries failures (1, 4 and 16 minutes apart, then it gives up and reports the error). Vercel's Hobby plan allows one run a day (`30 3 * * *` in `vercel.json`); on Pro, change it to `*/5 * * * *` so leftovers finish within minutes.
 On other hosts, call these yourself: `curl -H "Authorization: Bearer $CRON_SECRET" https://app.preciopsatms.com/api/cron/credential-alerts` daily (and the same for `/api/cron/shift-reminders`, `/api/cron/engagement` and `/api/cron/reports`), and `/api/cron/tasks` every 5 minutes.
 

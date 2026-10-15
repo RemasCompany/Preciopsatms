@@ -3,13 +3,14 @@ import { redirect } from 'next/navigation';
 import { Prisma, type Role } from '@prisma/client';
 import { authOptions } from './auth';
 import { db } from './db';
-import { hasFeature, planIncludes, type Feature } from './plans';
+import { hasFeature, planIncludes, STAFFING_ONLY, type Feature } from './plans';
 import { captureError, cleanPath } from './monitoring';
 
 // Models that carry organizationId. Every query through tenantDb() is forced into the caller's org.
 const TENANT_MODELS = new Set<string>([
   'Job', 'Candidate', 'Application', 'EeoSelfId', 'Client', 'Contact', 'Deal', 'Lead', 'Vendor', 'Task',
   'Timesheet', 'SignDocument', 'Message', 'Activity', 'StoredFile', 'Invite', 'SalesTarget', 'Credential', 'Shift', 'WorkerLink', 'PayrollRun', 'PayrollItem', 'PayrollAdjustment', 'TimeEntry', 'OnboardingPackage', 'Onboarding', 'OnboardingStep', 'Feedback', 'FeedbackRequest', 'Recognition', 'AuditLog', 'BackgroundTask', 'Invoice', 'InvoiceLine', 'Payment', 'ClientPortalLink', 'OpenShift', 'ShiftOffer', 'BackgroundCheck', 'AccountingConnection', 'ExternalRef', 'EVerifyCase', 'DoNotReturn', 'Referral', 'Branch', 'ReportSchedule', 'TrainingCourse', 'TrainingEnrollment',
+  'Department', 'Employee', 'CompensationChange',
 ]);
 // Written once, never changed: the audit log is evidence.
 const APPEND_ONLY = new Set(['AuditLog']);
@@ -64,6 +65,8 @@ export async function requireApiContext(opts: { minRole?: Role; feature?: Featur
   if (!ctx) throw new HttpError(401, 'Sign in required');
   if (RANK[ctx.role] < RANK[opts.minRole ?? 'VIEWER']) throw new HttpError(403, 'Your role does not allow this');
   if (opts.feature && !hasFeature(ctx.org, opts.feature)) {
+    if (ctx.org.kind === 'EMPLOYER' && STAFFING_ONLY.includes(opts.feature)) throw new HttpError(403, 'That’s a staffing-agency feature. Your company is set up as an employer (Settings & data).');
+    if (opts.feature === 'people' && planIncludes(ctx.org, 'people')) throw new HttpError(403, 'Employee records are turned off. An admin can turn them on in Settings & data.');
     if (planIncludes(ctx.org, opts.feature)) throw new HttpError(403, 'Onboarding is turned off for your company. An admin can turn it on in Settings & data.');
     throw new HttpError(402, 'This feature is not included in your plan');
   }

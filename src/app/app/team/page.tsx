@@ -1,6 +1,6 @@
 import { db } from '@/lib/db';
 import { requirePageContext, canEdit } from '@/lib/tenant';
-import { PLANS } from '@/lib/plans';
+import { PLANS, planView } from '@/lib/plans';
 import Team from '@/components/Team';
 import { OpenRecord } from '@/components/Records';
 
@@ -18,7 +18,7 @@ export default async function TeamPage() {
     <>
       <h1>Team</h1>
       <p className="lede">Owners manage billing and everything else. Admins invite people, approve timesheets and see EEO reports. Recruiters work jobs, candidates and clients. Viewers can look but not change anything.</p>
-      <p className="muted">{members.length} {members.length === 1 ? 'user' : 'users'}{max ? ` of ${max} on the ${PLANS[org.plan].name} plan` : ''}{PLANS[org.plan].perSeat ? ' · billed per user' : ''}</p>
+      <p className="muted">{members.length} {members.length === 1 ? 'user' : 'users'}{max ? ` of ${max} on the ${planView(org.plan, org.kind).name} plan` : ''}{org.kind === 'EMPLOYER' ? ' · billed per employee, not per user' : PLANS[org.plan].perSeat ? ' · billed per user' : ''}</p>
       <Team
         me={{ id: user.id, role }}
         admin={admin}

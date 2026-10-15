@@ -16,7 +16,7 @@ const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'n
 
 export default async function InvoicePage({ params }: { params: { id: string } }) {
   const ctx = await requirePageContext();
-  if (!hasFeature(ctx.org, 'timesheets')) return <Gate title="Invoices" feature="Client invoicing and receivables" />;
+  if (!hasFeature(ctx.org, 'invoicing')) return <Gate title="Invoices" feature="Client invoicing and receivables" employer={ctx.org.kind === 'EMPLOYER'} />;
   if (ctx.role !== 'OWNER' && ctx.role !== 'ADMIN') return (<><h1>Invoice</h1><p className="card">Only owners and admins can see invoices.</p></>);
   const inv = await loadInvoice(ctx.tdb, params.id).catch((e) => { if (e instanceof HttpError) notFound(); throw e; });
   const conn = await ctx.tdb.accountingConnection.findFirst({ orderBy: { connectedAt: 'desc' } });

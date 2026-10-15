@@ -21,7 +21,7 @@ export default function PipelineBoard({ apps: initial, jobs, candidates, initial
   apps: BoardApp[]; jobs: JobOpt[]; candidates: CandOpt[]; initialJob: string; canEdit: boolean;
 }) {
   const router = useRouter();
-  const { open } = useRecords();
+  const { open, kind } = useRecords();
   const [apps, setApps] = useState(initial);
   const [q, setQ] = useState('');
   const [job, setJob] = useState(initialJob);
@@ -95,11 +95,11 @@ export default function PipelineBoard({ apps: initial, jobs, candidates, initial
           {BOARD_STAGES.map((s, i) => {
             const items = visible.filter((a) => a.stage === s);
             return (
-              <section key={s} role="listitem" aria-label={`${stageLabel(s)}, ${items.length}`} className={`col${over === s ? ' over' : ''}`} style={{ '--c': `var(--s${i})` } as React.CSSProperties}
+              <section key={s} role="listitem" aria-label={`${stageLabel(s, kind)}, ${items.length}`} className={`col${over === s ? ' over' : ''}`} style={{ '--c': `var(--s${i})` } as React.CSSProperties}
                 onDragOver={(e) => { if (!canEdit) return; e.preventDefault(); setOver(s); }}
                 onDragLeave={() => setOver((o) => (o === s ? null : o))}
                 onDrop={(e) => { e.preventDefault(); setOver(null); const a = apps.find((x) => x.id === e.dataTransfer.getData('text/plain')); if (a) move(a, s); }}>
-                <h3><span>{stageLabel(s)}</span><small>{items.length}</small></h3>
+                <h3><span>{stageLabel(s, kind)}</span><small>{items.length}</small></h3>
                 {items.map((a) => {
                   const d = daysIn(a.stageChangedAt);
                   return (
@@ -114,7 +114,7 @@ export default function PipelineBoard({ apps: initial, jobs, candidates, initial
                         <select className="movesel" aria-label={`Move ${a.candidate} to stage`} value={a.stage}
                           onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}
                           onChange={(e) => move(a, e.target.value as Stage)}>
-                          {BOARD_STAGES.map((st) => <option key={st} value={st}>{st === a.stage ? `In ${stageLabel(st)}` : `Move to ${stageLabel(st)}`}</option>)}
+                          {BOARD_STAGES.map((st) => <option key={st} value={st}>{st === a.stage ? `In ${stageLabel(st, kind)}` : `Move to ${stageLabel(st, kind)}`}</option>)}
                         </select>
                       )}
                     </div>
@@ -154,6 +154,7 @@ function AddToPipeline({ jobs, candidates, defaultJob, apps, onClose, onAdded }:
   const [jobId, setJobId] = useState(jobs.some((j) => j.id === defaultJob) ? defaultJob : jobs[0]?.id ?? '');
   const [candidateId, setCandidateId] = useState(candidates[0]?.id ?? '');
   const [stage, setStage] = useState<Stage>('SOURCED');
+  const { kind } = useRecords();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -180,7 +181,7 @@ function AddToPipeline({ jobs, candidates, defaultJob, apps, onClose, onAdded }:
         {candidates.length ? candidates.map((c) => <option key={c.id} value={c.id}>{c.title ? `${c.name} — ${c.title}` : c.name}</option>) : <option value="">No candidates yet</option>}
       </select></label>
       <label>Starting stage<select value={stage} onChange={(e) => setStage(e.target.value as Stage)}>
-        {START_STAGES.map((s) => <option key={s} value={s}>{stageLabel(s)}</option>)}
+        {START_STAGES.map((s) => <option key={s} value={s}>{stageLabel(s, kind)}</option>)}
       </select></label>
       {error && <p className="error" role="alert">{error}</p>}
     </Drawer>

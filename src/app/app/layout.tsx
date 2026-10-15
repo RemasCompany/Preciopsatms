@@ -10,10 +10,18 @@ import { currentBranch } from '@/lib/branches';
 import BranchSwitcher from '@/components/BranchSwitcher';
 import { Suspense } from 'react';
 
-const NAV: [string, [href: string, label: string, feature?: Feature][]][] = [
-  ['Recruiting', [['/app', 'Dashboard'], ['/app/assistant', 'Assistant', 'ai'], ['/app/pipeline', 'Pipeline'], ['/app/jobs', 'Jobs'], ['/app/candidates', 'Candidates'], ['/app/onboarding', 'Onboarding', 'onboarding'], ['/app/everify', 'E-Verify', 'onboarding'], ['/app/credentials', 'Credentials', 'credentials'], ['/app/training', 'Training', 'training'], ['/app/schedule', 'Schedule', 'scheduling'], ['/app/timeclock', 'Time clock', 'timeclock'], ['/app/engagement', 'Engagement', 'engagement'], ['/app/referrals', 'Referrals', 'engagement'], ['/app/timesheets', 'Timesheets & payroll', 'timesheets'], ['/app/payroll', 'Payroll runs', 'payrollRuns'], ['/app/invoices', 'Invoices', 'timesheets']]],
+type Nav = [string, [href: string, label: string, feature?: Feature][]][];
+const NAV: Nav = [
+  ['Recruiting', [['/app', 'Dashboard'], ['/app/assistant', 'Assistant', 'ai'], ['/app/pipeline', 'Pipeline'], ['/app/jobs', 'Jobs'], ['/app/candidates', 'Candidates'], ['/app/onboarding', 'Onboarding', 'onboarding'], ['/app/everify', 'E-Verify', 'onboarding'], ['/app/credentials', 'Credentials', 'credentials'], ['/app/training', 'Training', 'training'], ['/app/schedule', 'Schedule', 'scheduling'], ['/app/timeclock', 'Time clock', 'timeclock'], ['/app/engagement', 'Engagement', 'engagement'], ['/app/referrals', 'Referrals', 'engagement'], ['/app/timesheets', 'Timesheets & payroll', 'timesheets'], ['/app/payroll', 'Payroll runs', 'payrollRuns'], ['/app/invoices', 'Invoices', 'invoicing']]],
   ['Sales', [['/app/leads', 'Lead generation', 'leads'], ['/app/clients', 'Clients & contacts', 'crm'], ['/app/deals', 'Deals', 'crm'], ['/app/sales', 'Sales metrics', 'crm'], ['/app/reports', 'Reports']]],
-  ['Operations', [['/app/vendors', 'Vendors', 'vendors'], ['/app/documents', 'E-signatures', 'esign'], ['/app/eeo', 'EEO reporting', 'eeo'], ['/app/compliance', 'Compliance'], ['/app/inbox', 'Inbox', 'messaging'], ['/app/tasks', 'Tasks'], ['/app/team', 'Team'], ['/app/settings', 'Settings & data'], ['/app/audit', 'Audit log'], ['/app/billing', 'Billing']]],
+  ['Operations', [['/app/employees', 'Our employees', 'people'], ['/app/vendors', 'Vendors', 'vendors'], ['/app/documents', 'E-signatures', 'esign'], ['/app/eeo', 'EEO reporting', 'eeo'], ['/app/compliance', 'Compliance'], ['/app/inbox', 'Inbox', 'messaging'], ['/app/tasks', 'Tasks'], ['/app/team', 'Team'], ['/app/settings', 'Settings & data'], ['/app/audit', 'Audit log'], ['/app/billing', 'Billing']]],
+];
+// Employers: the same tools, grouped around their own people. Client, sales and vendor pages aren't shown.
+const EMPLOYER_NAV: Nav = [
+  ['Hiring', [['/app', 'Dashboard'], ['/app/assistant', 'Assistant', 'ai'], ['/app/pipeline', 'Pipeline'], ['/app/jobs', 'Jobs'], ['/app/candidates', 'Candidates'], ['/app/onboarding', 'Onboarding', 'onboarding'], ['/app/everify', 'E-Verify', 'onboarding'], ['/app/referrals', 'Referrals', 'engagement']]],
+  ['People', [['/app/employees', 'Employees', 'people'], ['/app/employees/org-chart', 'Org chart', 'people'], ['/app/credentials', 'Credentials', 'credentials'], ['/app/training', 'Training', 'training'], ['/app/engagement', 'Engagement', 'engagement']]],
+  ['Time & pay', [['/app/schedule', 'Schedule', 'scheduling'], ['/app/timeclock', 'Time clock', 'timeclock'], ['/app/timesheets', 'Timesheets & payroll', 'timesheets'], ['/app/payroll', 'Payroll runs', 'payrollRuns']]],
+  ['Operations', [['/app/documents', 'E-signatures', 'esign'], ['/app/eeo', 'EEO reporting', 'eeo'], ['/app/compliance', 'Compliance'], ['/app/reports', 'Reports'], ['/app/inbox', 'Inbox', 'messaging'], ['/app/tasks', 'Tasks'], ['/app/team', 'Team'], ['/app/settings', 'Settings & data'], ['/app/audit', 'Audit log'], ['/app/billing', 'Billing']]],
 ];
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -24,13 +32,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const trialDays = org.trialEndsAt ? Math.ceil((org.trialEndsAt.getTime() - Date.now()) / 864e5) : 0;
   return (
     <div className="shell">
-      <AppNav company={org.shortName ?? org.name} groups={NAV.map(([g, items]) => [g, items.filter(([h, , f]) => (!f || hasFeature(org, f)) && (!['/app/audit', '/app/invoices', '/app/compliance'].includes(h) || ctx.role === 'OWNER' || ctx.role === 'ADMIN')).map(([h, l]) => [h, h === '/app/inbox' && unread ? `${l} (${unread})` : l])] as NavGroup).filter(([, items]) => items.length)} />
+      <AppNav company={org.shortName ?? org.name} groups={(org.kind === 'EMPLOYER' ? EMPLOYER_NAV : NAV).map(([g, items]) => [g, items.filter(([h, , f]) => (!f || hasFeature(org, f)) && (!['/app/audit', '/app/invoices', '/app/compliance'].includes(h) || ctx.role === 'OWNER' || ctx.role === 'ADMIN')).map(([h, l]) => [h, h === '/app/inbox' && unread ? `${l} (${unread})` : l])] as NavGroup).filter(([, items]) => items.length)} />
       <div className="main">
-        {branches.length > 0 && <Suspense><BranchSwitcher branches={branches} current={branch?.id ?? null} /></Suspense>}
+        {branches.length > 0 && <Suspense><BranchSwitcher branches={branches} current={branch?.id ?? null} label={org.kind === 'EMPLOYER' ? 'Location' : 'Branch'} /></Suspense>}
         {!ctx.user.emailVerifiedAt && <VerifyBanner email={ctx.user.email} />}
         {org.subscriptionStatus === 'trialing' && trialDays > 0 && <p className="card banner">{trialDays} days left in your trial. <Link href="/app/billing">Choose a plan</Link></p>}
         {!['trialing', 'active'].includes(org.subscriptionStatus) && <p className="card banner error">Your subscription is {org.subscriptionStatus.replace('_', ' ')}. Your data is safe but read-only. <Link href="/app/billing">Update billing</Link></p>}
-        <RecordsProvider canEdit={canEdit(ctx)} ai={hasFeature(org, 'ai')} credentials={hasFeature(org, 'credentials')} portal={hasFeature(org, 'clientPortal')}>{children}</RecordsProvider>
+        <RecordsProvider kind={org.kind} canEdit={canEdit(ctx)} ai={hasFeature(org, 'ai')} credentials={hasFeature(org, 'credentials')} portal={hasFeature(org, 'clientPortal')}>{children}</RecordsProvider>
         <ResponsiveTables />
       </div>
     </div>

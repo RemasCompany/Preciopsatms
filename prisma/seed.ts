@@ -22,8 +22,9 @@ async function main() {
   await db.membership.upsert({ where: { userId_organizationId: { userId: owner.id, organizationId: org.id } }, update: {}, create: { userId: owner.id, organizationId: org.id, role: 'OWNER' } });
   await db.membership.upsert({ where: { userId_organizationId: { userId: rep.id, organizationId: org.id } }, update: {}, create: { userId: rep.id, organizationId: org.id, role: 'RECRUITER' } });
 
+  await seedEmployer(hash);
   if (await db.client.count({ where: { organizationId: org.id } })) {
-    console.log('Demo data is already there. Sign in as owner@example.com / change-me-please');
+    console.log('Demo data is already there. Sign in as owner@example.com / change-me-please (staffing) or hr@example.com (employer)');
     return;
   }
   // All or nothing: a failure part-way never leaves a half-filled demo behind.
@@ -166,4 +167,48 @@ async function main() {
 
   console.log('Seeded the demo company. Sign in as owner@example.com (or sam@example.com, a recruiter) / change-me-please');
 }
+/** A second demo company set up as an employer: departments, managers, hourly and salaried staff, and their shifts. */
+async function seedEmployer(hash: string) {
+  const org = await db.organization.upsert({ where: { slug: 'demo-employer' }, update: {}, create: {
+    name: 'Northwind Distribution, Inc.', shortName: 'Northwind', slug: 'demo-employer', kind: 'EMPLOYER', ownerName: 'Hana Lee', ownerTitle: 'HR Director', city: 'Orlando, FL',
+    plan: 'growth', subscriptionStatus: 'trialing', trialEndsAt: new Date(Date.now() + 14 * DAY), applyEmail: 'careers@example.com' } });
+  const user = await db.user.upsert({ where: { email: 'hr@example.com' }, update: {}, create: { email: 'hr@example.com', name: 'Hana Lee', passwordHash: hash } });
+  await db.membership.upsert({ where: { userId_organizationId: { userId: user.id, organizationId: org.id } }, update: {}, create: { userId: user.id, organizationId: org.id, role: 'OWNER' } });
+  if (await db.employee.count({ where: { organizationId: org.id } })) return;
+  await db.$transaction(async (tx) => {
+    const o = { organizationId: org.id };
+    const site = (await tx.branch.create({ data: { ...o, name: 'Orlando DC', city: 'Orlando, FL' } })).id;
+    const office = (await tx.branch.create({ data: { ...o, name: 'Head office', city: 'Winter Park, FL' } })).id;
+    const dept = async (name: string) => (await tx.department.create({ data: { ...o, name } })).id;
+    const [ops, wh, hrDept, fin] = [await dept('Operations'), await dept('Warehouse'), await dept('People & HR'), await dept('Finance')];
+    const jobs = new Map<string, string>();
+    const position = async (title: string, type: 'FULL_TIME' | 'PART_TIME', branchId: string, payRate: number | null) => {
+      const k = `${title}|${type}|${branchId}`;
+      if (!jobs.has(k)) jobs.set(k, (await tx.job.create({ data: { ...o, title, type, branchId, status: 'FILLED', publish: false, payRate, location: 'Orlando, FL' } })).id);
+      return jobs.get(k)!;
+    };
+    const emp = async (name: string, title: string, departmentId: string, branchId: string, payType: 'HOURLY' | 'SALARY', payRate: number, startDays: number, managerId: string | null, type: 'FULL_TIME' | 'PART_TIME' = 'FULL_TIME') => {
+      const c = await tx.candidate.create({ data: { ...o, name, title, status: 'Employee', source: 'Employee', email: `${name.split(' ')[0].toLowerCase()}@northwind.example`, phone: `40755503${String(jobs.size + 10).padStart(2, '0')}` } });
+      const jobId = await position(title, type, branchId, payType === 'HOURLY' ? payRate : null);
+      const a = await tx.application.create({ data: { ...o, candidateId: c.id, jobId, stage: 'PLACED', maxStage: 'PLACED', createdAt: days(startDays - 14), stageChangedAt: days(startDays) } });
+      const e = await tx.employee.create({ data: { ...o, candidateId: c.id, applicationId: a.id, title, departmentId, branchId, managerId, employmentType: type, startDate: days(startDays), payType, payRate } });
+      await tx.compensationChange.create({ data: { ...o, employeeId: e.id, effectiveDate: days(startDays), payType, payRate, title, reason: 'Hired' } });
+      return { e, a };
+    };
+    const ceo = await emp('Grace Okafor', 'General Manager', ops, office, 'SALARY', 145000, -1900, null);
+    const hrMgr = await emp('Hana Lee', 'HR Director', hrDept, office, 'SALARY', 98000, -1200, ceo.e.id);
+    await emp('Victor Ames', 'Controller', fin, office, 'SALARY', 105000, -900, ceo.e.id);
+    const whMgr = await emp('Marco Silva', 'Warehouse Manager', wh, site, 'SALARY', 78000, -1500, ceo.e.id);
+    const lead = await emp('Dee Carter', 'Shift Lead', wh, site, 'HOURLY', 24.5, -700, whMgr.e.id);
+    const crew = [['Luis Ortega', 21], ['Tom Nguyen', 19.5], ['Aisha Khan', 19.5], ['Ben Ode', 18.75]] as const;
+    const team = [];
+    for (const [i, [n, r]] of crew.entries()) team.push(await emp(n, 'Warehouse Associate', wh, site, 'HOURLY', r, -400 + i * 60, lead.e.id, i === 3 ? 'PART_TIME' : 'FULL_TIME'));
+    await emp('Priya Shah', 'Recruiting Coordinator', hrDept, office, 'HOURLY', 26, -45, hrMgr.e.id);
+    for (const [i, t] of [lead, ...team].entries()) {
+      for (const d of [0, 1, 2, 3, 4]) if (!(i === 4 && d > 2)) await tx.shift.create({ data: { ...o, applicationId: t.a.id, date: weekDay(d), start: i % 2 ? '14:00' : '06:00', end: i % 2 ? '22:30' : '14:30', breakMinutes: 30, unit: 'Dock A' } });
+    }
+    await tx.job.create({ data: { ...o, title: 'Forklift Operator', type: 'FULL_TIME', branchId: site, payRate: 22, location: 'Orlando, FL', status: 'OPEN', openings: 2, description: 'Load and unload trailers on our day shift. Forklift certification preferred; we train.' } });
+  }, { timeout: 120_000 });
+}
+
 main().catch((e) => { console.error(e); process.exit(1); }).finally(() => db.$disconnect());

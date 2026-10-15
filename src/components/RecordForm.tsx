@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { RECORDS, optLabel, optValue, type Field, type RecordKind, type RecordValues } from '@/lib/records';
+import { RECORDS, fieldsFor, optLabel, optValue, type Field, type RecordKind, type RecordValues } from '@/lib/records';
 
 const refCache = new Map<RecordKind, Promise<{ id: string; label: string }[]>>();
 function loadRefs(kind: RecordKind) {
@@ -40,13 +40,13 @@ function UserSelect({ fl, value, onChange, disabled }: { fl: Field; value: strin
   );
 }
 
-export default function RecordForm({ kind, values, onChange, readOnly }: {
-  kind: RecordKind; values: RecordValues; onChange: (v: RecordValues) => void; readOnly?: boolean;
+export default function RecordForm({ kind, values, onChange, readOnly, orgKind }: {
+  kind: RecordKind; values: RecordValues; onChange: (v: RecordValues) => void; readOnly?: boolean; orgKind?: 'STAFFING' | 'EMPLOYER';
 }) {
   const set = (k: string, v: RecordValues[string]) => onChange({ ...values, [k]: v });
   return (
     <div className="form">
-      {RECORDS[kind].fields.map((fl) => {
+      {fieldsFor(kind, orgKind).map((fl) => {
         const v = values[fl.key];
         const full = fl.type === 'area' || fl.key === 'skills' || fl.key === RECORDS[kind].titleKey || fl.type === 'url';
         const label = <span>{fl.label}{fl.required && <span aria-hidden="true"> *</span>}</span>;

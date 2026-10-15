@@ -1,6 +1,6 @@
 import Stripe from 'stripe';
 import { db } from './db';
-import { PLANS, planFromPriceId } from './plans';
+import { PLANS, billedPerEmployee, planFromPriceId, priceIdFor, type OrgKind } from './plans';
 
 export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? 'sk_test_missing', { typescript: true });
 /** Billing works only with a real Stripe key; without one, signups run on the free trial and checkout says billing isn't set up. */
@@ -29,16 +29,27 @@ export async function syncSubscription(sub: Stripe.Subscription) {
   });
 }
 
-/** Keep per-seat quantity equal to the number of members. Call after invite acceptance / member removal. */
+/** What the subscription is billed on: active employees for employers, users on per-seat agency plans, else 1. */
+export async function billingQuantity(org: { id: string; plan: keyof typeof PLANS; kind: OrgKind }) {
+  if (billedPerEmployee(org.kind)) return Math.max(1, await db.employee.count({ where: { organizationId: org.id, status: { not: 'TERMINATED' } } }));
+  return PLANS[org.plan].perSeat ? db.membership.count({ where: { organizationId: org.id } }) : 1;
+}
+
+/**
+ * Keep the subscription's price and quantity in step with the company: the employer or agency price for its plan, and
+ * the number of employees or users. Call after members or employees change, and when the company type changes.
+ */
 export async function syncSeats(orgId: string) {
   if (!stripeEnabled()) return;
   const org = await db.organization.findUniqueOrThrow({ where: { id: orgId } });
-  if (!org.stripeSubscriptionId || !PLANS[org.plan].perSeat) return;
-  const count = await db.membership.count({ where: { organizationId: orgId } });
+  if (!org.stripeSubscriptionId) return;
+  const count = await billingQuantity(org);
+  let price: string | null = null;
+  try { price = priceIdFor(org.plan, org.kind); } catch { /* that price isn't configured: keep the current one */ }
   const sub = await stripe.subscriptions.retrieve(org.stripeSubscriptionId);
   const item = sub.items.data[0];
-  if (item && item.quantity !== count) {
-    await stripe.subscriptionItems.update(item.id, { quantity: count, proration_behavior: 'create_prorations' });
+  if (item && (item.quantity !== count || (price && item.price.id !== price))) {
+    await stripe.subscriptionItems.update(item.id, { quantity: count, ...(price ? { price } : {}), proration_behavior: 'create_prorations' });
   }
 }
 

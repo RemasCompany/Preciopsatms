@@ -14,7 +14,7 @@ import BackgroundChecks from './BackgroundChecks';
 import DoNotReturn from './DoNotReturn';
 
 type Open = { kind: RecordKind; id?: string; preset?: RecordValues };
-type Ctx = { open: (kind: RecordKind, id?: string, preset?: RecordValues) => void; toast: (text: string, error?: boolean) => void; canEdit: boolean; ai: boolean; credentials?: boolean; portal?: boolean };
+type Ctx = { open: (kind: RecordKind, id?: string, preset?: RecordValues) => void; toast: (text: string, error?: boolean) => void; canEdit: boolean; ai: boolean; credentials?: boolean; portal?: boolean; kind?: 'STAFFING' | 'EMPLOYER' };
 const RecordsCtx = createContext<Ctx | null>(null);
 export const useRecords = () => {
   const c = useContext(RecordsCtx);
@@ -23,7 +23,7 @@ export const useRecords = () => {
 };
 
 /** Hosts the record drawer and toast for every page under /app. */
-export function RecordsProvider({ canEdit, ai, credentials = false, portal = false, children }: { canEdit: boolean; ai: boolean; credentials?: boolean; portal?: boolean; children: React.ReactNode }) {
+export function RecordsProvider({ canEdit, ai, credentials = false, portal = false, kind = 'STAFFING', children }: { canEdit: boolean; ai: boolean; credentials?: boolean; portal?: boolean; kind?: 'STAFFING' | 'EMPLOYER'; children: React.ReactNode }) {
   const [current, setCurrent] = useState<Open | null>(null);
   const [toastMsg, setToastMsg] = useState<{ text: string; error?: boolean } | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>();
@@ -32,7 +32,7 @@ export function RecordsProvider({ canEdit, ai, credentials = false, portal = fal
   }, []);
   const open = useCallback((kind: RecordKind, id?: string, preset?: RecordValues) => setCurrent({ kind, id, preset }), []);
   return (
-    <RecordsCtx.Provider value={{ open, toast, canEdit, ai, credentials, portal }}>
+    <RecordsCtx.Provider value={{ open, toast, canEdit, ai, credentials, portal, kind }}>
       {children}
       {current && <RecordDrawer key={`${current.kind}:${current.id ?? 'new'}`} {...current} onClose={() => setCurrent(null)} />}
       {toastMsg && <div className={`toast${toastMsg.error ? ' bad' : ''}`} role="status">{toastMsg.text}</div>}
@@ -59,10 +59,10 @@ type Extras = Record<string, unknown>;
 
 function RecordDrawer({ kind, id, preset, onClose }: Open & { onClose: () => void }) {
   const router = useRouter();
-  const { open, toast, canEdit, ai } = useRecords();
+  const { open, toast, canEdit, ai, kind: orgKind } = useRecords();
   const spec = RECORDS[kind];
   const [pendingResume, setPendingResume] = useState<File | null>(null);
-  const [values, setValues] = useState<RecordValues | null>(id ? null : defaultsFor(kind, preset));
+  const [values, setValues] = useState<RecordValues | null>(id ? null : defaultsFor(kind, kind === 'jobs' && orgKind === 'EMPLOYER' ? { type: 'FULL_TIME', ...preset } : preset));
   const [extras, setExtras] = useState<Extras>({});
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -117,7 +117,7 @@ function RecordDrawer({ kind, id, preset, onClose }: Open & { onClose: () => voi
           <ResumePanel candidateId={id} resume={extras.resume as { filename: string } | null | undefined} ai={ai && canEdit} values={values} setValues={setValues}
             onPendingFile={setPendingResume} reload={() => { load(); router.refresh(); }} toast={toast} />
         )}
-        <RecordForm kind={kind} values={values} onChange={setValues} readOnly={!canEdit} />
+        <RecordForm kind={kind} values={values} onChange={setValues} readOnly={!canEdit} orgKind={orgKind} />
         {id && <Extras kind={kind} id={id} values={values} extras={extras} reload={() => { load(); router.refresh(); }} open={open} toast={toast} canEdit={canEdit} />}
       </>}
     </Drawer>
@@ -159,10 +159,10 @@ function QuickContact({ phone, email, optOut }: { phone: string | null; email: s
 }
 
 function StageSelect({ appId, stage, onMoved, canEdit }: { appId: string; stage: Stage; onMoved: () => void; canEdit: boolean }) {
-  const { toast } = useRecords();
+  const { toast, kind } = useRecords();
   const [pending, setPending] = useState<Stage | null>(null);
   async function move(to: Stage, rejectionReason?: string) {
-    try { const r = await jsonWithOverride(`/api/applications/${appId}`, 'PATCH', { stage: to, rejectionReason }); setPending(null); onMoved(); if (to === 'PLACED') toast(r.warning ?? 'Placed. Nice work.', !!r.warning); }
+    try { const r = await jsonWithOverride(`/api/applications/${appId}`, 'PATCH', { stage: to, rejectionReason }); setPending(null); onMoved(); if (to === 'PLACED') toast(r.warning ?? (kind === 'EMPLOYER' ? 'Hired — they’re on the Employees page now.' : 'Placed. Nice work.'), !!r.warning); }
     catch (e) { toast((e as Error).message, true); }
   }
   if (pending === 'REJECTED') return (
@@ -173,7 +173,7 @@ function StageSelect({ appId, stage, onMoved, canEdit }: { appId: string; stage:
   );
   return (
     <select aria-label="Stage" value={stage} disabled={!canEdit} onChange={(e) => { const s = e.target.value as Stage; if (s === 'REJECTED') setPending(s); else move(s); }}>
-      {BOARD_STAGES.map((s) => <option key={s} value={s}>{stageLabel(s)}</option>)}
+      {BOARD_STAGES.map((s) => <option key={s} value={s}>{stageLabel(s, kind)}</option>)}
     </select>
   );
 }
@@ -182,6 +182,7 @@ function RelatedExtras({ kind, id, values, extras, reload, open, toast, canEdit,
   kind: RecordKind; id: string; values: RecordValues; extras: Extras; reload: () => void; open: Ctx['open']; toast: Ctx['toast']; canEdit: boolean; compose: (r: Recipient) => void;
 }) {
   const [pick, setPick] = useState('');
+  const { kind: orgKind } = useRecords();
   if (kind === 'candidates') {
     const apps = (extras.applications ?? []) as { id: string; jobId: string; job: string; client: string | null; billRate: number | null; stage: Stage }[];
     const jobs = (extras.openJobs ?? []) as { id: string; label: string }[];
@@ -209,10 +210,11 @@ function RelatedExtras({ kind, id, values, extras, reload, open, toast, canEdit,
   if (kind === 'jobs') {
     const pay = Number(values.payRate) || 0, bill = Number(values.billRate) || 0, spread = bill - pay, openings = Number(values.openings) || 1;
     const apps = (extras.applications ?? []) as { id: string; candidateId: string; name: string; title: string | null; stage: Stage; matchScore: number | null }[];
+    const employer = orgKind === 'EMPLOYER';
     return <>
-      <section className="sec"><h3>Economics</h3>
+      {!employer && <section className="sec"><h3>Economics</h3>
         <div className="kpis"><div className="kpi"><b>{money(spread)}/hr</b><span>Spread</span></div><div className="kpi"><b>{bill ? `${Math.round((spread / bill) * 100)}%` : '—'}</b><span>Gross margin</span></div>
-          <div className="kpi"><b>{money(spread * HOURS_PER_WEEK * openings)}</b><span>Weekly GP if filled</span></div></div></section>
+          <div className="kpi"><b>{money(spread * HOURS_PER_WEEK * openings)}</b><span>Weekly GP if filled</span></div></div></section>}
       <section className="sec"><h3>Pipeline <a className="btn ghost sm" href={`/app/pipeline?job=${id}`}>Open board</a></h3>
         <div className="list">
           {apps.map((a) => (

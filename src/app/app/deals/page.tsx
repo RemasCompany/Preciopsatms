@@ -11,7 +11,7 @@ const money = (n: number) => n.toLocaleString('en-US', { style: 'currency', curr
 
 export default async function Deals() {
   const ctx = await requirePageContext();
-  if (!hasFeature(ctx.org, 'crm')) return <Gate title="Deals" feature="CRM" />;
+  if (!hasFeature(ctx.org, 'crm')) return <Gate title="Deals" feature="CRM" employer={ctx.org.kind === 'EMPLOYER'} />;
   const rows = await ctx.tdb.deal.findMany({ include: { client: { select: { name: true } } }, orderBy: [{ closeDate: { sort: 'asc', nulls: 'last' } }, { createdAt: 'desc' }] });
   const members = await db.membership.findMany({ where: { organizationId: ctx.org.id }, select: { user: { select: { id: true, name: true, email: true } } } });
   const owners = new Map(members.map((m) => [m.user.id, m.user.name || m.user.email]));

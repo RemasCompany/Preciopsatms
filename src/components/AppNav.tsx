@@ -34,7 +34,7 @@ export default function AppNav({ groups, company }: { groups: NavGroup[]; compan
   const current = groups.flatMap(([, items]) => items).find(([href]) => isActive(path, href))?.[1] ?? 'Preciops';
   const links = groups.map(([group, items]) => (
     <div key={group} className="navgroup"><span>{group}</span>
-      {items.map(([href, label]) => <Link key={href} href={href} aria-current={isActive(path, href) ? 'page' : undefined} onClick={() => setOpen(false)}>{label}</Link>)}
+      {items.map(([href, label]) => <Link key={href} href={href} aria-current={isActive(path, href) && !items.some(([h]) => h !== href && h.startsWith(`${href}/`) && isActive(path, h)) ? 'page' : undefined} onClick={() => setOpen(false)}>{label}</Link>)}
     </div>
   ));
   const tabs = TABS.filter(([href]) => groups.some(([, items]) => items.some(([h]) => h === href)));

@@ -38,7 +38,11 @@ export function checkTimes(t: { start: string; end: string; breakMinutes: number
 }
 
 /** Workers on assignment: placed on a job that isn't direct hire (the same people who get timesheets). */
-export const assignmentWhere = { stage: 'PLACED' as const, job: { type: { not: 'DIRECT_HIRE' as const } } };
+const terminated = { employee: { is: { status: 'TERMINATED' as const } } };
+/** Everyone working: placed on a job that isn't direct-hire, and not an employee whose employment has ended. */
+export const assignmentWhere = { stage: 'PLACED' as const, job: { type: { not: 'DIRECT_HIRE' as const } }, NOT: terminated };
+/** Paid from timesheets: as above, less salaried employees (their pay doesn't depend on hours). */
+export const hourlyWhere = { ...assignmentWhere, NOT: [terminated, { employee: { is: { payType: 'SALARY' as const } } }] };
 
 /** Refuses a shift that overlaps another of the worker's shifts on any assignment. */
 export async function assertNoOverlap(tdb: TenantDb, candidateId: string, shifts: ShiftTimes[], excludeId?: string) {

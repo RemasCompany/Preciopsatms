@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { stripe, stripeEnabled } from '@/lib/stripe';
-import { priceIdFor, PLANS } from '@/lib/plans';
+import { billingQuantity, stripe, stripeEnabled } from '@/lib/stripe';
+import { billedPerEmployee, planView, priceIdFor } from '@/lib/plans';
 import { db } from '@/lib/db';
 import { requireApiContext, withApi, HttpError } from '@/lib/tenant';
 import { audit } from '@/lib/audit';
@@ -15,12 +15,14 @@ export const POST = withApi(async (req: Request) => {
     customer = (await stripe.customers.create({ email: owner?.user.email, name: org.name, metadata: { slug: org.slug } })).id;
     await db.organization.update({ where: { id: org.id }, data: { stripeCustomerId: customer } });
   }
-  const seats = PLANS[plan].perSeat ? await db.membership.count({ where: { organizationId: org.id } }) : 1;
+  const seats = await billingQuantity({ ...org, plan });
+  let price: string;
+  try { price = priceIdFor(plan, org.kind); } catch { throw new HttpError(503, 'That plan isn’t available to buy yet. Your trial continues in the meantime.'); }
   const remainingTrial = org.trialEndsAt ? Math.ceil((org.trialEndsAt.getTime() - Date.now()) / 864e5) : 0;
   const session = await stripe.checkout.sessions.create({
     mode: 'subscription',
     customer,
-    line_items: [{ price: priceIdFor(plan), quantity: seats }],
+    line_items: [{ price, quantity: seats }],
     subscription_data: remainingTrial > 0 && !org.stripeSubscriptionId ? { trial_period_days: remainingTrial } : undefined,
     allow_promotion_codes: true,
     billing_address_collection: 'required',
@@ -29,6 +31,6 @@ export const POST = withApi(async (req: Request) => {
     success_url: `${process.env.APP_URL}/app/billing?status=success`,
     cancel_url: `${process.env.APP_URL}/app/billing`,
   });
-  await audit(org.id, user, 'billing.checkout', `Started checkout for the ${PLANS[plan].name} plan (${seats} seat${seats === 1 ? '' : 's'})`, { req });
+  await audit(org.id, user, 'billing.checkout', `Started checkout for the ${planView(plan, org.kind).name} plan (${seats} ${billedPerEmployee(org.kind) ? 'employee' : 'seat'}${seats === 1 ? '' : 's'})`, { req });
   return Response.json({ url: session.url });
 });

@@ -1,6 +1,6 @@
 import { db } from './db';
 
-const TYPE_LABEL: Record<string, string> = { CONTRACT: 'Contract', CONTRACT_TO_HIRE: 'Contract-to-hire', DIRECT_HIRE: 'Direct hire', TEMP: 'Temp', PER_DIEM: 'Per diem' };
+const TYPE_LABEL: Record<string, string> = { CONTRACT: 'Contract', CONTRACT_TO_HIRE: 'Contract-to-hire', DIRECT_HIRE: 'Direct hire', TEMP: 'Temp', PER_DIEM: 'Per diem', FULL_TIME: 'Full-time', PART_TIME: 'Part-time', SEASONAL: 'Seasonal' };
 
 /** The only data ever exposed publicly. No client names unless the org opts in; no bill rates, ever. */
 export async function publicJobs(slug: string) {

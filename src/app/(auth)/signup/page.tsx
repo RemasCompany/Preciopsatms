@@ -1,9 +1,11 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { signIn } from 'next-auth/react';
 
 export default function Signup() {
   const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
+  const [kind, setKind] = useState<'STAFFING' | 'EMPLOYER'>('STAFFING');
+  useEffect(() => { if (new URLSearchParams(window.location.search).get('type') === 'employer') setKind('EMPLOYER'); }, []);
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault(); setBusy(true); setErr('');
     const f = Object.fromEntries(new FormData(e.currentTarget)) as Record<string, string>;
@@ -15,6 +17,10 @@ export default function Signup() {
     <main className="public" style={{ maxWidth: 460 }}>
       <h1>Start your free trial</h1><p className="muted">No credit card needed to start.</p>
       <form className="card" onSubmit={submit}>
+        <fieldset className="kindpick"><legend>What kind of company are you?</legend>
+          <label className="check"><input type="radio" name="kind" value="STAFFING" checked={kind === 'STAFFING'} onChange={() => setKind('STAFFING')} /> <span><b>Staffing agency</b><span className="muted">We place workers with client companies.</span></span></label>
+          <label className="check"><input type="radio" name="kind" value="EMPLOYER" checked={kind === 'EMPLOYER'} onChange={() => setKind('EMPLOYER')} /> <span><b>Employer</b><span className="muted">We hire and manage our own employees.</span></span></label>
+        </fieldset>
         <label>Company name<input name="company" required /></label>
         <label>Your name<input name="name" required autoComplete="name" /></label>
         <label>Work email<input name="email" type="email" required autoComplete="email" /></label>

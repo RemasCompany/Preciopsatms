@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { Stage } from '@prisma/client';
 import { requireApiContext, withApi, logActivity, HttpError } from '@/lib/tenant';
+import { hireFromPipeline } from '@/lib/people';
 import { STAGE_ORDER as ORDER } from '@/lib/eeo';
 import { REJECTION_REASONS } from '@/lib/pipeline';
 import { hasFeature } from '@/lib/plans';
@@ -32,7 +33,8 @@ export const PATCH = withApi(async (req: Request, { params }: { params: { id: st
   await logActivity(org.id, `${app.candidate.name} moved to ${stage.toLowerCase()} for ${app.job.title}`, user.id);
 
   if (stage === 'PLACED') {
-    await tdb.candidate.updateMany({ where: { id: app.candidateId }, data: { status: 'On assignment' } });
+    if (org.kind === 'EMPLOYER') await hireFromPipeline(tdb, org, user, app.id);
+    else await tdb.candidate.updateMany({ where: { id: app.candidateId }, data: { status: 'On assignment' } });
     const placed = await tdb.application.count({ where: { jobId: app.jobId, stage: 'PLACED' } });
     if (placed >= app.job.openings && app.job.status === 'OPEN') {
       await tdb.job.updateMany({ where: { id: app.jobId }, data: { status: 'FILLED' } });
