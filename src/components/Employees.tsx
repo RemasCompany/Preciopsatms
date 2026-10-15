@@ -156,7 +156,7 @@ function EmployeeDrawer({ id, everyone, departments, branches, canEdit, admin, o
       {ended && e.endReason && <p className="muted">Reason: {e.endReason}</p>}
       {mode === 'end' ? <EndForm name={e.name} busy={busy} onCancel={() => setMode('view')} onSubmit={(b) => run(async () => {
         const r = await api(`/api/employees/${id}/terminate`, 'POST', b);
-        return r.effective ? `${e.name}’s employment has ended${r.removedShifts ? `; ${r.removedShifts} later shift${r.removedShifts === 1 ? '' : 's'} came off the schedule` : ''}.` : `Saved. ${e.name}’s last day is ${fmtDate(b.endDate)}.`;
+        return r.effective ? `${e.name}’s employment has ended${r.removedShifts ? `; ${r.removedShifts} later shift${r.removedShifts === 1 ? '' : 's'} came off the schedule` : ''}. Their checklist is on the Offboarding page.` : `Saved. ${e.name}’s last day is ${fmtDate(b.endDate)}; their checklist is on the Offboarding page.`;
       })} /> : mode === 'pay' ? <PayForm e={e} busy={busy} onCancel={() => setMode('view')} onSubmit={(b) => run(async () => {
         const r = await api(`/api/employees/${id}/pay`, 'POST', b);
         return r.applied ? 'Pay updated.' : `Saved. The new pay starts ${fmtDate(String(b.effectiveDate))}.`;

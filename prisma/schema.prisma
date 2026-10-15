@@ -87,6 +87,11 @@ model Organization {
   leavePolicies         LeavePolicy[]
   leaveRequests         LeaveRequest[]
   leaveEntries          LeaveEntry[]
+  reviewCycles          ReviewCycle[]
+  reviews               Review[]
+  goals                 Goal[]
+  offboardingTasks      OffboardingTask[]
+  offboardingTemplate   Json? // [{ title, owner, days }] — null uses the default checklist
   aiCreditsUsed         Int                  @default(0) // reset each billing period by webhook
   // Indeed Apply (candidates apply on Indeed; Indeed POSTs applications to /api/public/<slug>/indeed-apply)
   indeedApplyApiToken   String?
@@ -1354,6 +1359,9 @@ model Employee {
   compensation   CompensationChange[]
   leaveRequests  LeaveRequest[]
   leaveEntries   LeaveEntry[]
+  reviews        Review[]
+  goals          Goal[]
+  offboarding    OffboardingTask[]
 
   @@index([organizationId, status])
 }
@@ -1457,4 +1465,86 @@ model LeaveEntry {
   @@unique([organizationId, accrualKey])
   @@index([employeeId, policyId])
   @@index([organizationId, date])
+}
+
+// Performance reviews: a cycle asks the same questions of everyone in it (self review optional).
+model ReviewCycle {
+  id             String       @id @default(cuid())
+  organizationId String
+  name           String
+  periodStart    DateTime     @db.Date
+  periodEnd      DateTime     @db.Date
+  dueDate        DateTime     @db.Date
+  selfReview     Boolean      @default(true)
+  questions      Json // [{ id, text, kind: 'rating' | 'text' }]
+  status         String       @default("OPEN") // OPEN | CLOSED
+  createdById    String?
+  closedAt       DateTime?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  reviews        Review[]
+
+  @@index([organizationId, status])
+}
+
+model Review {
+  id                 String       @id @default(cuid())
+  organizationId     String
+  cycleId            String
+  employeeId         String
+  selfAnswers        Json? // { [questionId]: { rating?: 1-5, text?: string } }
+  selfSubmittedAt    DateTime?
+  managerAnswers     Json?
+  rating             Int? // overall, 1-5
+  summary            String?
+  reviewerId         String? // the user who wrote the manager review
+  managerSubmittedAt DateTime?
+  sharedAt           DateTime? // the employee can see the manager review
+  acknowledgedAt     DateTime?
+  employeeComment    String?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  cycle              ReviewCycle  @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  employee           Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([cycleId, employeeId])
+}
+
+model Goal {
+  id             String       @id @default(cuid())
+  organizationId String
+  employeeId     String
+  title          String
+  details        String?
+  dueDate        DateTime?    @db.Date
+  progress       Int          @default(0) // 0-100
+  status         String       @default("OPEN") // OPEN | DONE | DROPPED
+  createdById    String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  employee       Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+}
+
+// The checklist for someone leaving, created when their employment is ended.
+model OffboardingTask {
+  id             String       @id @default(cuid())
+  organizationId String
+  employeeId     String
+  title          String
+  owner          String? // HR | Manager | IT | Payroll
+  dueDate        DateTime?    @db.Date
+  doneAt         DateTime?
+  doneById       String?
+  note           String?
+  sort           Int          @default(0)
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  employee       Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@index([organizationId, doneAt])
 }

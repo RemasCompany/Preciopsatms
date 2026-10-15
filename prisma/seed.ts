@@ -174,7 +174,7 @@ async function seedEmployer(hash: string) {
     plan: 'growth', subscriptionStatus: 'trialing', trialEndsAt: new Date(Date.now() + 14 * DAY), applyEmail: 'careers@example.com' } });
   const user = await db.user.upsert({ where: { email: 'hr@example.com' }, update: {}, create: { email: 'hr@example.com', name: 'Hana Lee', passwordHash: hash } });
   await db.membership.upsert({ where: { userId_organizationId: { userId: user.id, organizationId: org.id } }, update: {}, create: { userId: user.id, organizationId: org.id, role: 'OWNER' } });
-  if (await db.employee.count({ where: { organizationId: org.id } })) return seedLeave(org.id, user.id);
+  if (await db.employee.count({ where: { organizationId: org.id } })) { await seedLeave(org.id, user.id); return seedReviews(org.id, user.id); }
   await db.$transaction(async (tx) => {
     const o = { organizationId: org.id };
     const site = (await tx.branch.create({ data: { ...o, name: 'Orlando DC', city: 'Orlando, FL' } })).id;
@@ -210,6 +210,7 @@ async function seedEmployer(hash: string) {
     await tx.job.create({ data: { ...o, title: 'Forklift Operator', type: 'FULL_TIME', branchId: site, payRate: 22, location: 'Orlando, FL', status: 'OPEN', openings: 2, description: 'Load and unload trailers on our day shift. Forklift certification preferred; we train.' } });
   }, { timeout: 120_000 });
   await seedLeave(org.id, user.id);
+  await seedReviews(org.id, user.id);
 }
 
 /** Time-off policies, balances and a few requests for the employer demo. */
@@ -230,6 +231,38 @@ async function seedLeave(orgId: string, userId: string) {
   const victor = by('Victor Ames');
   const r = await db.leaveRequest.create({ data: { ...o, employeeId: victor.id, policyId: vac.id, startDate: weekDay(3, 1), endDate: weekDay(4, 1), hoursPerDay: 8, hours: 16, status: 'APPROVED', decidedById: userId, decidedAt: new Date() } });
   await db.leaveEntry.createMany({ data: [3, 4].map((d) => ({ ...o, employeeId: victor.id, policyId: vac.id, date: weekDay(d, 1), hours: -8, kind: 'USAGE', requestId: r.id })) });
+}
+
+/** A review cycle in progress, goals, and someone leaving (with their checklist) for the employer demo. */
+async function seedReviews(orgId: string, userId: string) {
+  if (await db.reviewCycle.count({ where: { organizationId: orgId } })) return;
+  const o = { organizationId: orgId };
+  const { DEFAULT_QUESTIONS } = await import('../src/lib/reviews');
+  const y = today.getUTCFullYear();
+  const cycle = await db.reviewCycle.create({ data: { ...o, name: `${y} annual review`, periodStart: new Date(Date.UTC(y, 0, 1)), periodEnd: new Date(Date.UTC(y, 11, 31)), dueDate: days(21), questions: DEFAULT_QUESTIONS, createdById: userId } });
+  const people = await db.employee.findMany({ where: { ...o, status: { not: 'TERMINATED' } }, include: { candidate: { select: { name: true } } } });
+  const all = { q1: { rating: 4 }, q2: { rating: 4 }, q3: { rating: 5 }, q4: { rating: 4 }, q5: { text: 'Kept the dock on schedule through peak season.' }, q6: { text: 'Delegate more to the newer associates.' } };
+  for (const e of people) {
+    const n = e.candidate.name;
+    await db.review.create({ data: { ...o, cycleId: cycle.id, employeeId: e.id,
+      ...(['Dee Carter', 'Luis Ortega', 'Tom Nguyen'].includes(n) ? { selfAnswers: all, selfSubmittedAt: days(-3) } : {}),
+      ...(n === 'Dee Carter' ? { managerAnswers: all, rating: 4, summary: 'A dependable lead the crew trusts.', reviewerId: userId, managerSubmittedAt: days(-1) } : {}) } });
+  }
+  const by = (n: string) => people.find((e) => e.candidate.name === n);
+  const dee = by('Dee Carter'), aisha = by('Aisha Khan');
+  if (dee) await db.goal.createMany({ data: [
+    { ...o, employeeId: dee.id, title: 'Cross-train two associates on the reach truck', dueDate: days(60), progress: 50, createdById: userId },
+    { ...o, employeeId: dee.id, title: 'Cut dock-to-stock time below 4 hours', dueDate: days(90), progress: 25, createdById: userId },
+  ] });
+  // Aisha is leaving at the end of next week.
+  if (aisha) {
+    const last = weekDay(4, 1);
+    await db.employee.update({ where: { id: aisha.id }, data: { endDate: last, endReason: 'Resigned' } });
+    const { DEFAULT_TEMPLATE } = await import('../src/lib/offboarding');
+    await db.offboardingTask.createMany({ data: DEFAULT_TEMPLATE.map((t, i) => ({ ...o, employeeId: aisha.id, title: t.title, owner: t.owner, sort: i,
+      dueDate: new Date(last.getTime() + (t.finalPay ? 7 : t.days) * DAY), note: t.finalPay ? 'Pay by your next regular payday unless your state requires sooner. Check your state’s final-paycheck rule.' : null,
+      doneAt: i === 5 ? days(-1) : null })) });
+  }
 }
 
 main().catch((e) => { console.error(e); process.exit(1); }).finally(() => db.$disconnect());

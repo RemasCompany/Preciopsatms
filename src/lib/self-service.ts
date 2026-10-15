@@ -5,6 +5,7 @@ import { hasFeature } from './plans';
 import { balances, requestLeave, tracked } from './leave';
 import { hoursAmount, leaveAmount } from './payroll';
 import { totals, type RunItem } from './payroll-run';
+import { acknowledge, saveSelfReview, updateOwnGoal, type Question } from './reviews';
 
 /**
  * An employee's own page, on the private link they already use for their schedule and time clock: their job,
@@ -54,7 +55,20 @@ export async function employeeHub(link: Link) {
 
   const docs = hasFeature(o, 'esign') ? await tdb.signDocument.findMany({ where: { relatedType: 'candidate', relatedId: e.candidateId, status: { not: 'DRAFT' } }, orderBy: { createdAt: 'desc' }, take: 30, select: { id: true, title: true, status: true, signedAt: true, pdfFileId: true, createdAt: true } }) : [];
 
+  // Reviews: open self reviews to fill in, and manager reviews shared with them. Goals they can update.
+  const [reviews, goals] = hasFeature(o, 'reviews') ? await Promise.all([
+    tdb.review.findMany({ where: { employeeId: e.id, OR: [{ cycle: { status: 'OPEN', selfReview: true }, selfSubmittedAt: null }, { sharedAt: { not: null } }, { selfSubmittedAt: { not: null }, cycle: { status: 'OPEN' } }] }, include: { cycle: true }, orderBy: { createdAt: 'desc' }, take: 6 }),
+    tdb.goal.findMany({ where: { employeeId: e.id, status: { not: 'DROPPED' } }, orderBy: [{ status: 'desc' }, { createdAt: 'asc' }], take: 20 }),
+  ]) : [[], []];
+
   return {
+    reviews: reviews.map((r) => ({
+      id: r.id, cycle: r.cycle.name, dueDate: ymd(r.cycle.dueDate), questions: r.cycle.questions as Question[],
+      canSelf: r.cycle.status === 'OPEN' && r.cycle.selfReview && !r.selfSubmittedAt, self: r.selfAnswers, selfSubmitted: !!r.selfSubmittedAt,
+      // The manager review only once it's shared.
+      shared: r.sharedAt ? { answers: r.managerAnswers, rating: r.rating, summary: r.summary, acknowledged: !!r.acknowledgedAt, comment: r.employeeComment } : null,
+    })),
+    goals: goals.map((g) => ({ id: g.id, title: g.title, details: g.details, dueDate: g.dueDate ? ymd(g.dueDate) : null, progress: g.progress, status: g.status })),
     job: { title: e.title, department: e.department?.name ?? null, location: e.branch?.name ?? null, manager: e.manager?.candidate.name ?? null, startDate: ymd(e.startDate), status: e.status, employeeNumber: e.employeeNumber, salaried: e.payType === 'SALARY' },
     contact: { email: e.candidate.email, phone: e.candidate.phone },
     timeOff, stubs, weeks,
@@ -70,6 +84,9 @@ const Action = z.discriminatedUnion('action', [
   z.object({ action: z.literal('leave'), policyId: z.string(), startDate: z.string(), endDate: z.string(), hoursPerDay: z.coerce.number(), note: z.string().max(500).optional() }),
   z.object({ action: z.literal('cancelLeave'), requestId: z.string() }),
   z.object({ action: z.literal('profile'), email: z.string().optional(), phone: z.string().optional() }),
+  z.object({ action: z.literal('selfReview'), reviewId: z.string(), answers: z.unknown(), submit: z.boolean().optional() }),
+  z.object({ action: z.literal('acknowledge'), reviewId: z.string(), comment: z.string().max(2000).optional() }),
+  z.object({ action: z.literal('goal'), goalId: z.string(), progress: z.number() }),
 ]);
 
 /** What an employee can do from their own page. Everything is scoped to the person behind the link. */
@@ -85,6 +102,12 @@ export async function employeeAction(link: Link, body: unknown) {
     if (!hasFeature(o, 'timeoff')) throw new HttpError(404, 'Time off isn’t set up here. Ask your manager.');
     const r = await requestLeave({ tdb, org: o, user: null }, { employeeId: e.id, policyId: b.policyId, startDate: b.startDate, endDate: b.endDate, hoursPerDay: b.hoursPerDay, note: b.note }, { byEmployee: true });
     return { message: `Sent. You asked for ${r.hours} hours over ${r.days} day${r.days === 1 ? '' : 's'}; you’ll see the answer here.` };
+  }
+  if (b.action === 'selfReview' || b.action === 'acknowledge' || b.action === 'goal') {
+    if (!hasFeature(o, 'reviews')) throw new HttpError(404, 'Reviews aren’t set up here.');
+    if (b.action === 'selfReview') return saveSelfReview(tdb, e.id, b.reviewId, { answers: b.answers, submit: !!b.submit });
+    if (b.action === 'acknowledge') return acknowledge(tdb, e.id, b.reviewId, b.comment);
+    return updateOwnGoal(tdb, e.id, b.goalId, b.progress);
   }
   if (b.action === 'cancelLeave') {
     const r = await tdb.leaveRequest.findFirst({ where: { id: b.requestId, employeeId: e.id } });

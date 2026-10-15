@@ -1,7 +1,11 @@
 'use client';
 import { useState } from 'react';
+import ReviewAnswers, { RATING, type Answers, type Question } from './ReviewAnswers';
 
 export type WorkerMe = {
+  reviews?: { id: string; cycle: string; dueDate: string; questions: Question[]; canSelf: boolean; self: Answers | null; selfSubmitted: boolean;
+    shared: null | { answers: Answers | null; rating: number | null; summary: string | null; acknowledged: boolean; comment: string | null } }[];
+  goals?: { id: string; title: string; details: string | null; dueDate: string | null; progress: number; status: string }[];
   job: { title: string; department: string | null; location: string | null; manager: string | null; startDate: string; status: string; employeeNumber: string | null; salaried: boolean };
   contact: { email: string | null; phone: string | null };
   timeOff: null | {
@@ -28,6 +32,8 @@ export default function WorkerSelfService({ token, me, onChange }: { token: stri
   const tracked = me.timeOff?.policies.filter((p) => p.tracked) ?? [];
   const [f, setF] = useState({ policyId: me.timeOff?.policies[0]?.id ?? '', startDate: today, endDate: today, hoursPerDay: '8', note: '' });
   const [contact, setContact] = useState({ email: me.contact.email ?? '', phone: me.contact.phone ?? '' });
+  const [drafts, setDrafts] = useState<Record<string, Answers>>(() => Object.fromEntries((me.reviews ?? []).map((r) => [r.id, r.self ?? {}])));
+  const [ack, setAck] = useState<Record<string, string>>({});
 
   async function send(body: object, after?: () => void) {
     setBusy(true); setMsg(null);
@@ -68,6 +74,42 @@ export default function WorkerSelfService({ token, me, onChange }: { token: stri
               <span className="row"><span className={`pill ${STATUS[r.status][1]}`}>{STATUS[r.status][0]}</span>
                 {r.status === 'PENDING' && <button className="btn ghost sm" disabled={busy} onClick={() => send({ action: 'cancelLeave', requestId: r.id })}>Withdraw</button>}</span></li>
           ))}</ul>}
+        </div>
+      )}
+
+      {me.reviews?.map((r) => (
+        <div key={r.id} className="card">
+          <h2 style={{ marginTop: 0 }}>{r.cycle}</h2>
+          {r.canSelf ? <>
+            <p className="muted">Your self review — due {fmt(r.dueDate)}. Your manager sees it once you submit.</p>
+            <ReviewAnswers name={`self-${r.id}`} questions={r.questions} answers={drafts[r.id] ?? {}} onChange={(a) => setDrafts({ ...drafts, [r.id]: a })} />
+            <div className="row"><button className="btn" disabled={busy} onClick={() => send({ action: 'selfReview', reviewId: r.id, answers: drafts[r.id] ?? {}, submit: true })}>Submit self review</button>
+              <button className="btn ghost" disabled={busy} onClick={() => send({ action: 'selfReview', reviewId: r.id, answers: drafts[r.id] ?? {}, submit: false })}>Save for later</button></div>
+          </> : r.selfSubmitted && !r.shared ? <p className="muted">You submitted your self review. Your manager’s review will show here when it’s shared with you.</p> : null}
+          {r.shared && <>
+            <p><b>Overall: {r.shared.rating ? `${r.shared.rating} — ${RATING[r.shared.rating]}` : 'not rated'}</b></p>
+            {r.shared.summary && <p>{r.shared.summary}</p>}
+            <ReviewAnswers name={`mgr-${r.id}`} questions={r.questions} answers={r.shared.answers} />
+            {r.shared.acknowledged ? <p className="okc">You acknowledged this review{r.shared.comment ? ` and commented: “${r.shared.comment}”` : ''}.</p> : <>
+              <label className="full"><span>Your comments (optional)</span><textarea rows={2} maxLength={2000} value={ack[r.id] ?? ''} onChange={(e) => setAck({ ...ack, [r.id]: e.target.value })} /></label>
+              <button className="btn" disabled={busy} onClick={() => send({ action: 'acknowledge', reviewId: r.id, comment: ack[r.id] ?? '' })}>I’ve read this review</button>
+              <p className="muted" style={{ fontSize: 13 }}>Acknowledging means you’ve read it, not that you agree.</p>
+            </>}
+          </>}
+        </div>
+      ))}
+
+      {!!me.goals?.length && (
+        <div className="card">
+          <h2 style={{ marginTop: 0 }}>Your goals</h2>
+          <ul className="plainlist">{me.goals.map((g) => (
+            <li key={g.id} style={{ flexWrap: 'wrap' }}><div style={{ flex: '1 1 200px' }}><b>{g.title}</b>{g.dueDate && <span className="muted"> · by {fmt(g.dueDate)}</span>}{g.details && <div className="muted">{g.details}</div>}
+              <div className="progress" aria-hidden="true"><i style={{ width: `${g.progress}%` }} /></div></div>
+              {g.status === 'OPEN' ? <label className="row" style={{ margin: 0, gap: 6 }}><span className="muted">Progress</span>
+                <select value={g.progress} disabled={busy} aria-label={`Progress on ${g.title}`} onChange={(e) => send({ action: 'goal', goalId: g.id, progress: Number(e.target.value) })}>
+                  {[0, 10, 25, 50, 75, 90, 100].concat([g.progress]).filter((v, i, x) => x.indexOf(v) === i).sort((x, y) => x - y).map((n) => <option key={n} value={n}>{n}%</option>)}
+                </select></label> : <span className="pill g">Done</span>}</li>
+          ))}</ul>
         </div>
       )}
 

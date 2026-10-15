@@ -6,6 +6,7 @@ import { db } from './db';
 import { localDate } from './timeclock';
 import { syncSeats } from './stripe';
 import { EMPLOYMENT_TYPES, money } from './people-shared';
+import { createChecklist } from './offboarding';
 
 /**
  * Employees: people on the company's own payroll. Each one has a person record (Candidate: contact details,
@@ -219,6 +220,7 @@ export async function terminate(ctx: Ctx, employeeId: string, body: unknown) {
   if (!b.rehire && !(await tdb.doNotReturn.findFirst({ where: { candidateId: e.candidateId, clientId: null, liftedAt: null } }))) {
     await tdb.doNotReturn.create({ data: { candidateId: e.candidateId, clientId: null, reason: `Not eligible for rehire: ${b.reason}`, source: 'staff', createdById: user.id } as never });
   }
+  await createChecklist(tdb, org, e.id, b.endDate, b.reason);
   const effective = b.endDate <= localDate(new Date(), org.timezone);
   const removed = effective ? await endNow(tdb, e.id, b.endDate) : 0;
   await audit(org.id, user, 'employee.terminate', `Ended ${e.candidate.name}’s employment, last day ${b.endDate} (${b.reason})${b.rehire ? '' : ', not eligible for rehire'}`, { targetType: 'Employee', targetId: e.id });
