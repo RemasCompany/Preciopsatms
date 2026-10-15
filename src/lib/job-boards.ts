@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from 'crypto';
-import { BOARDS, isBoard, type Board } from './boards';
+import type { TenantDb } from './tenant';
+import { BOARDS, BOARD_INFO, isBoard, postsTo, type Board } from './boards';
 export { BOARDS, isBoard, type Board };
 
 /**
@@ -15,9 +16,9 @@ const JOBTYPE: Record<string, string> = { CONTRACT: 'contract', CONTRACT_TO_HIRE
 
 export type FeedJob = {
   id: string; title: string; type: string; location: string; postalCode: string | null; remote: boolean; sector: string;
-  description: string; payRate: number; posted: string; url: string; external: boolean;
+  description: string; payRate: number; posted: string; url: string; external: boolean; boards?: string[];
 };
-export type FeedOrg = { company: string; website: string | null; email: string | null; slug: string; indeedApplyApiToken: string | null };
+export type FeedOrg = { company: string; website: string | null; email: string | null; slug: string; indeedApplyApiToken: string | null; jobBoards?: string[]; linkedinCompanyId?: string | null };
 
 export function splitLocation(location: string) {
   const [city = '', state = ''] = location.split(',').map((s) => s.trim());
@@ -48,8 +49,14 @@ export function indeedApplyData(job: FeedJob, org: FeedOrg, appUrl: string) {
   return params.map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
 }
 
-/** The XML feed. Jobs with an external apply link keep it and never get Indeed Apply. */
-export function buildFeed(org: FeedOrg, jobs: FeedJob[], board: Board | null, appUrl: string, now = new Date()) {
+/**
+ * The XML feed for one board (or, with no board, every published job for any aggregator). A board that's turned off
+ * gets an empty feed, so it drops the jobs; a job posted only to some boards appears only in their feeds.
+ * Jobs with an external apply link keep it and never get Indeed Apply.
+ */
+export function buildFeed(org: FeedOrg, all: FeedJob[], board: Board | null, appUrl: string, now = new Date()) {
+  const jobs = board ? all.filter((j) => postsTo(org.jobBoards ?? [], j.boards ?? [], board)) : all;
+  if (board && BOARD_INFO[board].format === 'linkedin') return linkedInFeed(org, jobs, appUrl, now);
   const indeedApply = !!org.indeedApplyApiToken && (board === null || board === 'indeed');
   const items = jobs.map((j) => {
     const { city, state } = splitLocation(j.location);
@@ -91,4 +98,47 @@ export function verifyIndeedSignature(rawBody: string, signature: string | null,
   const expected = Buffer.from(createHmac('sha1', secret).update(rawBody, 'utf8').digest('base64'));
   const given = Buffer.from(signature.trim());
   return expected.length === given.length && timingSafeEqual(expected, given);
+}
+
+// LinkedIn's job types and workplace types.
+const LI_TYPE: Record<string, string> = { FULL_TIME: 'FULL_TIME', DIRECT_HIRE: 'FULL_TIME', PART_TIME: 'PART_TIME', CONTRACT: 'CONTRACT', CONTRACT_TO_HIRE: 'CONTRACT', TEMP: 'TEMPORARY', SEASONAL: 'TEMPORARY', PER_DIEM: 'TEMPORARY' };
+
+/** LinkedIn's job XML feed format (partner job feeds, Limited Listings and job slots). */
+export function linkedInFeed(org: FeedOrg, jobs: FeedJob[], appUrl: string, now = new Date()) {
+  const items = jobs.map((j) => {
+    const { city, state } = splitLocation(j.location);
+    const tags: [string, unknown][] = [
+      ['partnerJobId', j.id], ['company', org.company], ...(org.linkedinCompanyId ? [['companyId', org.linkedinCompanyId] as [string, unknown]] : []),
+      ['title', j.title], ['description', descriptionHtml(j.description || j.title)], ['applyUrl', j.external ? j.url : withSource(j.url, 'linkedin')],
+      ['location', j.remote ? 'United States' : [city, state, 'US'].filter(Boolean).join(', ')], ['city', j.remote ? '' : city], ['state', j.remote ? '' : state], ['country', 'US'], ['postalCode', j.postalCode ?? ''],
+      ['jobtype', LI_TYPE[j.type] ?? 'OTHER'], ['workplaceTypes', j.remote ? 'Remote' : 'On-site'], ['listDate', j.posted],
+    ];
+    const salary = j.payRate ? `<salaries><salary><highEnd><amount>${j.payRate.toFixed(2)}</amount><currencyCode>USD</currencyCode></highEnd><lowEnd><amount>${j.payRate.toFixed(2)}</amount><currencyCode>USD</currencyCode></lowEnd><period>HOURLY</period><type>BASE_SALARY</type></salary></salaries>` : '';
+    return `<job>${tags.map(([k, v]) => `<${k}>${cdata(v)}</${k}>`).join('')}${salary}</job>`;
+  });
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<source>
+<lastBuildDate>${now.toUTCString()}</lastBuildDate>
+<publisherUrl>${cdata(org.website ?? `${appUrl}/careers/${org.slug}`)}</publisherUrl>
+<publisher>${cdata(org.company)}</publisher>
+<expectedJobCount>${jobs.length}</expectedJobCount>
+${items.join('\n')}
+</source>`;
+}
+
+/** Where an application came from, as stored on it: a board key, google, or careers. */
+export const sourceKey = (src: string | null | undefined) => (isBoard(src) ? src : src === 'google' ? 'google' : 'careers');
+
+/** Applicants and hires per source over the last `days` days, for judging which boards are worth it. */
+export async function boardStats(tdb: TenantDb, days = 90, jobId?: string) {
+  const since = new Date(Date.now() - days * 864e5);
+  const rows = await tdb.application.groupBy({ by: ['source', 'stage'], where: { createdAt: { gte: since }, source: { not: null }, ...(jobId ? { jobId } : {}) }, _count: { _all: true } });
+  const out: Record<string, { applicants: number; hired: number }> = {};
+  for (const r of rows) {
+    const k = r.source!;
+    out[k] ??= { applicants: 0, hired: 0 };
+    out[k].applicants += r._count._all;
+    if (r.stage === 'PLACED') out[k].hired += r._count._all;
+  }
+  return out;
 }

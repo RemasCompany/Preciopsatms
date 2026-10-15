@@ -1,3 +1,4 @@
+import { boardStats } from './job-boards';
 import { z } from 'zod';
 import { Prisma } from '@prisma/client';
 import { HttpError, type TenantDb } from './tenant';
@@ -131,7 +132,13 @@ async function loadRelated(tdb: TenantDb, kind: RecordKind, id: string) {
   switch (kind) {
     case 'jobs': {
       const apps = await tdb.application.findMany({ where: { jobId: id }, include: { candidate: { select: { name: true, title: true } } }, orderBy: { stageChangedAt: 'desc' } });
-      return { applications: apps.map((a) => ({ id: a.id, candidateId: a.candidateId, name: a.candidate.name, title: a.candidate.title, stage: a.stage, matchScore: a.matchScore })) };
+      // Job boards: the company's boards that are on, the ones this job goes to, and what each has sent for it.
+      const job = await tdb.job.findFirst({ where: { id }, select: { boards: true, organizationId: true, publish: true, status: true } });
+      const org = job ? await db.organization.findUnique({ where: { id: job.organizationId }, select: { jobBoards: true } }) : null;
+      return {
+        applications: apps.map((a) => ({ id: a.id, candidateId: a.candidateId, name: a.candidate.name, title: a.candidate.title, stage: a.stage, matchScore: a.matchScore, source: a.source })),
+        boards: { on: org?.jobBoards ?? [], selected: job?.boards ?? [], live: !!job?.publish && job?.status === 'OPEN', stats: await boardStats(tdb, 3650, id) },
+      };
     }
     case 'candidates': {
       const apps = await tdb.application.findMany({ where: { candidateId: id }, include: { job: { select: { title: true, billRate: true, client: { select: { name: true } } } } }, orderBy: { createdAt: 'desc' } });

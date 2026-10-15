@@ -23,7 +23,7 @@ import { POST as APPLY } from '@/app/api/public/[slug]/apply/route';
 import { PATCH as ORG } from '@/app/api/org/route';
 
 const APP = 'https://app.preciopsatms.com';
-const org: FeedOrg = { company: 'Demo Staffing, LLC', website: 'https://demo.test', email: 'jobs@demo.test', slug: 'demo', indeedApplyApiToken: null };
+const org: FeedOrg = { company: 'Demo Staffing, LLC', website: 'https://demo.test', email: 'jobs@demo.test', slug: 'demo', indeedApplyApiToken: null, jobBoards: ['indeed', 'ziprecruiter', 'talent', 'jooble', 'careerjet', 'adzuna'] };
 const job = (over: Partial<FeedJob> = {}): FeedJob => ({
   id: 'job1', title: 'Forklift Operator & Loader', type: 'TEMP', location: 'Orlando, FL', postalCode: '32801', remote: false, sector: 'Warehouse',
   description: 'Load trucks.\nUse RF scanners.\n\nPay weekly <b>bonus</b>.', payRate: 18.5, posted: '2026-09-01', url: `${APP}/careers/demo/job1`, external: false, ...over,
@@ -107,7 +107,7 @@ const application = (over: Record<string, unknown> = {}) => ({
 });
 
 beforeAll(async () => {
-  const o = await db.organization.create({ data: { name: 'Board Co', slug: `b-${RUN}`, plan: 'growth', subscriptionStatus: 'active', applyEmail: 'jobs@b.test', indeedApplyApiToken: 'tok', indeedApplySecret: SECRET } });
+  const o = await db.organization.create({ data: { name: 'Board Co', slug: `b-${RUN}`, plan: 'growth', subscriptionStatus: 'active', applyEmail: 'jobs@b.test', indeedApplyApiToken: 'tok', indeedApplySecret: SECRET, jobBoards: ['indeed', 'ziprecruiter'] } });
   orgId = o.id;
   jobId = (await db.job.create({ data: { organizationId: orgId, title: 'Picker', location: 'Austin, TX', postalCode: '78701', type: 'TEMP', payRate: 17, description: 'Pick and pack orders.' } })).id;
   const other = await db.organization.create({ data: { name: 'Other', slug: `o-${RUN}`, subscriptionStatus: 'active' } });

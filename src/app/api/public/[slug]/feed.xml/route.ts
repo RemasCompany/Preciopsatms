@@ -12,8 +12,8 @@ export async function GET(req: Request, { params }: { params: { slug: string } }
   if (!data) return new Response('Not found', { status: 404 });
   const b = new URL(req.url).searchParams.get('board');
   const xml = buildFeed(
-    { company: data.company, website: data.website, email: data.email, slug: data.slug, indeedApplyApiToken: data.indeedApplyApiToken },
-    data.jobs.map((j) => ({ id: j.id, title: j.title, type: j.rawType, location: j.location, postalCode: j.postalCode, remote: j.remote, sector: j.sector, description: j.description, payRate: j.payRate, posted: j.posted, url: j.url, external: j.external })),
+    { company: data.company, website: data.website, email: data.email, slug: data.slug, indeedApplyApiToken: data.indeedApplyApiToken, jobBoards: data.jobBoards, linkedinCompanyId: data.linkedinCompanyId },
+    data.jobs.map((j) => ({ id: j.id, title: j.title, type: j.rawType, location: j.location, postalCode: j.postalCode, remote: j.remote, sector: j.sector, description: j.description, payRate: j.payRate, posted: j.posted, url: j.url, external: j.external, boards: j.boards })),
     isBoard(b) ? b : null, process.env.APP_URL ?? '',
   );
   return new Response(xml, { headers: { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'public, s-maxage=300' } });

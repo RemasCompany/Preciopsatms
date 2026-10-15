@@ -60,7 +60,7 @@ export async function POST(req: Request, { params }: { params: { slug: string } 
   }
   const existing = await tdb.application.findFirst({ where: { candidateId: cand.id, jobId: job.id } });
   if (existing) return Response.json({ ok: true, duplicate: true });
-  await tdb.application.create({ data: { candidateId: cand.id, jobId: job.id, stage: 'APPLIED', maxStage: 'APPLIED' } as never });
+  await tdb.application.create({ data: { candidateId: cand.id, jobId: job.id, stage: 'APPLIED', maxStage: 'APPLIED', source: 'indeed' } as never });
   await db.activity.create({ data: { organizationId: org.id, text: `${a.fullName} applied to ${job.title} via Indeed` } });
   if (org.applyEmail) await sendEmail({ to: org.applyEmail, replyTo: email, subject: `New applicant from Indeed: ${a.fullName} for ${job.title}`,
     text: `${a.fullName} (${email}${a.phoneNumber ? ', ' + a.phoneNumber : ''}) applied to ${job.title} on Indeed.\n\nOpen Preciops to review: ${process.env.APP_URL}/app/pipeline?job=${job.id}` })

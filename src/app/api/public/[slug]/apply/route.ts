@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { cleanEeoAnswer } from '@/lib/eeo';
-import { sourceFor } from '@/lib/job-boards';
+import { sourceFor, sourceKey } from '@/lib/job-boards';
 import { db } from '@/lib/db';
 import { tenantDb } from '@/lib/tenant';
 import { putFile } from '@/lib/storage';
@@ -42,7 +42,7 @@ export async function POST(req: Request, { params }: { params: { slug: string } 
   else await tdb.candidate.updateMany({ where: { id: cand.id }, data: { ...(resumeFileId ? { resumeFileId } : {}), ...(f.phone ? { phone: f.phone } : {}) } });
 
   const existing = await tdb.application.findFirst({ where: { candidateId: cand.id, jobId: job.id } });
-  if (!existing) await tdb.application.create({ data: { candidateId: cand.id, jobId: job.id, stage: 'APPLIED', maxStage: 'APPLIED' } as never });
+  if (!existing) await tdb.application.create({ data: { candidateId: cand.id, jobId: job.id, stage: 'APPLIED', maxStage: 'APPLIED', source: sourceKey(f.src) } as never });
 
   if (f.gender || f.race || f.veteran || f.disability) {
     const prev = await tdb.eeoSelfId.findFirst({ where: { candidateId: cand.id } });

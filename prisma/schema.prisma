@@ -62,6 +62,8 @@ model Organization {
   birthdayGreetings     Boolean              @default(false) // send workers on assignment a greeting on their birthday
   kind                  OrgKind              @default(STAFFING)
   hrEnabled             Boolean              @default(false) // a staffing agency also tracks its own (internal) employees
+  jobBoards             String[]             @default([]) // job boards turned on (their feeds list jobs)
+  linkedinCompanyId     String? // for the LinkedIn job feed
   // Billing
   plan                  PlanId               @default(starter)
   stripeCustomerId      String?              @unique
@@ -239,6 +241,7 @@ model Job {
   siteLng        Float?
   geofenceMeters Int?
   requiredCerts  String[]       @default([]) // equipment certifications (credential types) a worker needs for this job
+  boards         String[]       @default([]) // job boards to post to; empty = every board that's turned on
   branchId       String?
   branch         Branch?        @relation(fields: [branchId], references: [id], onDelete: SetNull)
 
@@ -309,6 +312,7 @@ model Application {
   maxStage        Stage        @default(SOURCED) // furthest stage reached, for EEO applicant-flow reporting
   rejectionReason String? // required when stage = REJECTED
   matchScore      Int?
+  source          String? // where the application came from: a job board key, google, careers or manual
   stageChangedAt  DateTime     @default(now())
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt

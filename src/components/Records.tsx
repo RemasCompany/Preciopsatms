@@ -11,6 +11,7 @@ import RecordForm, { invalidateRefs } from './RecordForm';
 import { RECORDS, defaultsFor, labelFor, vendorCompliance, HOURS_PER_WEEK, type RecordKind, type RecordValues } from '@/lib/records';
 import { BOARD_STAGES, REJECTION_REASONS, stageLabel } from '@/lib/pipeline';
 import BackgroundChecks from './BackgroundChecks';
+import { BOARD_INFO, isBoard, type Board } from '@/lib/boards';
 import DoNotReturn from './DoNotReturn';
 
 type Open = { kind: RecordKind; id?: string; preset?: RecordValues };
@@ -209,7 +210,7 @@ function RelatedExtras({ kind, id, values, extras, reload, open, toast, canEdit,
   }
   if (kind === 'jobs') {
     const pay = Number(values.payRate) || 0, bill = Number(values.billRate) || 0, spread = bill - pay, openings = Number(values.openings) || 1;
-    const apps = (extras.applications ?? []) as { id: string; candidateId: string; name: string; title: string | null; stage: Stage; matchScore: number | null }[];
+    const apps = (extras.applications ?? []) as { id: string; candidateId: string; name: string; title: string | null; stage: Stage; matchScore: number | null; source?: string | null }[];
     const employer = orgKind === 'EMPLOYER';
     return <>
       {!employer && <section className="sec"><h3>Economics</h3>
@@ -218,11 +219,12 @@ function RelatedExtras({ kind, id, values, extras, reload, open, toast, canEdit,
       <section className="sec"><h3>Pipeline <a className="btn ghost sm" href={`/app/pipeline?job=${id}`}>Open board</a></h3>
         <div className="list">
           {apps.map((a) => (
-            <div key={a.id} className="li"><button className="link x" onClick={() => open('candidates', a.candidateId)}><b>{a.name}</b><span className="muted">{[a.matchScore ? `Match ${a.matchScore}` : null, a.title].filter(Boolean).join(' · ')}</span></button>
+            <div key={a.id} className="li"><button className="link x" onClick={() => open('candidates', a.candidateId)}><b>{a.name}</b><span className="muted">{[a.matchScore ? `Match ${a.matchScore}` : null, a.title, a.source ? `via ${sourceLabel(a.source)}` : null].filter(Boolean).join(' · ')}</span></button>
               <StageSelect appId={a.id} stage={a.stage} onMoved={reload} canEdit={canEdit} /></div>
           ))}
           {!apps.length && <p className="muted">No candidates yet.</p>}
         </div></section>
+      {extras.boards ? <JobBoardPicker jobId={id} data={extras.boards as BoardData} canEdit={canEdit} reload={reload} /> : null}
     </>;
   }
   if (kind === 'clients') {
@@ -349,4 +351,36 @@ const RED = ['Void', 'Closed', 'Suspended', 'Lost', 'Disqualified', 'Do not use'
 export function Pill({ s }: { s: string | null | undefined }) {
   const t = s || '—';
   return <span className={`pill${GOOD.includes(t) ? ' g' : AMBER.includes(t) ? ' a' : RED.includes(t) ? ' r' : ''}`}>{t}</span>;
+}
+
+type BoardData = { on: string[]; selected: string[]; live: boolean; stats: Record<string, { applicants: number; hired: number }> };
+const sourceLabel = (k: string) => (isBoard(k) ? BOARD_INFO[k].name : k === 'google' ? 'Google for Jobs' : k === 'careers' ? 'careers page' : k);
+
+/** Which job boards this job goes to (all that are on, or a chosen few), and what each has sent. */
+function JobBoardPicker({ jobId, data, canEdit, reload }: { jobId: string; data: BoardData; canEdit: boolean; reload: () => void }) {
+  const { toast } = useRecords();
+  const on = data.on.filter(isBoard);
+  const [pick, setPick] = useState<string[]>(data.selected.filter((b) => on.includes(b as Board)));
+  const [busy, setBusy] = useState(false);
+  const everywhere = !pick.length;
+  async function save(next: string[]) {
+    setBusy(true);
+    try { await api(`/api/jobs/${jobId}/boards`, 'PUT', { boards: next }); setPick(next); toast(next.length ? `Posting to ${next.length} board${next.length === 1 ? '' : 's'}.` : 'Posting to every board that’s on.'); reload(); }
+    catch (e) { toast((e as Error).message, true); } finally { setBusy(false); }
+  }
+  const sources = Object.entries(data.stats).sort((a, b) => b[1].applicants - a[1].applicants);
+  return (
+    <section className="sec"><h3>Job boards</h3>
+      {!on.length ? <p className="muted">No job boards are on. Turn them on in <a href="/app/settings">Settings & data</a>; jobs appear on them automatically.</p> : <>
+        {!data.live && <p className="warn">Boards only list open jobs with “Show on careers page” checked.</p>}
+        <label className="check"><input type="radio" name={`b-${jobId}`} checked={everywhere} disabled={!canEdit || busy} onChange={() => save([])} /> Every board that’s on ({on.length})</label>
+        <label className="check"><input type="radio" name={`b-${jobId}`} checked={!everywhere} disabled={!canEdit || busy} onChange={() => setPick(on.slice(0, 1))} /> Only these:</label>
+        {!everywhere && <div className="row" style={{ flexWrap: 'wrap', gap: '4px 14px', margin: '4px 0 6px 24px' }}>
+          {on.map((b) => <label key={b} className="check" style={{ margin: 0 }}><input type="checkbox" checked={pick.includes(b)} disabled={!canEdit || busy} onChange={(e) => setPick(e.target.checked ? [...pick, b] : pick.filter((x) => x !== b))} /> {BOARD_INFO[b].name}</label>)}
+          {canEdit && <button className="btn sm" disabled={busy || !pick.length} onClick={() => save(pick)}>Save</button>}
+        </div>}
+      </>}
+      {sources.length > 0 && <p className="muted" style={{ fontSize: 13 }}>Applicants: {sources.map(([k, v]) => `${sourceLabel(k)} ${v.applicants}${v.hired ? ` (${v.hired} hired)` : ''}`).join(' · ')}</p>}
+    </section>
+  );
 }

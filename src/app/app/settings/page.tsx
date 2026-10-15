@@ -3,7 +3,7 @@ import SettingsForm from '@/components/SettingsForm';
 import CompanyType from '@/components/CompanyType';
 import DataTools from '@/components/DataTools';
 import JobBoards from '@/components/JobBoards';
-import { feedWarnings } from '@/lib/job-boards';
+import { boardStats, feedWarnings } from '@/lib/job-boards';
 import { hasFeature, planIncludes } from '@/lib/plans';
 import { OnboardingSettings } from '@/components/Onboarding';
 import { AccountingCard } from '@/components/Accounting';
@@ -42,7 +42,8 @@ export default async function Settings({ searchParams }: { searchParams: { accou
         <label><span>Embed on your website</span><textarea readOnly rows={2} value={`<div id="preci-careers" data-org="${org.slug}"></div><script src="${base}/embed.js" async></script>`} /></label>
         <p className="muted">The page and widget update automatically as jobs open and close. Uncheck “Show on careers page” on a job to keep it internal.</p>
       </section>
-      <JobBoards base={base} slug={org.slug} readOnly={!admin} indeed={{ apiToken: org.indeedApplyApiToken, hasSecret: !!org.indeedApplySecret }} warnings={warnings} />
+      <JobBoards base={base} slug={org.slug} readOnly={!admin} indeed={{ apiToken: org.indeedApplyApiToken, hasSecret: !!org.indeedApplySecret }} warnings={warnings}
+        boards={org.jobBoards} linkedin={org.linkedinCompanyId} stats={await boardStats(tdb)} />
       {showBooks && (
         <AccountingCard canEdit={admin} error={searchParams.accounting_error?.slice(0, 300)} justConnected={searchParams.accounting === 'connected'}
           providers={(Object.keys(PROVIDERS) as Provider[]).map((p) => {
