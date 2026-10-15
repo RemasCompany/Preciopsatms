@@ -6,3 +6,5 @@ export function hoursAmount(regularHours: number, overtimeHours: number, rate: n
 }
 
 export const overtimeRate = (rate: number) => rate * OT_MULTIPLIER;
+/** Paid time off: the regular rate, never overtime. */
+export const leaveAmount = (hours: number, rate: number) => Math.round(hours * rate * 100) / 100;

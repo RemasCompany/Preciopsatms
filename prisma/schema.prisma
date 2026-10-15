@@ -84,6 +84,9 @@ model Organization {
   departments           Department[]
   employees             Employee[]
   compensationChanges   CompensationChange[]
+  leavePolicies         LeavePolicy[]
+  leaveRequests         LeaveRequest[]
+  leaveEntries          LeaveEntry[]
   aiCreditsUsed         Int                  @default(0) // reset each billing period by webhook
   // Indeed Apply (candidates apply on Indeed; Indeed POSTs applications to /api/public/<slug>/indeed-apply)
   indeedApplyApiToken   String?
@@ -465,6 +468,7 @@ model Timesheet {
   weekEnding        DateTime        @db.Date
   regularHours      Decimal         @default(0) @db.Decimal(6, 2)
   overtimeHours     Decimal         @default(0) @db.Decimal(6, 2)
+  leaveHours        Decimal         @default(0) @db.Decimal(6, 2) // approved paid time off, at the regular rate (not worked, so never overtime)
   payRate           Decimal         @db.Decimal(10, 2) // snapshot at entry
   billRate          Decimal         @db.Decimal(10, 2) // snapshot at entry
   status            TimesheetStatus @default(DRAFT)
@@ -1050,6 +1054,8 @@ model PayrollItem {
   billRate       Decimal             @db.Decimal(10, 2)
   regularPay     Decimal             @db.Decimal(12, 2)
   overtimePay    Decimal             @db.Decimal(12, 2)
+  leaveHours     Decimal             @default(0) @db.Decimal(6, 2)
+  leavePay       Decimal             @default(0) @db.Decimal(12, 2)
   createdAt      DateTime            @default(now())
   run            PayrollRun          @relation(fields: [runId], references: [id], onDelete: Cascade)
   adjustments    PayrollAdjustment[]
@@ -1346,6 +1352,8 @@ model Employee {
   manager        Employee?            @relation("Reports", fields: [managerId], references: [id], onDelete: SetNull)
   reports        Employee[]           @relation("Reports")
   compensation   CompensationChange[]
+  leaveRequests  LeaveRequest[]
+  leaveEntries   LeaveEntry[]
 
   @@index([organizationId, status])
 }
@@ -1366,4 +1374,87 @@ model CompensationChange {
   employee       Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   @@index([employeeId, effectiveDate])
+}
+
+enum AccrualMethod {
+  NONE // not tracked (e.g. unpaid leave, jury duty)
+  ANNUAL // hours per year, credited monthly
+  HOURS_WORKED // hours earned per hour worked (approved timesheets)
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  DENIED
+  CANCELLED
+}
+
+model LeavePolicy {
+  id             String           @id @default(cuid())
+  organizationId String
+  name           String
+  paid           Boolean          @default(true)
+  method         AccrualMethod    @default(ANNUAL)
+  rate           Decimal          @default(0) @db.Decimal(9, 4) // ANNUAL: hours a year; HOURS_WORKED: hours earned per hour worked
+  maxBalance     Decimal?         @db.Decimal(8, 2) // accrual stops at this balance
+  waitingDays    Int              @default(0) // usable this many days after the start date
+  types          EmploymentType[] @default([]) // eligible employment types; empty = everyone
+  archived       Boolean          @default(false)
+  createdAt      DateTime         @default(now())
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  requests       LeaveRequest[]
+  entries        LeaveEntry[]
+
+  @@unique([organizationId, name])
+}
+
+model LeaveRequest {
+  id             String       @id @default(cuid())
+  organizationId String
+  employeeId     String
+  policyId       String
+  startDate      DateTime     @db.Date
+  endDate        DateTime     @db.Date
+  hoursPerDay    Decimal      @db.Decimal(5, 2)
+  hours          Decimal      @db.Decimal(7, 2)
+  note           String?
+  status         LeaveStatus  @default(PENDING)
+  byEmployee     Boolean      @default(false) // asked for from the employee's own page
+  createdById    String?
+  decidedById    String?
+  decidedAt      DateTime?
+  decisionNote   String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  employee       Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  policy         LeavePolicy  @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  entries        LeaveEntry[]
+
+  @@index([organizationId, status])
+  @@index([employeeId, startDate])
+}
+
+// The balance ledger: accruals (+), time taken (−, one row per day) and manual adjustments. Balance = sum.
+model LeaveEntry {
+  id             String        @id @default(cuid())
+  organizationId String
+  employeeId     String
+  policyId       String
+  date           DateTime      @db.Date
+  hours          Decimal       @db.Decimal(7, 2)
+  kind           String // ACCRUAL | USAGE | ADJUSTMENT
+  note           String?
+  requestId      String?
+  accrualKey     String? // makes each accrual happen once (policy + timesheet, or policy + employee + period)
+  createdById    String?
+  createdAt      DateTime      @default(now())
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  employee       Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  policy         LeavePolicy   @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  request        LeaveRequest? @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, accrualKey])
+  @@index([employeeId, policyId])
+  @@index([organizationId, date])
 }

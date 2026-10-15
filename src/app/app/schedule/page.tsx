@@ -42,9 +42,21 @@ export default async function Schedule({ searchParams }: { searchParams: { week?
     if (mine.some((c) => credentialStatus({ type: c.type, number: c.number, state: c.state, expiresAt: c.expiresAt ? ymd(c.expiresAt) : null, verifiedAt: c.verifiedAt?.toISOString() ?? null }).state !== 'current')) return 'Credential not verified';
     return null;
   };
+  // Employees' time off this week: approved days (from the ledger) and requests still waiting.
+  const people = await ctx.tdb.employee.findMany({ where: { candidateId: { in: apps.map((a) => a.candidateId) } }, select: { id: true, candidateId: true } });
+  const [taken, asked] = people.length ? await Promise.all([
+    ctx.tdb.leaveEntry.findMany({ where: { kind: 'USAGE', employeeId: { in: people.map((p) => p.id) }, date: { gte: new Date(`${days[0]}T00:00:00Z`), lte: week } }, include: { policy: { select: { name: true } } } }),
+    ctx.tdb.leaveRequest.findMany({ where: { status: 'PENDING', employeeId: { in: people.map((p) => p.id) }, startDate: { lte: week }, endDate: { gte: new Date(`${days[0]}T00:00:00Z`) } }, include: { policy: { select: { name: true } } } }),
+  ]) : [[], []];
+  const leaveFor = (candidateId: string) => {
+    const e = people.find((p) => p.candidateId === candidateId);
+    if (!e) return undefined;
+    return [...taken.filter((t) => t.employeeId === e.id).map((t) => ({ date: ymd(t.date), policy: t.policy.name, pending: false })),
+      ...asked.filter((r) => r.employeeId === e.id).flatMap((r) => days.filter((d) => d >= ymd(r.startDate) && d <= ymd(r.endDate)).map((d) => ({ date: d, policy: r.policy.name, pending: true })))];
+  };
   const rows: BoardRow[] = apps.map((a) => ({
     applicationId: a.id, candidateId: a.candidateId, jobId: a.jobId, worker: a.candidate.name, job: a.job.title, client: a.job.client?.name ?? null,
-    email: a.candidate.email, phone: a.candidate.phone, emailOptOut: a.candidate.emailOptOut, smsOptOut: a.candidate.smsOptOut, credIssue: credIssue(a.candidateId),
+    email: a.candidate.email, phone: a.candidate.phone, emailOptOut: a.candidate.emailOptOut, smsOptOut: a.candidate.smsOptOut, credIssue: credIssue(a.candidateId), leave: leaveFor(a.candidateId),
     shifts: a.shifts.filter((s) => !s.cancelled || s.notifiedAt).map((s) => ({
       id: s.id, date: ymd(s.date), start: s.start, end: s.end, breakMinutes: s.breakMinutes, unit: s.unit, notes: s.notes,
       cancelled: s.cancelled, notified: s.notified, everSent: !!s.notifiedAt, response: s.response, declineReason: s.declineReason,

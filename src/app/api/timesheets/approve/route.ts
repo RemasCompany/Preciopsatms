@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { requireApiContext, withApi, logActivity, HttpError } from '@/lib/tenant';
 import { parseWeek } from '@/lib/weeks';
+import { accrueForTimesheets, undoTimesheetAccruals } from '@/lib/leave';
 
 const Body = z.object({ week: z.string(), action: z.enum(['approve', 'markPaid', 'reopen']), applicationIds: z.array(z.string()).optional() });
 
@@ -20,10 +21,14 @@ export const POST = withApi(async (req: Request) => {
       await tdb.timesheet.updateMany({ where: { id: { in: inRuns.map((t) => t.id) } }, data: { payrollRunId: null } });
     }
   }
+  // Time off earned per hour worked follows approval: approving earns it, reopening takes it back.
+  const touched = b.action === 'markPaid' ? [] : (await tdb.timesheet.findMany({ where: { ...scope, status: b.action === 'approve' ? 'DRAFT' : 'APPROVED' }, select: { id: true } })).map((t) => t.id);
   const res =
     b.action === 'approve' ? await tdb.timesheet.updateMany({ where: { ...scope, status: 'DRAFT' }, data: { status: 'APPROVED', approvedAt: new Date(), approvedById: user.id } })
     : b.action === 'markPaid' ? await tdb.timesheet.updateMany({ where: { ...scope, status: 'APPROVED', payrollRunId: null }, data: { status: 'PAID', paidAt: new Date() } })
     : await tdb.timesheet.updateMany({ where: { ...scope, status: 'APPROVED' }, data: { status: 'DRAFT', approvedAt: null, approvedById: null } });
+  if (b.action === 'approve') await accrueForTimesheets(tdb, org.id, touched);
+  if (b.action === 'reopen') await undoTimesheetAccruals(tdb, touched);
   await logActivity(org.id, `${b.action === 'approve' ? 'Approved' : b.action === 'markPaid' ? 'Marked paid' : 'Reopened'} ${res.count} timesheets for week ending ${b.week}`, user.id);
   return Response.json({ updated: res.count });
 });

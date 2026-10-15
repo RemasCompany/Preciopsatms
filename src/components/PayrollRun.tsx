@@ -171,7 +171,7 @@ export default function PayrollRunView({ run, workers, totals, checks, clients, 
               <div className="tablewrap scroll"><table className="paylines">
                 <thead><tr><th>Assignment</th><th>Week ending</th><th>Reg hrs</th><th>OT hrs</th><th>Rate</th><th>Wages</th></tr></thead>
                 <tbody>{items.map((i) => (
-                  <tr key={i.id}><td>{i.position}<div className="muted">{i.clientName ?? '—'}</div></td><td>{fmt(i.weekEnding)}</td><td>{i.regularHours.toFixed(2)}</td><td>{i.overtimeHours.toFixed(2)}</td><td>{usd(i.payRate)}</td><td>{usd(i.regularPay + i.overtimePay)}</td></tr>
+                  <tr key={i.id}><td>{i.position}<div className="muted">{i.clientName ?? '—'}</div></td><td>{fmt(i.weekEnding)}</td><td>{i.regularHours.toFixed(2)}{i.leaveHours ? <div className="muted">+{i.leaveHours.toFixed(2)} time off</div> : null}</td><td>{i.overtimeHours.toFixed(2)}</td><td>{usd(i.payRate)}</td><td>{usd(i.regularPay + i.overtimePay + (i.leavePay ?? 0))}</td></tr>
                 ))}</tbody>
               </table></div>
               {items.some((i) => i.adjustments.length) && (

@@ -174,7 +174,7 @@ async function seedEmployer(hash: string) {
     plan: 'growth', subscriptionStatus: 'trialing', trialEndsAt: new Date(Date.now() + 14 * DAY), applyEmail: 'careers@example.com' } });
   const user = await db.user.upsert({ where: { email: 'hr@example.com' }, update: {}, create: { email: 'hr@example.com', name: 'Hana Lee', passwordHash: hash } });
   await db.membership.upsert({ where: { userId_organizationId: { userId: user.id, organizationId: org.id } }, update: {}, create: { userId: user.id, organizationId: org.id, role: 'OWNER' } });
-  if (await db.employee.count({ where: { organizationId: org.id } })) return;
+  if (await db.employee.count({ where: { organizationId: org.id } })) return seedLeave(org.id, user.id);
   await db.$transaction(async (tx) => {
     const o = { organizationId: org.id };
     const site = (await tx.branch.create({ data: { ...o, name: 'Orlando DC', city: 'Orlando, FL' } })).id;
@@ -209,6 +209,27 @@ async function seedEmployer(hash: string) {
     }
     await tx.job.create({ data: { ...o, title: 'Forklift Operator', type: 'FULL_TIME', branchId: site, payRate: 22, location: 'Orlando, FL', status: 'OPEN', openings: 2, description: 'Load and unload trailers on our day shift. Forklift certification preferred; we train.' } });
   }, { timeout: 120_000 });
+  await seedLeave(org.id, user.id);
+}
+
+/** Time-off policies, balances and a few requests for the employer demo. */
+async function seedLeave(orgId: string, userId: string) {
+  if (await db.leavePolicy.count({ where: { organizationId: orgId } })) return;
+  const o = { organizationId: orgId };
+  const vac = await db.leavePolicy.create({ data: { ...o, name: 'Vacation', method: 'ANNUAL', rate: 80, maxBalance: 160, types: ['FULL_TIME'] } });
+  const sick = await db.leavePolicy.create({ data: { ...o, name: 'Sick', method: 'HOURS_WORKED', rate: 1 / 30, maxBalance: 48, waitingDays: 90 } });
+  await db.leavePolicy.create({ data: { ...o, name: 'Unpaid leave', paid: false, method: 'NONE' } });
+  const people = await db.employee.findMany({ where: o, include: { candidate: { select: { name: true } } } });
+  for (const [i, e] of people.entries()) {
+    if (e.employmentType === 'FULL_TIME') await db.leaveEntry.create({ data: { ...o, employeeId: e.id, policyId: vac.id, date: days(-1), hours: 24 + i * 4, kind: 'ADJUSTMENT', note: 'Starting balance', createdById: userId } });
+    await db.leaveEntry.create({ data: { ...o, employeeId: e.id, policyId: sick.id, date: days(-1), hours: 8 + (i % 3) * 4, kind: 'ADJUSTMENT', note: 'Starting balance', createdById: userId } });
+  }
+  const by = (n: string) => people.find((e) => e.candidate.name === n)!;
+  await db.leaveRequest.create({ data: { ...o, employeeId: by('Tom Nguyen').id, policyId: vac.id, startDate: weekDay(0, 2), endDate: weekDay(4, 2), hoursPerDay: 8, hours: 40, note: 'Family trip', byEmployee: true } });
+  await db.leaveRequest.create({ data: { ...o, employeeId: by('Priya Shah').id, policyId: sick.id, startDate: weekDay(1, 1), endDate: weekDay(1, 1), hoursPerDay: 8, hours: 8, note: 'Doctor’s appointment', byEmployee: true } });
+  const victor = by('Victor Ames');
+  const r = await db.leaveRequest.create({ data: { ...o, employeeId: victor.id, policyId: vac.id, startDate: weekDay(3, 1), endDate: weekDay(4, 1), hoursPerDay: 8, hours: 16, status: 'APPROVED', decidedById: userId, decidedAt: new Date() } });
+  await db.leaveEntry.createMany({ data: [3, 4].map((d) => ({ ...o, employeeId: victor.id, policyId: vac.id, date: weekDay(d, 1), hours: -8, kind: 'USAGE', requestId: r.id })) });
 }
 
 main().catch((e) => { console.error(e); process.exit(1); }).finally(() => db.$disconnect());

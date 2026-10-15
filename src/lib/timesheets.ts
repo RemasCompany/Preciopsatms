@@ -1,10 +1,10 @@
 import type { TenantDb } from './tenant';
-import { hoursAmount } from './payroll';
+import { hoursAmount, leaveAmount } from './payroll';
 import { hourlyWhere } from './schedule-server';
 
 export type TimesheetRow = {
   applicationId: string; worker: string; email: string | null; job: string; client: { id: string; name: string } | null;
-  status: 'NOT_ENTERED' | 'DRAFT' | 'APPROVED' | 'PAID'; reg: number; ot: number; pay: number; bill: number; gross: number; billable: number;
+  status: 'NOT_ENTERED' | 'DRAFT' | 'APPROVED' | 'PAID'; reg: number; ot: number; leave: number; pay: number; bill: number; gross: number; billable: number;
   clientApprovedBy?: string | null; clientDispute?: string | null; // from the client portal
 };
 
@@ -19,9 +19,10 @@ export async function timesheetRows(tdb: TenantDb, week: Date, branchId?: string
     const t = a.timesheets[0];
     // Entered timesheets use the rates snapshotted at entry; blank weeks preview the current rate (an employee's own, else the job's).
     const pay = Number(t?.payRate ?? a.employee?.payRate ?? a.job.payRate ?? 0), bill = Number(t?.billRate ?? a.job.billRate ?? 0);
-    const reg = Number(t?.regularHours ?? 0), ot = Number(t?.overtimeHours ?? 0);
-    return { applicationId: a.id, worker: a.candidate.name, email: a.candidate.email, job: a.job.title, client: a.job.client, status: t?.status ?? 'NOT_ENTERED', reg, ot, pay, bill,
-      gross: hoursAmount(reg, ot, pay), billable: hoursAmount(reg, ot, bill),
+    const reg = Number(t?.regularHours ?? 0), ot = Number(t?.overtimeHours ?? 0), leave = Number(t?.leaveHours ?? 0);
+    return { applicationId: a.id, worker: a.candidate.name, email: a.candidate.email, job: a.job.title, client: a.job.client, status: t?.status ?? 'NOT_ENTERED', reg, ot, leave, pay, bill,
+      // Paid time off is paid at the regular rate and never billed to a client.
+      gross: hoursAmount(reg, ot, pay) + leaveAmount(leave, pay), billable: hoursAmount(reg, ot, bill),
       clientApprovedBy: t?.clientApprovedAt ? t.clientApprovedBy ?? 'client' : null, clientDispute: t?.clientDisputeNote ?? null };
   });
 }

@@ -1,3 +1,4 @@
+import { onLeave } from './leave-check';
 import { z } from 'zod';
 import type { Organization, User } from '@prisma/client';
 import { db } from './db';
@@ -44,9 +45,11 @@ export const assignmentWhere = { stage: 'PLACED' as const, job: { type: { not: '
 /** Paid from timesheets: as above, less salaried employees (their pay doesn't depend on hours). */
 export const hourlyWhere = { ...assignmentWhere, NOT: [terminated, { employee: { is: { payType: 'SALARY' as const } } }] };
 
-/** Refuses a shift that overlaps another of the worker's shifts on any assignment. */
+/** Refuses a shift that overlaps another of the worker's shifts on any assignment, or falls on approved time off. */
 export async function assertNoOverlap(tdb: TenantDb, candidateId: string, shifts: ShiftTimes[], excludeId?: string) {
   const dates = shifts.map((s) => s.date).sort();
+  const off = await onLeave(tdb, candidateId, dates);
+  if (off) throw new HttpError(409, `They’re on approved time off (${off.policy}) on ${dayLabel(off.date)}.`);
   const existing = await tdb.shift.findMany({
     where: { cancelled: false, application: { candidateId }, date: { gte: day(addDays(dates[0], -1)), lte: day(addDays(dates[dates.length - 1], 1)) }, ...(excludeId ? { id: { not: excludeId } } : {}) },
     include: { application: { select: { job: { select: { title: true } } } } },

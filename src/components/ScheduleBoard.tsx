@@ -14,6 +14,7 @@ export type BoardShift = {
 export type BoardRow = {
   applicationId: string; candidateId: string; jobId: string; worker: string; job: string; client: string | null;
   email: string | null; phone: string | null; emailOptOut: boolean; smsOptOut: boolean; credIssue: string | null; shifts: BoardShift[];
+  leave?: { date: string; policy: string; pending: boolean }[]; // employees' time off this week
 };
 type Form = { id?: string; applicationId: string; dates: string[]; date: string; start: string; end: string; breakMinutes: number; unit: string; notes: string };
 
@@ -183,8 +184,9 @@ export default function ScheduleBoard({ week, days, rows, canEdit, today }: { we
                   <th scope="row">{selecting && mine.length > 0 && <input type="checkbox" className="rowsel" checked={mine.every((s) => selected.includes(s.id))} onChange={(e) => toggle(mine.map((s) => s.id), e.target.checked)} aria-label={`Select all of ${r.worker}’s shifts`} />}<b>{r.worker}</b><span className="muted">{[r.job, r.client].filter(Boolean).join(' · ')}</span>{r.credIssue && <span className="warn">{r.credIssue}</span>}</th>
                   {days.map((d) => (
                     <td key={d} className={[d === today && 'today', over === `${r.applicationId}|${d}` && 'dropover'].filter(Boolean).join(' ') || undefined} {...dropProps(r, d)}>
+                      {r.leave?.filter((l) => l.date === d).map((l) => <span key={l.date} className={`shift leave${l.pending ? ' pending' : ''}`} title={l.pending ? 'Time off requested, waiting for approval' : 'Approved time off'}><span className="t">{l.policy}</span><span className="st">{l.pending ? 'Requested' : 'Time off'}</span></span>)}
                       {r.shifts.filter((s) => s.date === d).map((s) => <Chip key={s.id} r={r} s={s} />)}
-                      {canEdit && !selecting && <button type="button" className="addshift" onClick={() => newShift(r.applicationId, d)} aria-label={`Add a shift for ${r.worker} on ${dayLabel(d)}`}>+</button>}
+                      {canEdit && !selecting && !r.leave?.some((l) => l.date === d && !l.pending) && <button type="button" className="addshift" onClick={() => newShift(r.applicationId, d)} aria-label={`Add a shift for ${r.worker} on ${dayLabel(d)}`}>+</button>}
                     </td>
                   ))}
                   <td className="hrs"><b>{+h.total.toFixed(2)}</b>{h.overtime > 0 && <span className="soon">{+h.overtime.toFixed(2)} OT</span>}</td>

@@ -46,6 +46,9 @@ export const AUDIT_ACTIONS = {
   'employee.pay': { group: 'People', label: 'Changed pay' },
   'employee.terminate': { group: 'People', label: 'Ended employment' },
   'employee.department': { group: 'People', label: 'Changed departments' },
+  'leave.policy': { group: 'People', label: 'Changed a time-off policy' },
+  'leave.decide': { group: 'People', label: 'Approved or denied time off' },
+  'leave.adjust': { group: 'People', label: 'Adjusted a time-off balance' },
 } as const;
 export type AuditAction = keyof typeof AUDIT_ACTIONS;
 export const AUDIT_GROUPS = [...new Set(Object.values(AUDIT_ACTIONS).map((a) => a.group))];

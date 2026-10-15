@@ -9,6 +9,7 @@ import { localDate } from './timeclock';
 import { onboardingGaps } from './onboarding-server';
 import { barredFrom } from './dnr';
 import { certGaps, enforceCerts } from './training-server';
+import { onLeave } from './leave-check';
 
 /**
  * Many shifts at once: the "Create schedule" builder (plan, then create) and bulk edit, move and cancel on the board.
@@ -83,7 +84,9 @@ export async function planShifts(ctx: Ctx, body: unknown) {
     const dnr = await barredFrom(tdb, a.candidateId, a.job.clientId);
     if (dnr) blocked = `On ${dnr.clientId ? `${a.job.client?.name ?? 'this client'}’s` : 'the company-wide'} do-not-return list.`;
     else if (block && (await onboardingGaps(tdb, a.candidateId))) blocked = 'Onboarding isn’t finished.';
-    else {
+    const off = blocked ? null : await onLeave(tdb, a.candidateId, dates);
+    if (off) blocked = `On approved time off (${off.policy}) ${dayLabel(off.date)}.`;
+    else if (!blocked) {
       const mine = [...existing.filter((e) => e.application.candidateId === a.candidateId).map((e) => ({ t: times(e), label: `${dayLabel(ymd(e.date))} ${clock(e.start)}–${clock(e.end)} (${e.application.job.title})` })),
         ...(plannedBy.get(a.candidateId) ?? []).map((t) => ({ t, label: `${dayLabel(t.date)} ${clock(t.start)}–${clock(t.end)} in this schedule` }))];
       const hit = planned.map((p) => mine.find((m) => overlaps(p, m.t))).find(Boolean);
@@ -164,6 +167,10 @@ export async function bulkUpdate(ctx: Ctx, body: unknown) {
     const hit = existing.find((e) => e.application.candidateId === n.app.candidateId && overlaps(n.t, times(e)));
     if (hit) throw new HttpError(409, `${n.app.candidate.name} already works ${dayLabel(ymd(hit.date))} ${clock(hit.start)}–${clock(hit.end)} (${hit.application.job.title}).`);
     if (next.some((m, j) => j > i && m.app.candidateId === n.app.candidateId && overlaps(n.t, m.t))) throw new HttpError(409, `That would give ${n.app.candidate.name} two overlapping shifts.`);
+  }
+  for (const app of [...new Map(next.map((n) => [n.app.candidateId, n.app])).values()]) {
+    const off = await onLeave(tdb, app.candidateId, next.filter((n) => n.app.candidateId === app.candidateId).map((n) => n.t.date));
+    if (off) throw new HttpError(409, `${app.candidate.name} is on approved time off (${off.policy}) ${dayLabel(off.date)}.`);
   }
   // A new worker has to be allowed on the job.
   if (target && next.some((n) => n.moved)) {

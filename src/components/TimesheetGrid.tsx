@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useRecords } from './Records';
-import { hoursAmount } from '@/lib/payroll';
+import { hoursAmount, leaveAmount } from '@/lib/payroll';
 import type { TimesheetRow } from '@/lib/timesheets';
 
 const money = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
@@ -32,7 +32,7 @@ export default function TimesheetGrid({ week, prev, next, rows: initial, canEdit
     const d = drafts[r.applicationId];
     if (!d) return r;
     const reg = Number(d.reg) || 0, ot = Number(d.ot) || 0;
-    return { ...r, reg, ot, gross: hoursAmount(reg, ot, r.pay), billable: hoursAmount(reg, ot, r.bill) };
+    return { ...r, reg, ot, gross: hoursAmount(reg, ot, r.pay) + leaveAmount(r.leave, r.pay), billable: hoursAmount(reg, ot, r.bill) };
   }), [rows, drafts]);
   const sum = (k: 'reg' | 'ot' | 'gross' | 'billable') => live.reduce((s, r) => s + r[k], 0);
   const invoiceClients = useMemo(() => {
@@ -70,7 +70,7 @@ export default function TimesheetGrid({ week, prev, next, rows: initial, canEdit
     if (base.status !== 'NOT_ENTERED' && reg === base.reg && ot === base.ot) { clear(); return; }
     const res = await fetch('/api/timesheets', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ applicationId: r.applicationId, week, regularHours: reg, overtimeHours: ot }) });
     if (!res.ok) { toast((await res.json().catch(() => ({}))).error ?? 'Could not save hours.', true); return; }
-    const apply = (xs: TimesheetRow[]) => xs.map((x) => (x.applicationId === r.applicationId ? { ...x, reg, ot, status: 'DRAFT' as const, gross: hoursAmount(reg, ot, x.pay), billable: hoursAmount(reg, ot, x.bill) } : x));
+    const apply = (xs: TimesheetRow[]) => xs.map((x) => (x.applicationId === r.applicationId ? { ...x, reg, ot, status: 'DRAFT' as const, gross: hoursAmount(reg, ot, x.pay) + leaveAmount(x.leave, x.pay), billable: hoursAmount(reg, ot, x.bill) } : x));
     saved.current = apply(saved.current); // before React re-renders, so the next queued save sees it
     setRows(apply);
     clear();
@@ -105,7 +105,7 @@ export default function TimesheetGrid({ week, prev, next, rows: initial, canEdit
     if (!res.ok) return toast(j.error ?? 'Could not create the invoice.', true);
     router.push(`/app/invoices/${j.id}`);
   }
-  const withHours = live.filter((r) => r.status === 'DRAFT' && r.reg + r.ot > 0).map((r) => r.applicationId);
+  const withHours = live.filter((r) => r.status === 'DRAFT' && r.reg + r.ot + r.leave > 0).map((r) => r.applicationId);
   const hasApproved = live.some((r) => r.status === 'APPROVED');
 
   return (
@@ -145,14 +145,14 @@ export default function TimesheetGrid({ week, prev, next, rows: initial, canEdit
                     aria-label={`${k === 'reg' ? 'Regular' : 'Overtime'} hours for ${r.worker}`}
                     onChange={(e) => edit(r.applicationId, k, e.target.value)} onBlur={() => save(r)} onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} /></td>
                 ))}
-                <td>{money(r.gross)}</td>
+                <td>{money(r.gross)}{r.leave > 0 && <div className="muted" title="Approved paid time off, at the regular rate">incl. {+r.leave.toFixed(2)}h time off</div>}</td>
                 <td>{money(r.billable)}</td>
                 <td>
                   <span className={`pill${PILL[r.status]}`}>{LABEL[r.status]}</span>
                   {r.clientApprovedBy && <span className="pill g" style={{ marginLeft: 6 }} title={`Approved by ${r.clientApprovedBy} in the client portal`}>Client ✓</span>}
                   {r.clientDispute && <span className="pill r" style={{ marginLeft: 6 }} title={r.clientDispute}>Client question</span>}
                   {r.clientDispute && <div className="warn" style={{ fontSize: 13 }}>“{r.clientDispute}”</div>}
-                  {admin && r.status === 'DRAFT' && r.reg + r.ot > 0 && <button className="btn ghost sm" style={{ marginLeft: 6 }} onClick={() => act('approve', [r.applicationId])}>Approve</button>}
+                  {admin && r.status === 'DRAFT' && r.reg + r.ot + r.leave > 0 && <button className="btn ghost sm" style={{ marginLeft: 6 }} onClick={() => act('approve', [r.applicationId])}>Approve</button>}
                   {admin && r.status === 'APPROVED' && <button className="btn ghost sm" style={{ marginLeft: 6 }} onClick={() => act('reopen', [r.applicationId])}>Reopen</button>}
                 </td>
               </tr>

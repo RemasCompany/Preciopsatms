@@ -4,7 +4,7 @@ export type OrgKind = 'STAFFING' | 'EMPLOYER';
 export type Feature =
   | 'ats' | 'crm' | 'leads' | 'careers' | 'vendors' | 'messaging'
   | 'timesheets' | 'esign' | 'ai' | 'eeo' | 'api' | 'sso' | 'whitelabel' | 'credentials' | 'scheduling' | 'payrollRuns' | 'timeclock' | 'onboarding' | 'engagement' | 'clientPortal' | 'training'
-  | 'people' | 'invoicing';
+  | 'people' | 'invoicing' | 'timeoff';
 
 export const PLANS: Record<PlanId, {
   name: string; priceEnv: string; perSeat: boolean; maxSeats: number | null;
@@ -20,13 +20,13 @@ export const PLANS: Record<PlanId, {
   },
   growth: {
     name: 'Growth', priceEnv: 'STRIPE_PRICE_GROWTH', perSeat: true, maxSeats: null, monthlyAiCredits: 2000,
-    features: ['ats', 'crm', 'leads', 'careers', 'messaging', 'vendors', 'timesheets', 'invoicing', 'esign', 'ai', 'credentials', 'scheduling', 'timeclock', 'onboarding', 'engagement', 'clientPortal', 'people'],
+    features: ['ats', 'crm', 'leads', 'careers', 'messaging', 'vendors', 'timesheets', 'invoicing', 'esign', 'ai', 'credentials', 'scheduling', 'timeclock', 'onboarding', 'engagement', 'clientPortal', 'people', 'timeoff'],
     blurb: 'Everything to run a staffing desk: timesheets, payroll export, invoicing, e-signatures, credential tracking, shift scheduling, a mobile time clock, new-hire onboarding, vendors and AI.', displayPrice: '$79/user/mo',
-    employer: { name: 'Growth', priceEnv: 'STRIPE_PRICE_GROWTH_EMPLOYER', displayPrice: '$8/employee/mo', blurb: 'Everything to run your workforce: scheduling, a mobile time clock, timesheets and payroll export, onboarding, e-signatures, credentials, engagement and AI.' },
+    employer: { name: 'Growth', priceEnv: 'STRIPE_PRICE_GROWTH_EMPLOYER', displayPrice: '$8/employee/mo', blurb: 'Everything to run your workforce: time off and balances, scheduling, a mobile time clock, timesheets and payroll export, onboarding, e-signatures, credentials, engagement and AI.' },
   },
   enterprise: {
     name: 'Enterprise / MSP', priceEnv: 'STRIPE_PRICE_ENTERPRISE', perSeat: true, maxSeats: null, monthlyAiCredits: 10000,
-    features: ['ats', 'crm', 'leads', 'careers', 'messaging', 'vendors', 'timesheets', 'invoicing', 'esign', 'ai', 'credentials', 'scheduling', 'timeclock', 'onboarding', 'engagement', 'clientPortal', 'payrollRuns', 'eeo', 'api', 'sso', 'whitelabel', 'training', 'people'],
+    features: ['ats', 'crm', 'leads', 'careers', 'messaging', 'vendors', 'timesheets', 'invoicing', 'esign', 'ai', 'credentials', 'scheduling', 'timeclock', 'onboarding', 'engagement', 'clientPortal', 'payrollRuns', 'eeo', 'api', 'sso', 'whitelabel', 'training', 'people', 'timeoff'],
     blurb: 'Payroll runs with provider exports, equipment operator training and certification, EEO/OFCCP reporting, API, SSO, white-label and dedicated onboarding.', displayPrice: 'Custom',
     employer: { name: 'Enterprise', priceEnv: 'STRIPE_PRICE_ENTERPRISE_EMPLOYER', displayPrice: 'Custom', blurb: 'Payroll runs with provider exports, equipment operator training and certification, EEO reporting, API, SSO and dedicated onboarding.' },
   },
@@ -50,7 +50,7 @@ type GateOrg = { plan: PlanId; subscriptionStatus: string; onboardingEnabled?: b
 export function hasFeature(org: GateOrg, f: Feature) {
   if (f === 'onboarding' && org.onboardingEnabled === false) return false;
   if (org.kind === 'EMPLOYER' && STAFFING_ONLY.includes(f)) return false;
-  if (f === 'people' && org.kind !== 'EMPLOYER' && !org.hrEnabled) return false;
+  if ((f === 'people' || f === 'timeoff') && org.kind !== 'EMPLOYER' && !org.hrEnabled) return false;
   return planIncludes(org, f);
 }
 
