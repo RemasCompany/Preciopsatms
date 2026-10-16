@@ -34,7 +34,9 @@ export const RECORDS: Record<RecordKind, { one: string; titleKey: string; featur
   clients: { one: 'client', titleKey: 'name', feature: 'crm', fields: [
     f('name', 'Company name', 'text', { required: true }), f('industry', 'Industry', 'sel', { options: SECTORS }), f('status', 'Status', 'sel', { notNull: true, options: ['Active', 'Prospect', 'Inactive'] }),
     f('city', 'City / region'), f('website', 'Website', 'url'), f('markupPct', 'Standard markup (%)', 'num', { min: 0, max: 999 }), f('msaSignedAt', 'MSA signed', 'date'),
-    f('paymentTerms', 'Payment terms', 'sel', { notNull: true, options: ['Net 30', 'Net 15', 'Net 45', 'Net 60'] }), f('notes', 'Notes', 'area'),
+    f('paymentTerms', 'Payment terms', 'sel', { notNull: true, options: ['Net 30', 'Net 15', 'Net 45', 'Net 60', 'Due on receipt'] }),
+    f('billingAddress', 'Billing address (on invoices)', 'area'), f('billingEmail', 'Accounts payable email', 'email'), f('poNumber', 'Purchase order (PO) number'),
+    f('taxRatePct', 'Sales tax on invoices (%)', 'num', { min: 0, max: 25 }), f('notes', 'Notes', 'area'),
   ] },
   contacts: { one: 'contact', titleKey: 'name', feature: 'crm', fields: [
     f('name', 'Name', 'text', { required: true }), f('title', 'Title'), f('email', 'Email', 'email'), f('phone', 'Phone', 'tel'),

@@ -132,9 +132,16 @@ async function loadForSync(tdb: TenantDb, id: string) {
   return inv;
 }
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
-/** Regular and overtime as separate lines (hours × rate), so the accounting system's totals match ours to the cent. */
-export function splitLines(inv: Pick<Inv, 'lines'>) {
-  return inv.lines.flatMap((l) => {
+/**
+ * Regular and overtime as separate lines (hours × rate), then added items (discounts as negative lines), then sales tax
+ * as its own line — so the accounting system's totals match ours to the cent.
+ */
+export function splitLines(inv: Pick<Inv, 'lines'> & { taxAmount?: unknown; taxRatePct?: unknown }) {
+  const out = inv.lines.flatMap((l) => {
+    if (l.kind && l.kind !== 'hours') {
+      const qty = Number(l.quantity ?? 1), amt = toCents(l.amount);
+      return [{ description: l.description, qty, rate: Math.round((amt / 100 / qty) * 10000) / 10000, cents: amt }];
+    }
     const reg = Number(l.regularHours), ot = Number(l.overtimeHours), rate = Number(l.rate);
     const label = `${l.worker} — ${l.description}${l.weekEnding ? `, week ending ${ymd(l.weekEnding)}` : ''}`;
     return [
@@ -142,6 +149,9 @@ export function splitLines(inv: Pick<Inv, 'lines'>) {
       ...(ot ? [{ description: `${label} (overtime)`, qty: ot, rate: Math.round(rate * OT_MULTIPLIER * 10000) / 10000, cents: cents(ot * rate * OT_MULTIPLIER) }] : []),
     ];
   });
+  const tax = toCents(Number(inv.taxAmount ?? 0));
+  if (tax) out.push({ description: `Sales tax (${Number(inv.taxRatePct)}%)`, qty: 1, rate: tax / 100, cents: tax });
+  return out;
 }
 
 async function pushInvoice(tdb: TenantDb, c: AccountingConnection, inv: Inv) {

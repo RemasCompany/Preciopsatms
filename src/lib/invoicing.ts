@@ -67,3 +67,17 @@ export function dso(openCents: number, billedCents: number, days = 90) {
 
 export const PAYMENT_METHODS = { ach: 'ACH / bank transfer', check: 'Check', card: 'Card', wire: 'Wire', other: 'Other' } as const;
 export type PaymentMethod = keyof typeof PAYMENT_METHODS;
+
+/** Lines added by hand on top of the hours: reimbursed expenses, fees, and discounts or credits. */
+export const ITEM_KINDS = { expense: 'Expense / reimbursement', fee: 'Fee or charge', discount: 'Discount or credit' } as const;
+export type ItemKind = keyof typeof ITEM_KINDS;
+/** Quantity × rate to the cent; discounts always come off the total. */
+export const itemCents = (kind: ItemKind, qty: number, rate: number) => { const c = cents(qty * rate); return kind === 'discount' ? -Math.abs(c) : c; };
+
+/** Subtotal (labor plus items), sales tax on the subtotal, and the total — all in cents. */
+export function invoiceTotals(laborCents: number, itemCentsList: number[], taxRatePct: number) {
+  const items = itemCentsList.reduce((s, c) => s + c, 0);
+  const subtotal = laborCents + items;
+  const tax = taxRatePct > 0 ? cents((subtotal / 100) * (taxRatePct / 100)) : 0;
+  return { labor: laborCents, extras: itemCentsList.filter((c) => c > 0).reduce((s, c) => s + c, 0), discounts: -itemCentsList.filter((c) => c < 0).reduce((s, c) => s + c, 0), subtotal, tax, total: subtotal + tax };
+}

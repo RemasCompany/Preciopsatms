@@ -78,7 +78,7 @@ export async function portalData(p: Portal) {
     tdb.application.findMany({ where: { ...ofClient, stage: 'PLACED' }, orderBy: { stageChangedAt: 'desc' }, select: { id: true, stageChangedAt: true, candidate: { select: { name: true } }, job: { select: { title: true } } } }),
     tdb.timesheet.findMany({ where: { application: ofClient, weekEnding: { gte: since } }, orderBy: [{ weekEnding: 'desc' }], select: { id: true, weekEnding: true, regularHours: true, overtimeHours: true, billRate: true, status: true, clientApprovedAt: true, clientApprovedBy: true, clientDisputeNote: true, application: { select: { candidate: { select: { name: true } }, job: { select: { title: true } } } } } }),
     tdb.shift.findMany({ where: { application: ofClient, cancelled: false, date: { gte: todayD, lte: until } }, orderBy: [{ date: 'asc' }, { start: 'asc' }], select: { id: true, date: true, start: true, end: true, unit: true, response: true, application: { select: { candidate: { select: { name: true } }, job: { select: { title: true } } } } } }),
-    tdb.invoice.findMany({ where: { clientId: client.id, status: { not: 'VOID' } }, orderBy: { issueDate: 'desc' }, take: 24 }),
+    tdb.invoice.findMany({ where: { clientId: client.id, status: { not: 'VOID' }, NOT: { status: 'DRAFT', sentAt: null } }, orderBy: { issueDate: 'desc' }, take: 24 }),
   ]);
   return {
     company: org.shortName ?? org.name, brandColor: org.brandColor, logoUrl: org.logoUrl, contactEmail: org.applyEmail,

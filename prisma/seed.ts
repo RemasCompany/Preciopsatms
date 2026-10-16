@@ -15,7 +15,9 @@ const lastSunday = new Date(monday.getTime() - DAY);
 async function main() {
   const org = await db.organization.upsert({ where: { slug: 'demo-staffing' }, update: {}, create: {
     name: 'Demo Staffing, LLC', shortName: 'Demo Staffing', slug: 'demo-staffing', ownerName: 'Demo Owner', ownerTitle: 'President', city: 'Orlando, FL',
-    services: 'light industrial, logistics and healthcare', plan: 'growth', subscriptionStatus: 'trialing', trialEndsAt: new Date(Date.now() + 14 * DAY), applyEmail: 'jobs@example.com' } });
+    services: 'light industrial, logistics and healthcare', plan: 'growth', subscriptionStatus: 'trialing', trialEndsAt: new Date(Date.now() + 14 * DAY), applyEmail: 'jobs@example.com',
+    billingAddress: '100 N Orange Ave, Suite 400\nOrlando, FL 32801', billingPhone: '(407) 555-0100', billingEmail: 'billing@example.com',
+    remitInstructions: 'ACH: Example Bank, routing 000000000, account 0000000000\nChecks payable to Demo Staffing, LLC at the address above', invoiceFooter: 'Thank you for your business.' } });
   const hash = await bcrypt.hash('change-me-please', 12);
   const owner = await db.user.upsert({ where: { email: 'owner@example.com' }, update: {}, create: { email: 'owner@example.com', name: 'Demo Owner', passwordHash: hash } });
   const rep = await db.user.upsert({ where: { email: 'sam@example.com' }, update: {}, create: { email: 'sam@example.com', name: 'Sam Rivera', passwordHash: hash } });

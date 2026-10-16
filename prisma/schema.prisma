@@ -45,6 +45,12 @@ model Organization {
   logoUrl               String?
   brandColor            String               @default("#0E7A6E")
   applyEmail            String?
+  billingAddress        String? // street, city, state and ZIP printed on invoices (multi-line)
+  billingPhone          String?
+  billingEmail          String? // where clients send remittance questions; shown on invoices
+  taxId                 String? // EIN, shown on invoices when set
+  remitInstructions     String? // how to pay: ACH details, check mailing address, payment link
+  invoiceFooter         String? // a closing line on every invoice
   careersHeadline       String               @default("Find your next role")
   careersIntro          String?
   showPayOnCareers      Boolean              @default(true)
@@ -355,6 +361,11 @@ model Client {
   markupPct           Decimal?     @db.Decimal(5, 2)
   msaSignedAt         DateTime?
   paymentTerms        String       @default("Net 30")
+  billingAddress      String? // printed under "Bill to"
+  billingEmail        String? // accounts payable address, offered when emailing invoices
+  billingContactId    String? // the contact invoices are addressed to ("Attn:")
+  poNumber            String? // default purchase order number for new invoices
+  taxRatePct          Decimal?     @db.Decimal(6, 3) // sales tax on invoices, when the client's state taxes staffing
   onboardingMode      String       @default("ask") // ask (recruiter picks) | package (always onboardingPackageId) | none (not required)
   onboardingPackageId String?
   notes               String?
@@ -579,7 +590,13 @@ model Invoice {
   terms          String
   total          Decimal       @db.Decimal(12, 2)
   amountPaid     Decimal       @default(0) @db.Decimal(12, 2)
-  notes          String?
+  notes          String? // printed on the invoice
+  poNumber       String?
+  billToName     String? // "Attn:" line, snapshotted when the invoice is made
+  billToAddress  String?
+  subtotal       Decimal       @default(0) @db.Decimal(12, 2) // labor plus additional items, before tax
+  taxRatePct     Decimal       @default(0) @db.Decimal(6, 3)
+  taxAmount      Decimal       @default(0) @db.Decimal(12, 2)
   sentAt         DateTime?
   sentTo         String?
   paidAt         DateTime?
@@ -606,13 +623,17 @@ model InvoiceLine {
   organizationId String
   invoiceId      String
   timesheetId    String?
-  worker         String
+  kind           String       @default("hours") // hours | expense | fee | discount
+  worker         String // "" for additional items
   description    String
   weekEnding     DateTime?    @db.Date
   regularHours   Decimal      @default(0) @db.Decimal(6, 2)
   overtimeHours  Decimal      @default(0) @db.Decimal(6, 2)
+  quantity       Decimal?     @db.Decimal(10, 2) // additional items: quantity × rate
   rate           Decimal      @db.Decimal(10, 2)
-  amount         Decimal      @db.Decimal(12, 2)
+  amount         Decimal      @db.Decimal(12, 2) // negative for discounts
+  approvedBy     String? // client sign-off on the hours, e.g. "Dana Lee (client) Oct 3"
+  sortOrder      Int          @default(0)
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   invoice        Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 

@@ -7,6 +7,7 @@ type Settings = {
   name: string; shortName: string | null; ownerName: string | null; ownerTitle: string | null; city: string | null; website: string | null;
   services: string | null; pitch: string | null; logoUrl: string | null; brandColor: string; applyEmail: string | null; smsNumber: string | null;
   careersHeadline: string; careersIntro: string | null; showPayOnCareers: boolean; showClientOnCareers: boolean;
+  billingAddress: string | null; billingPhone: string | null; billingEmail: string | null; taxId: string | null; remitInstructions: string | null; invoiceFooter: string | null;
 };
 type TextKey = { [K in keyof Settings]: Settings[K] extends boolean ? never : K }[keyof Settings];
 
@@ -15,7 +16,7 @@ const PROFILE: [TextKey, string, string?][] = [
   ['city', 'City, state'], ['website', 'Website', 'url'], ['services', 'Industries you staff'], ['pitch', 'One-line extra pitch (optional)'], ['logoUrl', 'Logo URL (https, PNG or JPG)', 'url'],
 ];
 
-export default function SettingsForm({ initial, readOnly }: { initial: Settings; readOnly: boolean }) {
+export default function SettingsForm({ initial, readOnly, invoicing = true }: { initial: Settings; readOnly: boolean; invoicing?: boolean }) {
   const router = useRouter();
   const { toast } = useRecords();
   const [v, setV] = useState(initial);
@@ -48,6 +49,19 @@ export default function SettingsForm({ initial, readOnly }: { initial: Settings;
           <img src={v.logoUrl} alt="Logo preview" style={{ height: 40, background: '#fff', borderRadius: 6, padding: 4, marginTop: 8 }} />
         )}
       </section>
+      {invoicing && <section className="card">
+        <h2 style={{ marginTop: 0 }}>Invoice details</h2>
+        <p className="muted" style={{ marginTop: 0 }}>Printed on every invoice you send. Clients’ accounts-payable teams usually need your address, a contact for billing questions and how to pay.</p>
+        <div className="form wide">
+          <label style={{ gridColumn: 'span 2' }}><span>Billing address</span><textarea rows={3} value={v.billingAddress ?? ''} readOnly={readOnly} maxLength={400} placeholder={'100 Main St, Suite 200\nMiami, FL 33131'} onChange={(e) => set('billingAddress', e.target.value)} /></label>
+          <label style={{ gridColumn: 'span 2' }}><span>How to pay</span><textarea rows={3} value={v.remitInstructions ?? ''} readOnly={readOnly} maxLength={1500} placeholder={'ACH: First Bank, routing 000000000, account 0000000000\nChecks payable to Your Company LLC, mailed to the address above'} onChange={(e) => set('remitInstructions', e.target.value)} /></label>
+          {input('billingPhone', 'Billing phone', 'tel')}
+          {input('billingEmail', 'Billing email (for questions about invoices)', 'email')}
+          {input('taxId', 'Tax ID / EIN (optional)')}
+          {input('invoiceFooter', 'Closing line (optional)')}
+        </div>
+        {!v.remitInstructions && <p className="warn">Add how to pay so clients don’t have to ask.</p>}
+      </section>}
       <section className="card">
         <h2 style={{ marginTop: 0 }}>Careers page settings</h2>
         <div className="form wide">

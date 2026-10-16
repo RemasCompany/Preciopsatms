@@ -23,14 +23,14 @@ export default async function Settings({ searchParams }: { searchParams: { accou
   const warnings = feedWarnings(feedJobs.map((j) => ({ id: j.id, title: j.title, location: j.location ?? '', remote: j.remote, description: j.posting ?? j.description ?? '' })));
   const admin = (role === 'OWNER' || role === 'ADMIN') && canEdit(ctx);
   const base = process.env.APP_URL ?? '';
-  const pick = ({ name, shortName, ownerName, ownerTitle, city, website, services, pitch, logoUrl, brandColor, applyEmail, smsNumber, careersHeadline, careersIntro, showPayOnCareers, showClientOnCareers }: typeof org) =>
-    ({ name, shortName, ownerName, ownerTitle, city, website, services, pitch, logoUrl, brandColor, applyEmail, smsNumber, careersHeadline, careersIntro, showPayOnCareers, showClientOnCareers });
+  const pick = ({ name, shortName, ownerName, ownerTitle, city, website, services, pitch, logoUrl, brandColor, applyEmail, smsNumber, careersHeadline, careersIntro, showPayOnCareers, showClientOnCareers, billingAddress, billingPhone, billingEmail, taxId, remitInstructions, invoiceFooter }: typeof org) =>
+    ({ name, shortName, ownerName, ownerTitle, city, website, services, pitch, logoUrl, brandColor, applyEmail, smsNumber, careersHeadline, careersIntro, showPayOnCareers, showClientOnCareers, billingAddress, billingPhone, billingEmail, taxId, remitInstructions, invoiceFooter });
   return (
     <>
       <h1>Settings & data</h1>
       <p className="lede">Your company profile brands the app, emails, documents, invoices and careers page. Import and export your records here.</p>
       <CompanyType kind={org.kind} hrEnabled={org.hrEnabled} owner={role === 'OWNER' && canEdit(ctx)} paid={!!org.stripeSubscriptionId} />
-      <SettingsForm initial={pick(org)} readOnly={!admin} />
+      <SettingsForm initial={pick(org)} readOnly={!admin} invoicing={org.kind === 'STAFFING'} />
       <section className="card">
         <h2 style={{ marginTop: 0 }}>Careers page, widget and job feed</h2>
         <div className="kpis">

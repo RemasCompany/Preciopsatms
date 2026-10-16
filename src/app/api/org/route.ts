@@ -16,6 +16,9 @@ const Settings = z.object({
   careersHeadline: z.string().trim().min(2, 'Add a headline for your careers page.').max(120).optional(),
   // Replies texted to this number land in this company's inbox (otherwise replies are matched by who texted last).
   smsNumber: z.string().trim().max(20).transform((s) => (s ? toE164(s) ?? 'bad' : null)).refine((s) => s !== 'bad', 'Enter the texting number with area code.').nullable().optional(),
+  // Shown on invoices.
+  billingAddress: text(400), billingPhone: text(40), taxId: text(40), remitInstructions: text(1500), invoiceFooter: text(200),
+  billingEmail: z.string().trim().max(200).refine((s) => !s || z.string().email().safeParse(s).success, 'Enter a valid billing email address.').transform((s) => s || null).nullable().optional(),
   careersIntro: text(2000), showPayOnCareers: z.boolean().optional(), showClientOnCareers: z.boolean().optional(),
   // Indeed Apply credentials from Indeed's partner console. The secret is write-only (never sent back to the browser).
   indeedApplyApiToken: z.string().trim().max(200).regex(/^[\w-]*$/, 'That doesn’t look like an Indeed Apply API token.').transform((s) => s || null).nullable().optional(),
