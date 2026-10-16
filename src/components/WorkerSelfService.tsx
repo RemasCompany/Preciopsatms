@@ -4,7 +4,7 @@ import ReviewAnswers, { RATING, type Answers, type Question } from './ReviewAnsw
 
 export type WorkerMe = {
   reviews?: { id: string; cycle: string; dueDate: string; questions: Question[]; canSelf: boolean; self: Answers | null; selfSubmitted: boolean;
-    shared: null | { answers: Answers | null; rating: number | null; summary: string | null; acknowledged: boolean; comment: string | null } }[];
+    shared: null | { answers: Answers | null; rating: number | null; summary: string | null; acknowledged: boolean; agrees?: boolean | null; comment: string | null } }[];
   goals?: { id: string; title: string; details: string | null; dueDate: string | null; progress: number; status: string }[];
   job: { title: string; department: string | null; location: string | null; manager: string | null; startDate: string; status: string; employeeNumber: string | null; salaried: boolean };
   contact: { email: string | null; phone: string | null };
@@ -81,7 +81,7 @@ export default function WorkerSelfService({ token, me, onChange }: { token: stri
         <div key={r.id} className="card">
           <h2 style={{ marginTop: 0 }}>{r.cycle}</h2>
           {r.canSelf ? <>
-            <p className="muted">Your self review — due {fmt(r.dueDate)}. Your manager sees it once you submit.</p>
+            <p className="muted">Your self review — please finish it by {fmt(r.dueDate)}. Your manager sees it once you submit.</p>
             <ReviewAnswers name={`self-${r.id}`} questions={r.questions} answers={drafts[r.id] ?? {}} onChange={(a) => setDrafts({ ...drafts, [r.id]: a })} />
             <div className="row"><button className="btn" disabled={busy} onClick={() => send({ action: 'selfReview', reviewId: r.id, answers: drafts[r.id] ?? {}, submit: true })}>Submit self review</button>
               <button className="btn ghost" disabled={busy} onClick={() => send({ action: 'selfReview', reviewId: r.id, answers: drafts[r.id] ?? {}, submit: false })}>Save for later</button></div>
@@ -90,10 +90,14 @@ export default function WorkerSelfService({ token, me, onChange }: { token: stri
             <p><b>Overall: {r.shared.rating ? `${r.shared.rating} — ${RATING[r.shared.rating]}` : 'not rated'}</b></p>
             {r.shared.summary && <p>{r.shared.summary}</p>}
             <ReviewAnswers name={`mgr-${r.id}`} questions={r.questions} answers={r.shared.answers} />
-            {r.shared.acknowledged ? <p className="okc">You acknowledged this review{r.shared.comment ? ` and commented: “${r.shared.comment}”` : ''}.</p> : <>
-              <label className="full"><span>Your comments (optional)</span><textarea rows={2} maxLength={2000} value={ack[r.id] ?? ''} onChange={(e) => setAck({ ...ack, [r.id]: e.target.value })} /></label>
-              <button className="btn" disabled={busy} onClick={() => send({ action: 'acknowledge', reviewId: r.id, comment: ack[r.id] ?? '' })}>I’ve read this review</button>
-              <p className="muted" style={{ fontSize: 13 }}>Acknowledging means you’ve read it, not that you agree.</p>
+            {r.shared.acknowledged ? <p className="okc">{r.shared.agrees === false ? 'You acknowledged this review and noted that you disagree' : 'You acknowledged and accepted this review'}{r.shared.comment ? `: “${r.shared.comment}”` : ''}.</p> : <>
+              <p style={{ margin: '10px 0 4px' }}><b>Please acknowledge your review</b></p>
+              <label className="full"><span>Your comments (optional if you accept; needed if you disagree)</span><textarea rows={2} maxLength={2000} value={ack[r.id] ?? ''} onChange={(e) => setAck({ ...ack, [r.id]: e.target.value })} /></label>
+              <div className="row">
+                <button className="btn" disabled={busy} onClick={() => send({ action: 'acknowledge', reviewId: r.id, comment: ack[r.id] ?? '', agree: true })}>Acknowledge and accept</button>
+                <button className="btn ghost" disabled={busy || (ack[r.id] ?? '').trim().length < 5} title="Add a comment saying what you disagree with" onClick={() => send({ action: 'acknowledge', reviewId: r.id, comment: ack[r.id] ?? '', agree: false })}>Acknowledge — I disagree</button>
+              </div>
+              <p className="muted" style={{ fontSize: 13 }}>Either way you’re confirming you’ve read it. If you disagree, say why in the comment — your manager and HR will follow up.</p>
             </>}
           </>}
         </div>

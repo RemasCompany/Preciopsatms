@@ -29,7 +29,8 @@ export default async function ReviewsPage({ searchParams }: { searchParams: { cy
   }));
   const rows: ReviewRow[] = reviews.map((r) => ({
     id: r.id, employeeId: r.employeeId, name: r.employee.candidate.name, title: r.employee.title, department: r.employee.department?.name ?? null, manager: r.employee.manager?.candidate.name ?? null,
-    self: !!r.selfSubmittedAt, managerDraft: !!r.managerAnswers && !r.managerSubmittedAt, manager_: !!r.managerSubmittedAt, shared: !!r.sharedAt, acknowledged: !!r.acknowledgedAt, rating: r.rating, goals: r.employee.goals.length, due: ymd(r.dueDate ?? current!.dueDate),
+    self: !!r.selfSubmittedAt, managerDraft: !!r.managerAnswers && !r.managerSubmittedAt, manager_: !!r.managerSubmittedAt, shared: !!r.sharedAt, acknowledged: !!r.acknowledgedAt, agrees: r.employeeAgrees, rating: r.rating, goals: r.employee.goals.length, due: ymd(r.dueDate ?? current!.dueDate),
+    nudged: r.sharedAt ? (r.acknowledgedAt ? null : r.ackReminderStage >= 0 ? 'ack' : null) : (!r.selfSubmittedAt && r.selfReminderStage >= 0 ? 'self' : null),
   }));
   return (
     <>
@@ -37,7 +38,7 @@ export default async function ReviewsPage({ searchParams }: { searchParams: { cy
       <p className="lede">Run a review cycle: employees answer a self review on their employee page, you write the manager review and share it, and they acknowledge it there. Set goals they can update as they go.</p>
       <Reviews cycles={cycleRows} current={current?.id ?? null} rows={rows} departments={departments} defaults={DEFAULT_QUESTIONS.map((q) => ({ text: q.text, kind: q.kind }))}
         canEdit={canEdit(ctx)} admin={isAdmin(ctx.role) && canEdit(ctx)} today={today}
-        schedule={{ on: ctx.org.reviewScheduleOn, frequency: ctx.org.reviewFrequency as 'ANNUAL', basis: ctx.org.reviewBasis as 'HIRE_DATE', month: ctx.org.reviewMonth, leadDays: ctx.org.reviewLeadDays }}
+        schedule={{ remindEmployees: ctx.org.reviewRemindEmployees, on: ctx.org.reviewScheduleOn, frequency: ctx.org.reviewFrequency as 'ANNUAL', basis: ctx.org.reviewBasis as 'HIRE_DATE', month: ctx.org.reviewMonth, leadDays: ctx.org.reviewLeadDays }}
         upcoming={coming.map((u) => ({ ...u, frequency: u.frequency as 'ANNUAL' | 'SEMIANNUAL' }))} />
     </>
   );

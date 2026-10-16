@@ -6,6 +6,7 @@ import { balances, requestLeave, tracked } from './leave';
 import { hoursAmount, leaveAmount } from './payroll';
 import { totals, type RunItem } from './payroll-run';
 import { acknowledge, saveSelfReview, updateOwnGoal, type Question } from './reviews';
+import { SELF_LEAD_DAYS } from './review-nudges';
 
 /**
  * An employee's own page, on the private link they already use for their schedule and time clock: their job,
@@ -63,10 +64,10 @@ export async function employeeHub(link: Link) {
 
   return {
     reviews: reviews.map((r) => ({
-      id: r.id, cycle: r.cycle.name, dueDate: ymd(r.cycle.dueDate), questions: r.cycle.questions as Question[],
-      canSelf: r.cycle.status === 'OPEN' && r.cycle.selfReview && !r.selfSubmittedAt, self: r.selfAnswers, selfSubmitted: !!r.selfSubmittedAt,
+      id: r.id, cycle: r.cycle.name, dueDate: ymd(new Date((r.dueDate ?? r.cycle.dueDate).getTime() - (o.reviewScheduleOn && o.reviewRemindEmployees ? SELF_LEAD_DAYS * 864e5 : 0))), questions: r.cycle.questions as Question[],
+      canSelf: r.cycle.status === 'OPEN' && r.cycle.selfReview && !r.selfSubmittedAt && !r.sharedAt, // once the manager's review is shared, the self review is moot self: r.selfAnswers, selfSubmitted: !!r.selfSubmittedAt,
       // The manager review only once it's shared.
-      shared: r.sharedAt ? { answers: r.managerAnswers, rating: r.rating, summary: r.summary, acknowledged: !!r.acknowledgedAt, comment: r.employeeComment } : null,
+      shared: r.sharedAt ? { answers: r.managerAnswers, rating: r.rating, summary: r.summary, acknowledged: !!r.acknowledgedAt, agrees: r.employeeAgrees, comment: r.employeeComment } : null,
     })),
     goals: goals.map((g) => ({ id: g.id, title: g.title, details: g.details, dueDate: g.dueDate ? ymd(g.dueDate) : null, progress: g.progress, status: g.status })),
     job: { title: e.title, department: e.department?.name ?? null, location: e.branch?.name ?? null, manager: e.manager?.candidate.name ?? null, startDate: ymd(e.startDate), status: e.status, employeeNumber: e.employeeNumber, salaried: e.payType === 'SALARY' },
@@ -85,7 +86,7 @@ const Action = z.discriminatedUnion('action', [
   z.object({ action: z.literal('cancelLeave'), requestId: z.string() }),
   z.object({ action: z.literal('profile'), email: z.string().optional(), phone: z.string().optional() }),
   z.object({ action: z.literal('selfReview'), reviewId: z.string(), answers: z.unknown(), submit: z.boolean().optional() }),
-  z.object({ action: z.literal('acknowledge'), reviewId: z.string(), comment: z.string().max(2000).optional() }),
+  z.object({ action: z.literal('acknowledge'), reviewId: z.string(), comment: z.string().max(2000).optional(), agree: z.boolean().optional() }),
   z.object({ action: z.literal('goal'), goalId: z.string(), progress: z.number() }),
 ]);
 
@@ -106,7 +107,7 @@ export async function employeeAction(link: Link, body: unknown) {
   if (b.action === 'selfReview' || b.action === 'acknowledge' || b.action === 'goal') {
     if (!hasFeature(o, 'reviews')) throw new HttpError(404, 'Reviews aren’t set up here.');
     if (b.action === 'selfReview') return saveSelfReview(tdb, e.id, b.reviewId, { answers: b.answers, submit: !!b.submit });
-    if (b.action === 'acknowledge') return acknowledge(tdb, e.id, b.reviewId, b.comment);
+    if (b.action === 'acknowledge') return acknowledge(tdb, e.id, b.reviewId, b.comment, b.agree);
     return updateOwnGoal(tdb, e.id, b.goalId, b.progress);
   }
   if (b.action === 'cancelLeave') {

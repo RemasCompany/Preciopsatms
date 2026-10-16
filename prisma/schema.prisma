@@ -56,6 +56,7 @@ model Organization {
   reviewBasis           String               @default("HIRE_DATE") // HIRE_DATE (work anniversary) | CALENDAR (fixed months)
   reviewMonth           Int                  @default(1) // CALENDAR: the month reviews are due (and six months later for semi-annual)
   reviewLeadDays        Int                  @default(30) // how far ahead a review is added and the first reminder goes out
+  reviewRemindEmployees Boolean              @default(true) // with the schedule on: remind employees to do their self review and acknowledge shared reviews
   careersHeadline       String               @default("Find your next role")
   careersIntro          String?
   showPayOnCareers      Boolean              @default(true)
@@ -1534,8 +1535,11 @@ model Review {
   sharedAt           DateTime? // the employee can see the manager review
   acknowledgedAt     DateTime?
   employeeComment    String?
+  employeeAgrees     Boolean? // true: acknowledged and accepted; false: acknowledged but disagrees (with a comment)
   dueDate            DateTime?    @db.Date // this person's due date (scheduled reviews); otherwise the cycle's
   reminderStage      Int          @default(-1) // the last reminder sent to the manager, as an index into REMINDER_DAYS
+  selfReminderStage  Int          @default(-1) // the last self-review reminder sent to the employee (SELF_DAYS)
+  ackReminderStage   Int          @default(-1) // the last "please acknowledge" sent to the employee (ACK_DAYS)
   lastRemindedAt     DateTime?
   createdAt          DateTime     @default(now())
   updatedAt          DateTime     @updatedAt

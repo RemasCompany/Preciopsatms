@@ -151,4 +151,16 @@ describe('scheduled reviews and manager reminders', () => {
     expect(mail.sent.find((m) => m.to.startsWith('olga'))!.text).toContain('Dee Park');
     expect(dee && cy && ben).toBeTruthy();
   });
+  it('a review HR ran by hand shortly before counts as this one', async () => {
+    const o = await db.organization.findUniqueOrThrow({ where: { id: org } });
+    const c = await db.reviewCycle.create({ data: { organizationId: org, name: 'Fall check-in', periodStart: new Date('2026-01-01'), periodEnd: new Date('2026-12-31'), dueDate: new Date('2026-11-30'), questions: [] } });
+    const p = await db.candidate.create({ data: { organizationId: org, name: 'Rae Done' } });
+    const rae = (await db.employee.create({ data: { organizationId: org, candidateId: p.id, title: 'Picker', startDate: new Date('2022-12-20T00:00:00Z'), payRate: 20, managerId: mgr } })).id;
+    await db.review.create({ data: { organizationId: org, cycleId: c.id, employeeId: rae, managerSubmittedAt: new Date('2026-11-08T12:00:00Z') } });
+    const u = (await upcoming(tenantDb(o.id), o, '2026-11-25', 60)).find((x) => x.employeeId === rae)!;
+    expect([u.due, u.inCycle]).toEqual(['2026-12-20', 'Fall check-in (written Nov 8, 2026)']);
+    await runReviewReminders(new Date('2026-11-25T15:00:00Z'));
+    expect(await db.review.count({ where: { employeeId: rae } })).toBe(1);
+  });
+
 });

@@ -6,6 +6,7 @@ import { hasFeature } from './plans';
 import { sendEmail } from './email';
 import { localDate } from './timeclock';
 import { DEFAULT_QUESTIONS } from './reviews';
+import { remindEmployees } from './review-nudges';
 
 /**
  * Review schedules. Each employee is reviewed annually or semi-annually (or not at all) — on their work anniversary
@@ -74,6 +75,7 @@ export const ScheduleBody = z.object({
   reviewBasis: z.enum(['HIRE_DATE', 'CALENDAR'], { errorMap: () => ({ message: 'Choose when reviews fall due.' }) }).optional(),
   reviewMonth: z.number().int().min(1, 'Choose a month.').max(12, 'Choose a month.').optional(),
   reviewLeadDays: z.number().int().min(7, 'Add reviews at least 7 days ahead.').max(90, 'Add reviews at most 90 days ahead.').optional(),
+  reviewRemindEmployees: z.boolean().optional(),
 }).strict();
 
 type Emp = { id: string; startDate: Date; reviewFrequency: string | null; title: string; managerId: string | null; candidate: { name: string } };
@@ -85,6 +87,11 @@ export async function upcoming(tdb: TenantDb, org: Organization, today: string, 
     reviews: { where: { cycle: { auto: { not: null } } }, select: { dueDate: true, managerSubmittedAt: true, id: true }, orderBy: { dueDate: 'desc' }, take: 1 } } });
   // Someone already in an unfinished review that HR started by hand isn't given a second one.
   const busy = new Map((await tdb.review.findMany({ where: { managerSubmittedAt: null, cycle: { status: 'OPEN', auto: null } }, select: { employeeId: true, cycle: { select: { name: true } } } })).map((r) => [r.employeeId, r.cycle.name]));
+  // ...nor one shortly after a review HR ran by hand: one written within half a period of the due date counts.
+  const recent = new Map<string, { at: string; name: string }>();
+  for (const r of await tdb.review.findMany({ where: { managerSubmittedAt: { not: null }, cycle: { auto: null } }, select: { employeeId: true, managerSubmittedAt: true, cycle: { select: { name: true } } }, orderBy: { managerSubmittedAt: 'asc' } })) {
+    recent.set(r.employeeId, { at: ymd(r.managerSubmittedAt!), name: r.cycle.name });
+  }
   const out: { employeeId: string; name: string; title: string; manager: string | null; frequency: Frequency; due: string; daysLeft: number; reviewId: string | null; inCycle: string | null }[] = [];
   for (const e of people) {
     const frequency = frequencyOf(org, e);
@@ -94,7 +101,8 @@ export async function upcoming(tdb: TenantDb, org: Organization, today: string, 
     const open = last?.dueDate && !last.managerSubmittedAt ? ymd(last.dueDate) : null;
     const due = open ?? nextDue({ startDate: ymd(e.startDate), frequency, basis: org.reviewBasis as Basis, month: org.reviewMonth, after: last?.dueDate ? ymd(last.dueDate) : addDaysYmd(today, -1) });
     if (!due || daysBetween(today, due) > days) continue;
-    out.push({ employeeId: e.id, name: e.candidate.name, title: e.title, manager: e.manager?.candidate.name ?? null, frequency, due, daysLeft: daysBetween(today, due), reviewId: open ? last!.id : null, inCycle: open ? null : busy.get(e.id) ?? null });
+    const done = recent.get(e.id), coveredBy = done && daysBetween(done.at, due) < (monthsFor(frequency) * 30.44) / 2 ? `${done.name} (written ${fmt(done.at)})` : null;
+    out.push({ employeeId: e.id, name: e.candidate.name, title: e.title, manager: e.manager?.candidate.name ?? null, frequency, due, daysLeft: daysBetween(today, due), reviewId: open ? last!.id : null, inCycle: open ? null : busy.get(e.id) ?? coveredBy });
   }
   return out.sort((a, b) => a.due.localeCompare(b.due) || a.name.localeCompare(b.name));
 }
@@ -146,7 +154,7 @@ export function digest(company: string, r: Pick<Recipient, 'name' | 'items' | 'u
  */
 export async function runReviewReminders(now = new Date(), appUrl = process.env.APP_URL ?? 'http://localhost:3000') {
   const orgs = await db.organization.findMany({ where: { reviewScheduleOn: true, subscriptionStatus: { in: ['trialing', 'active'] } } });
-  let added = 0, emails = 0, reminded = 0;
+  let added = 0, emails = 0, reminded = 0, employees = 0;
   for (const org of orgs) {
     if (!hasFeature(org, 'reviews')) continue;
     const tdb = tenantDb(org.id), today = localDate(now, org.timezone);
@@ -205,8 +213,10 @@ export async function runReviewReminders(now = new Date(), appUrl = process.env.
       const anyone = [...to.values()].some((rec) => rec.items.some((i) => i.reviewId === id));
       if (delivered.has(id) || !anyone) { await tdb.review.updateMany({ where: { id }, data: { reminderStage: stage, lastRemindedAt: now } }); reminded++; }
     }
+    // Employees: their self review, and acknowledging the review their manager shared.
+    if (org.reviewRemindEmployees) employees += await remindEmployees(tdb, org, today, now);
   }
-  return { added, emails, reminded };
+  return { added, emails, reminded, employees };
 }
 
 /** Saves the company's review schedule (admins). */

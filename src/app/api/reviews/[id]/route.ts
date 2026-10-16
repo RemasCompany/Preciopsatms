@@ -16,7 +16,7 @@ export const GET = withApi(async (_req: Request, { params }: Ctx) => {
     // Drafts of the self review stay private until the employee submits.
     self: r.selfSubmittedAt ? r.selfAnswers : null, selfSubmittedAt: r.selfSubmittedAt?.toISOString() ?? null,
     manager: r.managerAnswers, rating: r.rating, summary: r.summary, managerSubmittedAt: r.managerSubmittedAt?.toISOString() ?? null,
-    sharedAt: r.sharedAt?.toISOString() ?? null, acknowledgedAt: r.acknowledgedAt?.toISOString() ?? null, employeeComment: r.employeeComment,
+    sharedAt: r.sharedAt?.toISOString() ?? null, acknowledgedAt: r.acknowledgedAt?.toISOString() ?? null, employeeComment: r.employeeComment, employeeAgrees: r.employeeAgrees,
     goals: goals.map((g) => ({ id: g.id, title: g.title, details: g.details, dueDate: ymd(g.dueDate), progress: g.progress, status: g.status })),
   });
 });

@@ -8,12 +8,12 @@ import { fmtDate } from '@/lib/people-shared';
 import ReviewSchedule, { type Schedule, type Upcoming } from './ReviewSchedule';
 
 export type CycleRow = { id: string; name: string; status: 'OPEN' | 'CLOSED'; selfReview: boolean; periodStart: string; periodEnd: string; dueDate: string; total: number; self: number; manager: number; shared: number; acknowledged: number };
-export type ReviewRow = { id: string; employeeId: string; name: string; title: string; department: string | null; manager: string | null; self: boolean; managerDraft: boolean; manager_: boolean; shared: boolean; acknowledged: boolean; rating: number | null; goals: number; due: string };
+export type ReviewRow = { id: string; employeeId: string; name: string; title: string; department: string | null; manager: string | null; self: boolean; managerDraft: boolean; manager_: boolean; shared: boolean; acknowledged: boolean; rating: number | null; goals: number; due: string; agrees?: boolean | null; nudged?: 'self' | 'ack' | null };
 type Goal = { id: string; title: string; details: string | null; dueDate: string | null; progress: number; status: 'OPEN' | 'DONE' | 'DROPPED' };
 type Detail = {
   id: string; employeeId: string; employee: string; title: string; cycle: { id: string; name: string; status: string; selfReview: boolean; questions: Question[]; dueDate: string };
   self: Answers | null; selfSubmittedAt: string | null; manager: Answers | null; rating: number | null; summary: string | null; managerSubmittedAt: string | null;
-  sharedAt: string | null; acknowledgedAt: string | null; employeeComment: string | null; goals: Goal[];
+  sharedAt: string | null; acknowledgedAt: string | null; employeeComment: string | null; employeeAgrees?: boolean | null; goals: Goal[];
 };
 
 async function api(url: string, method: string, body?: unknown) {
@@ -23,7 +23,7 @@ async function api(url: string, method: string, body?: unknown) {
   return json;
 }
 const stage = (r: ReviewRow, selfReview: boolean): [string, string] =>
-  r.acknowledged ? ['Acknowledged', 'g'] : r.shared ? ['Shared, not yet read', 'a'] : r.manager_ ? ['Ready to share', 'a'] : r.managerDraft ? ['Manager review started', ''] : selfReview && !r.self ? ['Waiting for self review', ''] : ['Ready for manager review', 'a'];
+  r.acknowledged ? (r.agrees === false ? ['Acknowledged — disagrees', 'r'] : ['Accepted', 'g']) : r.shared ? ['Shared, not yet read', 'a'] : r.manager_ ? ['Ready to share', 'a'] : r.managerDraft ? ['Manager review started', ''] : selfReview && !r.self ? ['Waiting for self review', ''] : ['Ready for manager review', 'a'];
 
 export default function Reviews({ cycles, current, rows, departments, defaults, canEdit, admin, today, schedule, upcoming }: {
   cycles: CycleRow[]; current: string | null; rows: ReviewRow[]; departments: { id: string; name: string }[]; defaults: { text: string; kind: 'rating' | 'text' }[]; canEdit: boolean; admin: boolean; today: string;
@@ -65,7 +65,7 @@ export default function Reviews({ cycles, current, rows, departments, defaults, 
                 <td><b>{r.name}</b><div className="muted">{r.title}{r.department ? ` · ${r.department}` : ''}</div></td>
                 <td>{r.manager ?? <span className="muted">—</span>}</td>
                 <td className={cycle.status === 'OPEN' && !r.manager_ && r.due < today ? 'warnnum' : undefined}>{fmtDate(r.due)}{cycle.status === 'OPEN' && !r.manager_ && r.due < today && <div style={{ fontSize: 12 }}>Overdue</div>}</td>
-                <td><span className={`pill ${pill}`}>{label}</span>{cycle.selfReview && r.self && !r.shared && <div className="muted">Self review in</div>}</td>
+                <td><span className={`pill ${pill}`}>{label}</span>{cycle.selfReview && r.self && !r.shared && <div className="muted">Self review in</div>}{r.nudged && <div className="muted" style={{ fontSize: 12 }}>{r.nudged === 'self' ? 'Reminded to do their self review' : 'Reminded to acknowledge'}</div>}</td>
                 <td>{r.rating ? `${r.rating} · ${RATING[r.rating]}` : <span className="muted">—</span>}</td>
                 <td>{r.goals || <span className="muted">0</span>}</td>
               </tr>
@@ -152,7 +152,7 @@ function ReviewDrawer({ id, canEdit, onClose, onChanged }: { id: string; canEdit
             <label key={n} className={`rate${rating === n ? ' on' : ''}`} title={RATING[n]}><input type="radio" name="overall" checked={rating === n} disabled={locked} onChange={() => setRating(n)} /><span>{n}</span></label>
           ))}<span className="muted">{rating ? RATING[rating] : 'Choose 1–5'}</span></div></div>
         <label className="full" style={{ marginTop: 10 }}><span>Summary for the employee</span><textarea rows={3} maxLength={3000} value={summary} readOnly={locked} onChange={(e) => setSummary(e.target.value)} /></label>
-        {d.sharedAt && <p className="muted">Shared {fmtDate(d.sharedAt.slice(0, 10))}. {d.acknowledgedAt ? `Acknowledged ${fmtDate(d.acknowledgedAt.slice(0, 10))}${d.employeeComment ? `: “${d.employeeComment}”` : '.'}` : 'Not acknowledged yet.'}</p>}
+        {d.sharedAt && <p className="muted">Shared {fmtDate(d.sharedAt.slice(0, 10))}. {d.acknowledgedAt ? `${d.employeeAgrees === false ? 'Acknowledged, but the employee disagrees' : 'Acknowledged and accepted'} ${fmtDate(d.acknowledgedAt.slice(0, 10))}${d.employeeComment ? `: “${d.employeeComment}”` : '.'}` : 'Not acknowledged yet.'}</p>}
       </section>
       <section className="sec"><h3>Goals {canEdit && <button className="btn ghost sm" onClick={() => setGoal({})}>+ Add goal</button>}</h3>
         {d.goals.length ? <div className="list">{d.goals.map((g) => (

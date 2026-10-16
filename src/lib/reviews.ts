@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { Organization, Role, User } from '@prisma/client';
 import { HttpError, logActivity, type TenantDb } from './tenant';
 import { audit } from './audit';
+import { notifyShared } from './review-nudges';
 
 /**
  * Performance reviews and goals. A cycle asks the same questions of everyone in it. Employees answer their self
@@ -116,7 +117,9 @@ export async function shareReview(ctx: Ctx, id: string) {
   await ctx.tdb.review.updateMany({ where: { id }, data: { sharedAt: new Date() } });
   await audit(ctx.org.id, ctx.user, 'review.share', `Shared ${r.employee.candidate.name}’s ${r.cycle.name} review`, { targetType: 'Review', targetId: id });
   await logActivity(ctx.org.id, `Shared ${r.employee.candidate.name}’s ${r.cycle.name} review`, ctx.user.id);
-  return { ok: true };
+  // Tell them it's ready to read and acknowledge (when review reminders are on).
+  const notified = await notifyShared(ctx.tdb, ctx.org, id);
+  return { ok: true, notified };
 }
 
 /** The employee's own self review, from their page. */
@@ -132,13 +135,16 @@ export async function saveSelfReview(tdb: TenantDb, employeeId: string, id: stri
   return { message: b.submit ? 'Submitted. Your manager will see your answers.' : 'Saved. You can finish it later.' };
 }
 
-export async function acknowledge(tdb: TenantDb, employeeId: string, id: string, comment: unknown) {
+/** The employee acknowledges a shared review — accepting it, or noting that they disagree (which needs a comment). */
+export async function acknowledge(tdb: TenantDb, employeeId: string, id: string, comment: unknown, agree: unknown = true) {
   const text = typeof comment === 'string' ? comment.trim().slice(0, 2000) : '';
+  const agrees = agree !== false;
   const r = await tdb.review.findFirst({ where: { id, employeeId } });
   if (!r || !r.sharedAt) throw new HttpError(404, 'That review isn’t ready yet.');
   if (r.acknowledgedAt) return { message: 'You already acknowledged this review.' };
-  await tdb.review.updateMany({ where: { id }, data: { acknowledgedAt: new Date(), employeeComment: text || null } });
-  return { message: 'Thanks — your manager will see that you’ve read it.' };
+  if (!agrees && text.length < 5) throw new HttpError(400, 'Say what you disagree with, so your manager and HR can follow up.');
+  await tdb.review.updateMany({ where: { id }, data: { acknowledgedAt: new Date(), employeeComment: text || null, employeeAgrees: agrees } });
+  return { message: agrees ? 'Thanks — your manager will see that you’ve accepted your review.' : 'Thanks — your manager and HR will see your comments and follow up.' };
 }
 
 // ---- goals ----
