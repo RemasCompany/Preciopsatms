@@ -5,6 +5,8 @@ import { renderSignedPdf } from '@/lib/pdf';
 import { putFile } from '@/lib/storage';
 import { sendEmail } from '@/lib/email';
 import { markSigned } from '@/lib/onboarding-server';
+import { tenantDb } from '@/lib/tenant';
+import { docsLink } from '@/lib/hiring-docs-server';
 
 const Body = z.object({
   name: z.string().min(2).max(120),
@@ -55,5 +57,12 @@ export async function POST(req: Request, { params }: { params: { token: string }
     .catch((e) => console.error('[sign] signer copy email failed', e));
   if (doc.organization.applyEmail) await sendEmail({ to: doc.organization.applyEmail, subject: `Signed: ${doc.title}`, text: `${parsed.data.name} signed "${doc.title}". The signed PDF with audit trail is attached. Countersign it in Preciops if required.`, attachments: attach })
     .catch((e) => console.error('[sign] company copy email failed', e));
-  return Response.json({ ok: true });
+  // Hiring documents asked for (with this offer or otherwise): a private link to send them next.
+  let next: { url: string; count: number } | null = null;
+  if (doc.relatedType === 'candidate') {
+    const tdb = tenantDb(doc.organizationId);
+    const count = await tdb.hiringDocument.count({ where: { candidateId: doc.relatedId, onboardingStepId: null, status: { in: ['REQUESTED', 'REJECTED'] } } });
+    if (count) next = { url: `/shifts/${await docsLink(tdb, doc.relatedId)}#documents`, count };
+  }
+  return Response.json({ ok: true, next });
 }

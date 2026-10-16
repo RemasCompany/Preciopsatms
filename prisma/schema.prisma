@@ -125,6 +125,7 @@ model Organization {
   vendors               Vendor[]
   tasks                 Task[]
   taskComments          TaskComment[]
+  hiringDocuments       HiringDocument[]
   timesheets            Timesheet[]
   documents             SignDocument[]
   messages              Message[]
@@ -300,6 +301,7 @@ model Candidate {
   everifyCases     EVerifyCase[]
   doNotReturns     DoNotReturn[]
   trainings        TrainingEnrollment[]
+  hiringDocuments  HiringDocument[]
   branchId         String?
   branch           Branch?              @relation(fields: [branchId], references: [id], onDelete: SetNull)
 
@@ -1625,4 +1627,31 @@ model OffboardingTask {
 
   @@index([employeeId])
   @@index([organizationId, doneAt])
+}
+
+/// A hiring document the candidate sends back (I-9 documents, W-4, direct deposit, certifications…): asked for with an
+/// offer, an onboarding step or on its own. Sensitive ones can only be opened by owners and admins, and every view is audited.
+model HiringDocument {
+  id               String       @id @default(cuid())
+  organizationId   String
+  candidateId      String
+  kind             String // a key from HIRING_DOCS (src/lib/hiring-docs.ts)
+  label            String
+  sensitive        Boolean      @default(false)
+  status           String       @default("REQUESTED") // REQUESTED | RECEIVED | ACCEPTED | REJECTED
+  files            Json         @default("[]") // [{ fileId, name, size, at }]
+  note             String? // why it was sent back
+  requestedById    String?
+  signDocumentId   String? // asked for with this offer
+  onboardingStepId String? // asked for by this onboarding step
+  receivedAt       DateTime?
+  reviewedAt       DateTime?
+  reviewedById     String?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  candidate        Candidate    @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, candidateId])
+  @@index([onboardingStepId])
 }

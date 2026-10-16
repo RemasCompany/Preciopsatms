@@ -1,9 +1,10 @@
 'use client';
 import { useRef, useState } from 'react';
+import { HIRING_DOCS, isHiringDocKind } from '@/lib/hiring-docs';
 
 export type WorkerOb = {
   id: string; job: string; startDate: string | null; ready: boolean;
-  steps: { id: string; kind: string; label: string; hint: string | null; required: boolean; done: boolean; waived: boolean; mine: boolean; blocked: string | null; contact: Record<string, string> | null }[];
+  steps: { id: string; kind: string; label: string; hint: string | null; required: boolean; done: boolean; waived: boolean; mine: boolean; blocked: string | null; contact: Record<string, string> | null; note?: string | null; docKind?: string | null }[];
 };
 
 /** A new hire's own checklist on their private page: sign, upload and fill in, plus what the recruiter is doing. */
@@ -58,7 +59,9 @@ function One({ token, ob, onChange }: { token: string; ob: WorkerOb; onChange: (
             <span className="obcheck" aria-hidden="true">{s.done ? '✓' : ''}</span>
             <div className="x">
               <b>{s.label}{!s.required && <span className="muted"> (optional)</span>}</b>
+              {!s.done && s.note && <span className="warn">{s.note}</span>}
               {s.hint && !s.done && <span className="muted">{s.hint}</span>}
+              {!s.done && isHiringDocKind(s.docKind) && (() => { const d = HIRING_DOCS[s.docKind]; return <>{!s.hint && d.hint && <span className="muted">{d.hint}</span>}{'link' in d && d.link && <a href={d.link.href} target="_blank" rel="noopener noreferrer">{d.link.text}</a>}{d.sensitive && <span className="muted">Private: only HR can open it.</span>}</>; })()}
               {s.waived && <span className="muted">Not needed</span>}
               {s.contact && <span className="muted">{s.contact.name} ({s.contact.relationship}) · {s.contact.phone}</span>}
               {!s.done && s.blocked && <span className="muted">{s.blocked}</span>}
@@ -84,7 +87,7 @@ function One({ token, ob, onChange }: { token: string; ob: WorkerOb; onChange: (
           <ul>{theirs.map((s) => <li key={s.id}><span>{s.label}</span><b>{s.done ? '✓' : 'Pending'}</b></li>)}</ul>
         </details>
       )}
-      <p className="muted" style={{ fontSize: 12.5, marginBottom: 0 }}>For your Form I-9, bring original documents that show your identity and that you can work in the U.S. on your first day. Your tax and direct deposit details go in the payroll system your recruiter will point you to — never send them by text or email.</p>
+      <p className="muted" style={{ fontSize: 12.5, marginBottom: 0 }}>For your Form I-9, bring the original documents on your first day too. Send tax, bank and identity documents only through this page — never by text or email.</p>
     </section>
   );
 }

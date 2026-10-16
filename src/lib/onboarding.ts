@@ -2,6 +2,7 @@
 // Shared by the UI and the server — keep this file free of server imports.
 import { z } from 'zod';
 import { CREDENTIAL_TYPE_NAMES } from './credentials';
+import { HIRING_DOC_KINDS, type HiringDocKind } from './hiring-docs';
 
 export const STAFF_TASKS = {
   i9: 'Form I-9 completed',
@@ -18,7 +19,8 @@ export type StaffTask = keyof typeof STAFF_TASKS;
 const base = { label: z.string().trim().min(2, 'Give every step a name.').max(120, 'Keep step names under 120 characters.'), hint: z.string().max(300).optional().nullable(), required: z.boolean().default(true) };
 export const StepDef = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('SIGN'), ...base, doc: z.enum(['offer', 'assignment', 'custom']), title: z.string().max(200).optional().nullable(), body: z.string().max(20000).optional().nullable() }),
-  z.object({ kind: z.literal('UPLOAD'), ...base, credentialType: z.string().refine((t) => CREDENTIAL_TYPE_NAMES.includes(t)).optional().nullable() }),
+  z.object({ kind: z.literal('UPLOAD'), ...base, credentialType: z.string().refine((t) => CREDENTIAL_TYPE_NAMES.includes(t)).optional().nullable(),
+    docKind: z.enum(HIRING_DOC_KINDS as [HiringDocKind, ...HiringDocKind[]]).optional().nullable() }),
   z.object({ kind: z.literal('FORM'), ...base, form: z.literal('emergency_contact') }),
   z.object({ kind: z.literal('STAFF'), ...base, task: z.enum(Object.keys(STAFF_TASKS) as [StaffTask]) }),
   z.object({ kind: z.literal('CREDENTIAL'), ...base, credentialType: z.string().refine((t) => CREDENTIAL_TYPE_NAMES.includes(t), 'Choose a credential type.') }),
@@ -68,7 +70,11 @@ I understand that at healthcare client sites I may see protected health informat
 I understand that violating patient privacy can lead to removal from assignment, termination and legal penalties.`;
 
 const i9Hint = 'Section 1 by the first day of work; review documents and complete Section 2 within 3 business days of the start date.';
-const payrollHint = 'The new hire enters this in your payroll provider’s onboarding portal. Mark done once it’s set up.';
+const payrollHint = 'Enter it in your payroll provider from the form the new hire sends (or they enter it in the provider’s portal). Mark done once it’s set up.';
+// What the new hire sends: their choice of I-9 documents, and the tax and bank forms payroll needs.
+const i9Upload: StepDef = { kind: 'UPLOAD', label: 'Send your identity and work authorization documents (Form I-9)', docKind: 'i9_docs', hint: 'Your choice of documents from the official lists. Bring the originals on your first day.', required: true };
+const w4Upload: StepDef = { kind: 'UPLOAD', label: 'Send your completed Form W-4', docKind: 'w4', required: true };
+const ddUpload: StepDef = { kind: 'UPLOAD', label: 'Send your direct deposit details (voided check or bank letter)', docKind: 'direct_deposit', required: false };
 
 /** Starting points a company can add and edit. Customers should have counsel review the document text. */
 export const STARTER_PACKAGES: { name: string; description: string; steps: StepDef[] }[] = [
@@ -79,6 +85,7 @@ export const STARTER_PACKAGES: { name: string; description: string; steps: StepD
     { kind: 'SIGN', label: 'Acknowledge workplace safety rules', doc: 'custom', title: 'Workplace safety acknowledgment', body: SAFETY, required: true },
     { kind: 'FORM', label: 'Add an emergency contact', form: 'emergency_contact', required: true },
     { kind: 'UPLOAD', label: 'Upload certifications you have (e.g. forklift)', hint: 'Optional. A photo or PDF is fine.', required: false },
+    i9Upload, w4Upload, ddUpload,
     { kind: 'STAFF', label: STAFF_TASKS.i9, task: 'i9', hint: i9Hint, required: true },
     { kind: 'STAFF', label: STAFF_TASKS.w4, task: 'w4', hint: payrollHint, required: true },
     { kind: 'STAFF', label: STAFF_TASKS.direct_deposit, task: 'direct_deposit', hint: payrollHint, required: false },
@@ -94,6 +101,7 @@ export const STARTER_PACKAGES: { name: string; description: string; steps: StepD
     { kind: 'UPLOAD', label: 'Upload your BLS card', credentialType: 'BLS', required: true },
     { kind: 'UPLOAD', label: 'Upload your latest TB test result', credentialType: 'TB test', required: true },
     { kind: 'CREDENTIAL', label: 'Nursing license verified', credentialType: 'RN license', hint: 'Change the type for LPN, CNA or allied roles.', required: true },
+    i9Upload, w4Upload, ddUpload,
     { kind: 'STAFF', label: STAFF_TASKS.i9, task: 'i9', hint: i9Hint, required: true },
     { kind: 'STAFF', label: STAFF_TASKS.w4, task: 'w4', hint: payrollHint, required: true },
     { kind: 'STAFF', label: STAFF_TASKS.direct_deposit, task: 'direct_deposit', hint: payrollHint, required: false },

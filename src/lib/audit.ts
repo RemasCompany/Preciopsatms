@@ -54,6 +54,7 @@ export const AUDIT_ACTIONS = {
   'review.schedule': { group: 'People', label: 'Changed the review schedule' },
   'review.share': { group: 'People', label: 'Shared a review with an employee' },
   'offboarding.template': { group: 'People', label: 'Changed the offboarding checklist' },
+  'document.view': { group: 'People', label: 'Opened a tax, bank or identity document' },
 } as const;
 export type AuditAction = keyof typeof AUDIT_ACTIONS;
 export const AUDIT_GROUPS = [...new Set(Object.values(AUDIT_ACTIONS).map((a) => a.group))];

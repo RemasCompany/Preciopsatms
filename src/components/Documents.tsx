@@ -1,4 +1,6 @@
 'use client';
+import { DocRequestPicker } from './HiringDocs';
+import { OFFER_DEFAULTS, type HiringDocKind } from '@/lib/hiring-docs';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Drawer from './Drawer';
@@ -10,7 +12,7 @@ type Row = { id: string; title: string; typeLabel: string; forName: string; stat
 type Doc = {
   id: string; type: string; title: string; body: string; status: string; signerName: string; signerEmail: string;
   signerSignature: string | null; signedAt: string | null; counterName: string | null; counterSignature: string | null; counterSignedAt: string | null;
-  pdfFileId: string | null; bodySha256: string | null; tokenExpiresAt: string | null; audit: AuditEntry[];
+  pdfFileId: string | null; bodySha256: string | null; tokenExpiresAt: string | null; audit: AuditEntry[]; relatedType: string;
 };
 const STATUS: Record<string, string> = { DRAFT: 'Draft', SENT: 'Sent', SIGNED: 'Signed', COUNTERSIGNED: 'Countersigned', VOID: 'Void' };
 const date = (iso: string) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -96,9 +98,10 @@ function DocumentDrawer({ id, canEdit, admin, onClose }: { id: string; canEdit: 
   const [counterName, setCounterName] = useState('');
   const [consent, setConsent] = useState(false);
   const pad = useRef<SignaturePadHandle>(null);
+  const [askDocs, setAskDocs] = useState<HiringDocKind[] | null>(null); // hiring documents to ask for with it (candidates)
 
   async function load() {
-    try { const { document } = await api(`/api/esign/${id}`, 'GET'); setDoc(document); setEdit({ title: document.title, body: document.body, signerName: document.signerName, signerEmail: document.signerEmail }); }
+    try { const { document } = await api(`/api/esign/${id}`, 'GET'); setDoc(document); setAskDocs((a) => a ?? (document.type === 'offer' ? [...OFFER_DEFAULTS] : [])); setEdit({ title: document.title, body: document.body, signerName: document.signerName, signerEmail: document.signerEmail }); }
     catch (e) { toast((e as Error).message, true); onClose(); }
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -111,7 +114,7 @@ function DocumentDrawer({ id, canEdit, admin, onClose }: { id: string; canEdit: 
     try { await fn(); toast(done); await load(); router.refresh(); } catch (e) { setError((e as Error).message); } finally { setBusy(''); }
   }
   const save = () => run('save', () => api(`/api/esign/${id}`, 'PATCH', edit), 'Saved.');
-  const send = () => run('send', async () => { if (dirty) await api(`/api/esign/${id}`, 'PATCH', edit); await api(`/api/esign/${id}/send`, 'POST'); }, 'Sent for signature.');
+  const send = () => run('send', async () => { if (dirty) await api(`/api/esign/${id}`, 'PATCH', edit); await api(`/api/esign/${id}/send`, 'POST', doc?.status === 'DRAFT' && doc.relatedType === 'candidate' ? { requestDocs: askDocs ?? [] } : {}); }, doc?.status === 'DRAFT' && doc.relatedType === 'candidate' && askDocs?.length ? `Sent for signature. After signing they’ll be asked for ${askDocs.length} document${askDocs.length === 1 ? '' : 's'}.` : 'Sent for signature.');
   const voidDoc = () => { if (confirm('Void this document? Its signing link will stop working.')) run('void', () => api(`/api/esign/${id}`, 'PATCH', { action: 'void' }), 'Voided.'); };
   const countersign = () => {
     if (counterName.trim().length < 2) return setError('Type your full name.');
@@ -131,6 +134,7 @@ function DocumentDrawer({ id, canEdit, admin, onClose }: { id: string; canEdit: 
     </> : doc?.pdfFileId ? <a className="btn ghost" href={`/api/esign/${id}/pdf`}>Download PDF</a> : undefined}>
       {!doc || !edit ? <p className="muted">Loading…</p> : <>
         {error && <p className="error" role="alert">{error}</p>}
+        {draft && doc.relatedType === 'candidate' && askDocs && <DocRequestPicker legend="Ask for hiring documents with it (they upload them right after signing)" value={askDocs} onChange={setAskDocs} />}
         <div className="form">
           <label className="full"><span>Title</span><input value={edit.title} readOnly={!draft} onChange={(e) => setEdit({ ...edit, title: e.target.value })} /></label>
           <label><span>Signer name</span><input value={edit.signerName} readOnly={!draft} onChange={(e) => setEdit({ ...edit, signerName: e.target.value })} /></label>

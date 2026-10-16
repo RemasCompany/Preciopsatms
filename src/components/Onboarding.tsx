@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import Drawer from './Drawer';
 import { useRecords } from './Records';
 import { STAFF_TASKS, STEP_KINDS, type StepDef } from '@/lib/onboarding';
+import { HIRING_DOCS, HIRING_DOC_KINDS, type HiringDocKind } from '@/lib/hiring-docs';
 
 async function api(url: string, method: string, body?: unknown) {
   const res = await fetch(url, { method, headers: body ? { 'Content-Type': 'application/json' } : undefined, body: body ? JSON.stringify(body) : undefined });
@@ -227,6 +228,13 @@ export function PackageEditor({ pkg, credentialTypes }: { pkg?: { id: string; na
                 <label className="full"><span>Text (merge fields: {'{{name}} {{my_company}} {{job_title}} {{start_date}} {{pay_rate}} {{date}}'})</span><textarea rows={6} value={s.body ?? ''} onChange={(e) => set(i, { body: e.target.value })} /></label>
               </>}
               {s.kind === 'STAFF' && <label><span>Task</span><select value={s.task} onChange={(e) => set(i, { task: e.target.value as 'i9' })}>{Object.entries(STAFF_TASKS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>}
+              {s.kind === 'UPLOAD' && !s.credentialType && (
+                <label><span>What they send</span>
+                  <select value={s.docKind ?? ''} onChange={(e) => set(i, { docKind: (e.target.value || null) as HiringDocKind | null } as Partial<StepDef>)}>
+                    <option value="">Any file</option>
+                    {HIRING_DOC_KINDS.filter((k) => k !== 'other').map((k) => <option key={k} value={k}>{HIRING_DOCS[k].label}{HIRING_DOCS[k].sensitive ? ' (admins only)' : ''}</option>)}
+                  </select></label>
+              )}
               {(s.kind === 'UPLOAD' || s.kind === 'CREDENTIAL') && (
                 <label><span>{s.kind === 'UPLOAD' ? 'File it as a credential (optional)' : 'Credential type'}</span>
                   <select value={s.credentialType ?? ''} onChange={(e) => set(i, { credentialType: e.target.value || null } as Partial<StepDef>)}>

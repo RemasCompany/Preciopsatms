@@ -10,6 +10,7 @@ export default function SignPage({ params, searchParams }: { params: { token: st
   const [doc, setDoc] = useState<Doc | null>(null);
   const [msg, setMsg] = useState('');
   const [done, setDone] = useState(false);
+  const [next, setNext] = useState<{ url: string; count: number } | null>(null);
   const [name, setName] = useState('');
   const [consent, setConsent] = useState(false);
   const pad = useRef<SignaturePadHandle>(null);
@@ -19,10 +20,12 @@ export default function SignPage({ params, searchParams }: { params: { token: st
     if (!pad.current || pad.current.isEmpty()) return setMsg('Draw your signature in the box.');
     if (!consent) return setMsg('Check the box to agree to sign electronically.');
     const r = await fetch(`/api/sign/${params.token}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, signature: pad.current.toDataURL(), consent: true }) });
-    const j = await r.json(); if (r.ok) setDone(true); else setMsg(j.error);
+    const j = await r.json(); if (r.ok) { setNext(j.next ?? null); setDone(true); } else setMsg(j.error);
   }
 
-  if (done) return <main className="public"><h1>Signed</h1><p>Thank you. A signed copy has been emailed to you.</p>{back && <a className="btn" href={back}>Back to your new-hire steps</a>}</main>;
+  if (done) return <main className="public"><h1>Signed</h1><p>Thank you. A signed copy has been emailed to you.</p>
+    {next && !back && <div className="card"><h2 style={{ marginTop: 0 }}>Next: send your hiring documents</h2><p>We need {next.count} document{next.count === 1 ? '' : 's'} from you, such as your tax and direct deposit forms. Upload them securely — a photo from your phone is fine.</p><a className="btn" href={next.url}>Send my documents</a></div>}
+    {back && <a className="btn" href={back}>Back to your new-hire steps</a>}</main>;
   if (!doc) return <main className="public"><p>{msg || 'Loading…'}</p></main>;
   return (
     <main className="public" style={{ ['--accent' as string]: doc.brandColor }}>

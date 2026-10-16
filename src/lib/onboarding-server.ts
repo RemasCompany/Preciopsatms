@@ -8,6 +8,7 @@ import { jobMergeFields } from './merge-fields';
 import { putFile } from './storage';
 import { deliver, type Channel } from './schedule-server';
 import { PackageBody, progress, type StepDef, type StepState } from './onboarding';
+import { fileOnboardingUpload } from './hiring-docs-server';
 
 const appUrl = () => process.env.APP_URL ?? 'http://localhost:3000';
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
@@ -119,6 +120,8 @@ export async function workerOnboarding(orgId: string, candidateId: string) {
           mine: ['SIGN', 'UPLOAD', 'FORM'].includes(s.kind),
           blocked: s.kind === 'SIGN' && s.status === 'PENDING' && (!doc || doc.status === 'VOID' || hasBlanks(doc.body)) ? 'Your recruiter is finishing this document.' : null,
           contact: s.kind === 'FORM' && s.data ? (s.data as Record<string, string>) : null,
+          note: s.status === 'PENDING' ? s.note : null, // e.g. why HR sent an upload back
+          docKind: s.kind === 'UPLOAD' ? ((s.config as { docKind?: string | null }).docKind ?? null) : null,
         };
       }),
     };
@@ -173,14 +176,21 @@ const UPLOAD_TYPES: Record<string, string> = { pdf: 'application/pdf', png: 'ima
 /** A new hire's upload. When the step names a credential type, it's filed as that credential for staff to verify. */
 export async function saveUpload(link: Link, stepId: string, file: File) {
   const { tdb, s } = await workerStep(link, stepId, 'UPLOAD');
-  if (!file.size) throw new HttpError(400, 'Choose a file.');
-  if (file.size > 10 * 1024 * 1024) throw new HttpError(413, 'That file is larger than 10 MB.');
-  const type = UPLOAD_TYPES[file.name.split('.').pop()?.toLowerCase() ?? ''];
-  if (!type) throw new HttpError(415, 'Upload a PDF or a photo (JPG or PNG).');
-  const stored = await putFile(link.organizationId, file.name, type, Buffer.from(await file.arrayBuffer()));
   const credentialType = (s.config as { credentialType?: string | null }).credentialType;
-  if (credentialType) await tdb.credential.create({ data: { candidateId: link.candidateId, type: credentialType, fileId: stored.id, notes: 'Uploaded by the new hire during onboarding — add dates and verify.' } as never });
-  await tdb.onboardingStep.updateMany({ where: { id: s.id }, data: { fileId: stored.id, status: 'DONE', completedAt: new Date(), completedBy: 'worker' } });
+  let fileId: string;
+  if (credentialType) {
+    if (!file.size) throw new HttpError(400, 'Choose a file.');
+    if (file.size > 10 * 1024 * 1024) throw new HttpError(413, 'That file is larger than 10 MB.');
+    const type = UPLOAD_TYPES[file.name.split('.').pop()?.toLowerCase() ?? ''];
+    if (!type) throw new HttpError(415, 'Upload a PDF or a photo (JPG or PNG).');
+    const stored = await putFile(link.organizationId, file.name, type, Buffer.from(await file.arrayBuffer()));
+    await tdb.credential.create({ data: { candidateId: link.candidateId, type: credentialType, fileId: stored.id, notes: 'Uploaded by the new hire during onboarding — add dates and verify.' } as never });
+    fileId = stored.id;
+  } else {
+    // Everything else is a hiring document, reviewed (and, if sensitive, protected) in one place.
+    fileId = (await fileOnboardingUpload(tdb, link.organizationId, s, { id: link.candidateId, name: link.candidate.name }, file)).fileId;
+  }
+  await tdb.onboardingStep.updateMany({ where: { id: s.id }, data: { fileId, status: 'DONE', completedAt: new Date(), completedBy: 'worker', note: null } });
   await logActivity(link.organizationId, `${link.candidate.name} uploaded ${s.label.replace(/^Upload (your )?/i, '')} during onboarding`);
   await recompute(tdb, s.onboardingId);
 }

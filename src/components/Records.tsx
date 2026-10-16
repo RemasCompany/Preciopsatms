@@ -13,6 +13,7 @@ import { BOARD_STAGES, REJECTION_REASONS, stageLabel } from '@/lib/pipeline';
 import BackgroundChecks from './BackgroundChecks';
 import { BOARD_INFO, isBoard, sourceLabel, type Board } from '@/lib/boards';
 import DoNotReturn from './DoNotReturn';
+import { CandidateDocs } from './HiringDocs';
 import { CandidateJobMatches, JobMatches } from './Matches';
 
 type Open = { kind: RecordKind; id?: string; preset?: RecordValues };
@@ -148,6 +149,7 @@ function Extras(props: { kind: RecordKind; id: string; values: RecordValues; ext
     <RelatedExtras {...props} compose={setTo} />
     {kind === 'candidates' && credentials && <Credentials candidateId={id} self={self} canEdit={canEdit} compose={setTo} />}
     {kind === 'candidates' && credentials && <BackgroundChecks candidateId={id} canEdit={canEdit} />}
+    {kind === 'candidates' && <CandidateDocs candidateId={id} canEdit={canEdit} toast={props.toast} hasContact={{ email: !!values.email && !optOut?.email, phone: !!values.phone && !optOut?.sms }} />}
     {kind === 'candidates' && <DoNotReturn candidateId={id} canEdit={canEdit} />}
     <MessageHistory messages={(extras.messages ?? []) as SentMessage[]} />
     {to && <ComposeDrawer to={to} onClose={() => setTo(null)} onSent={reload} />}
