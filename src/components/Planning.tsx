@@ -55,7 +55,7 @@ export default function PlanningView({ p, money, groups, years }: { p: Planning;
   const weekSeries: Series[] = o ? [
     { key: 'need', name: 'Hours needed', color: '--series-1', kind: 'bar', values: o.forecast.map((w) => w.hours) },
     { key: 'cap', name: 'Current team', color: '--series-3', values: o.capacity.weeks.map((w) => w.hours) },
-    { key: 'ly', name: 'Same week last year', color: '--series-2', values: o.forecast.map((w) => w.lastYear || null) },
+    { key: 'ly', name: 'Last year', color: '--series-2', values: o.forecast.map((w) => w.lastYear || null) },
   ] : [];
   const h = o?.hiring;
   const ytd = p.ytd;

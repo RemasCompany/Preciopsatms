@@ -43,7 +43,9 @@ export function TimeChart({ labels, series, format, title, height = 240, labelEv
   const max = useMemo(() => niceMax(Math.max(0, ...series.flatMap((s) => s.values.map((v) => v ?? 0)))), [series]);
   const n = labels.length, step = (W - L - R) / n;
   const x = (i: number) => L + step * (i + 0.5), y = (v: number) => T + (H - T - B) * (1 - v / max);
-  const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => f * max);
+  // Quarters, except where they'd land on awkward values (2.5 → 0.5 steps, 5 → 1 steps).
+  const m = max / Math.pow(10, Math.floor(Math.log10(max))), div = m === 2.5 || m === 5 ? 5 : 4;
+  const ticks = Array.from({ length: div + 1 }, (_, i) => (i / div) * max);
   const bars = series.filter((s) => s.kind === 'bar'), lines = series.filter((s) => s.kind !== 'bar');
   const bw = Math.min(28, step * 0.62 / Math.max(1, bars.length));
   // Direct end labels: the last value of each line, nudged apart so they don't collide.
