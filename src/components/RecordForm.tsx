@@ -40,6 +40,22 @@ function UserSelect({ fl, value, onChange, disabled }: { fl: Field; value: strin
   );
 }
 
+let empCache: Promise<{ id: string; label: string }[]> | null = null;
+const loadEmployees = () => (empCache ??= fetch('/api/employees/options').then((r) => (r.ok ? r.json() : [])).catch(() => []));
+
+/** Current employees, for tasks they'll see on their own page. */
+function EmpSelect({ fl, value, onChange, disabled }: { fl: Field; value: string | null; onChange: (v: string | null) => void; disabled?: boolean }) {
+  const [opts, setOpts] = useState<{ id: string; label: string }[] | null>(null);
+  useEffect(() => { let on = true; loadEmployees().then((o) => on && setOpts(o)); return () => { on = false; }; }, []);
+  return (
+    <select name={fl.key} value={value ?? ''} onChange={(e) => onChange(e.target.value || null)} disabled={disabled}>
+      <option value="">— No one —</option>
+      {opts?.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+      {value && opts && !opts.some((o) => o.id === value) && <option value={value}>(former employee)</option>}
+    </select>
+  );
+}
+
 export default function RecordForm({ kind, values, onChange, readOnly, orgKind }: {
   kind: RecordKind; values: RecordValues; onChange: (v: RecordValues) => void; readOnly?: boolean; orgKind?: 'STAFFING' | 'EMPLOYER';
 }) {
@@ -48,7 +64,7 @@ export default function RecordForm({ kind, values, onChange, readOnly, orgKind }
     <div className="form">
       {fieldsFor(kind, orgKind).map((fl) => {
         const v = values[fl.key];
-        const full = fl.type === 'area' || fl.key === 'skills' || fl.key === RECORDS[kind].titleKey || fl.type === 'url';
+        const full = fl.type === 'area' || fl.type === 'emp' || fl.key === 'skills' || fl.key === RECORDS[kind].titleKey || fl.type === 'url';
         const label = <span>{fl.label}{fl.required && <span aria-hidden="true"> *</span>}</span>;
         if (fl.type === 'chk') return (
           <label key={fl.key} className="check full"><input type="checkbox" name={fl.key} checked={Boolean(v)} disabled={readOnly} onChange={(e) => set(fl.key, e.target.checked)} /> {fl.label}</label>
@@ -61,6 +77,7 @@ export default function RecordForm({ kind, values, onChange, readOnly, orgKind }
           </select>
         );
         else if (fl.type === 'ref') input = <RefSelect fl={fl} value={(v as string) ?? null} onChange={(x) => set(fl.key, x)} disabled={readOnly} />;
+        else if (fl.type === 'emp') input = <EmpSelect fl={fl} value={(v as string) ?? null} onChange={(x) => set(fl.key, x)} disabled={readOnly} />;
         else if (fl.type === 'user') input = <UserSelect fl={fl} value={v as string | null | undefined} onChange={(x) => set(fl.key, x)} disabled={readOnly} />;
         else if (fl.type === 'area') input = <textarea name={fl.key} rows={4} value={String(v ?? '')} readOnly={readOnly} onChange={(e) => set(fl.key, e.target.value)} />;
         else if (fl.type === 'tags') input = (

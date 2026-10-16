@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Drawer from './Drawer';
 import { useRecords } from './Records';
+import { Avatar } from './EmployeeHub';
 import { EMPLOYMENT_TYPES, STATUS_LABEL, TYPE_LABEL, fmtDate, money } from '@/lib/people-shared';
 import type { EmployeeRow } from '@/lib/people';
 
@@ -106,7 +107,31 @@ function AddEmployee({ everyone, departments, branches, onClose, onDone }: { eve
   );
 }
 
-type Detail = { employee: EmployeeRow; reports: Person[]; pay: PayRow[] | null };
+type Profile = { preferredName: string | null; pronouns: string | null; bio: string | null; skills: string[]; photo: boolean; complete: boolean; homeAddress?: string | null; emergencyName?: string | null; emergencyRelation?: string | null; emergencyPhone?: string | null };
+type Detail = { employee: EmployeeRow; profile: Profile | null; reports: Person[]; pay: PayRow[] | null };
+
+/** What the employee filled in on their own page. */
+function ProfileSection({ e, p, canEdit, onRemoved }: { e: EmployeeRow; p: Profile; canEdit: boolean; onRemoved: () => void }) {
+  const [v] = useState(() => Date.now());
+  const nothing = !p.photo && !p.preferredName && !p.pronouns && !p.bio && !p.homeAddress && !p.emergencyName && !p.skills.length;
+  return (
+    <section className="sec"><h3>Profile <span className="muted">{p.complete ? 'complete' : 'from their employee page'}</span></h3>
+      {nothing ? <p className="muted">{e.name.split(' ')[0]} hasn’t filled in their profile yet. Send them their employee page to set it up.</p> : (
+        <div className="row" style={{ alignItems: 'flex-start', gap: 14, flexWrap: 'nowrap' }}>
+          <Avatar src={p.photo ? `/api/candidates/${e.candidateId}/photo?v=${v}` : null} name={p.preferredName || e.name} size={56} />
+          <dl className="facts" style={{ margin: 0, flex: 1 }}>
+            {(p.preferredName || p.pronouns) && <><dt>Goes by</dt><dd>{[p.preferredName, p.pronouns].filter(Boolean).join(' · ')}</dd></>}
+            {p.bio && <><dt>About</dt><dd>{p.bio}</dd></>}
+            {p.skills.length > 0 && <><dt>Skills</dt><dd>{p.skills.join(', ')}</dd></>}
+            {p.homeAddress !== undefined && <><dt>Home address</dt><dd>{p.homeAddress ?? <span className="muted">Not added</span>}</dd></>}
+            {p.emergencyName !== undefined && <><dt>Emergency contact</dt><dd>{p.emergencyName ? `${p.emergencyName}${p.emergencyRelation ? ` (${p.emergencyRelation})` : ''} · ${p.emergencyPhone ?? 'no phone'}` : <span className="muted">Not added</span>}</dd></>}
+          </dl>
+        </div>
+      )}
+      {p.photo && canEdit && <button className="btn ghost sm" style={{ marginTop: 8 }} onClick={() => confirm('Remove this picture? They can add a new one from their employee page.') && onRemoved()}>Remove picture</button>}
+    </section>
+  );
+}
 
 function EmployeeDrawer({ id, everyone, departments, branches, canEdit, admin, onClose, onChanged }: {
   id: string; everyone: Person[]; departments: Opt[]; branches: Opt[]; canEdit: boolean; admin: boolean; onClose: () => void; onChanged: () => void;
@@ -175,6 +200,7 @@ function EmployeeDrawer({ id, everyone, departments, branches, canEdit, admin, o
             <label><span>Manager</span><input readOnly value={e.manager ?? '—'} /></label><label><span>Location</span><input readOnly value={e.location ?? '—'} /></label>
           </>}
         </div>
+        {d.profile && <ProfileSection e={e} p={d.profile} canEdit={canEdit && !ended} onRemoved={() => run(async () => { await api(`/api/candidates/${e.candidateId}/photo`, 'DELETE'); return 'Picture removed.'; })} />}
         {d.reports.length > 0 && <section className="sec"><h3>Direct reports <span className="muted">{d.reports.length}</span></h3><div className="list">{d.reports.map((r) => <div key={r.id} className="li"><span className="x"><b>{r.name}</b><span className="muted">{r.title}</span></span></div>)}</div></section>}
         {d.pay && (
           <section className="sec"><h3>Pay {admin && !ended && <button className="btn ghost sm" onClick={() => setMode('pay')}>Change pay</button>}</h3>

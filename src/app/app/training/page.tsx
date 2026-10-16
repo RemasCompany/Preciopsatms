@@ -19,7 +19,7 @@ export default async function Training() {
   const since = new Date(Date.now() - 90 * 864e5);
   const [courses, enrollments, due, jobs, people, creds] = await Promise.all([
     tdb.trainingCourse.findMany({ where: { archived: false }, orderBy: { title: 'asc' } }),
-    tdb.trainingEnrollment.findMany({ where: { OR: [{ status: { in: OPEN_STATUSES } }, { updatedAt: { gte: since } }] }, include: { candidate: { select: { name: true } }, course: { select: { title: true, certType: true, lessons: true, checklist: true } } }, orderBy: { createdAt: 'desc' }, take: 500 }),
+    tdb.trainingEnrollment.findMany({ where: { OR: [{ status: { in: [...OPEN_STATUSES, 'requested'] } }, { updatedAt: { gte: since } }] }, include: { candidate: { select: { name: true } }, course: { select: { title: true, certType: true, lessons: true, checklist: true } } }, orderBy: { createdAt: 'desc' }, take: 500 }),
     recertDue(tdb, today),
     tdb.job.findMany({ where: { status: { in: ['OPEN', 'ON_HOLD'] } }, select: { id: true, title: true, requiredCerts: true, client: { select: { name: true } } }, orderBy: { title: 'asc' }, take: 300 }),
     tdb.candidate.findMany({ select: { id: true, name: true, status: true }, orderBy: { name: 'asc' }, take: 3000 }),
@@ -35,11 +35,11 @@ export default async function Training() {
         today={today} isAdmin={admin} canEdit={canEdit(ctx)} certTypes={EQUIPMENT_TYPES} trainable={TRAINABLE_TYPES} external={EXTERNAL_TYPES}
         templates={Object.entries(TEMPLATES).map(([key, t]) => ({ key, label: t.label, title: t.course.title, added: courses.some((c) => c.title === t.course.title) }))}
         courses={courses.map((c) => ({ id: c.id, title: c.title, certType: c.certType, prerequisite: c.prerequisite, description: c.description, recertMonths: c.recertMonths, passScore: c.passScore,
-          lessons: c.lessons as Lesson[], questions: admin ? (c.questions as Question[]) : [], questionCount: (c.questions as Question[]).length, checklist: c.checklist as string[] }))}
+          lessons: c.lessons as Lesson[], questions: admin ? (c.questions as Question[]) : [], questionCount: (c.questions as Question[]).length, checklist: c.checklist as string[], signup: c.signup }))}
         enrollments={enrollments.map((e) => ({
           id: e.id, candidateId: e.candidateId, name: e.candidate.name, course: e.course.title, certType: e.course.certType, status: e.status, reason: e.reason, trigger: e.trigger,
           dueDate: ymd(e.dueDate), invited: !!e.invitedAt, lessonsDone: e.lessonsDone.length, lessons: (e.course.lessons as Lesson[]).length, quizScore: e.quizScore, attempts: e.quizAttempts,
-          checklist: e.course.checklist as string[], evaluatedAt: ymd(e.evaluatedAt), evaluator: e.evaluatorName, expiresAt: ymd(e.expiresAt),
+          checklist: e.course.checklist as string[], evaluatedAt: ymd(e.evaluatedAt), evaluator: e.evaluatorName, expiresAt: ymd(e.expiresAt), requestNote: e.requestNote,
         }))}
         due={due}
         operators={creds.map((c) => ({

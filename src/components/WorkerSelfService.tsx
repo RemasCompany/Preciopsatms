@@ -1,8 +1,10 @@
 'use client';
 import { useState } from 'react';
 import ReviewAnswers, { RATING, type Answers, type Question } from './ReviewAnswers';
+import { Avatar, CoursesCard, JobsCard, ProfileCard, ProfileSetup, TasksCard, type HubCourse, type HubJob, type HubProfile, type HubStep, type HubTask } from './EmployeeHub';
 
 export type WorkerMe = {
+  name: string; profile: HubProfile; steps: HubStep[]; profileComplete: boolean; tasks: HubTask[]; jobs: HubJob[]; courses: HubCourse[];
   reviews?: { id: string; cycle: string; dueDate: string; questions: Question[]; canSelf: boolean; self: Answers | null; selfSubmitted: boolean;
     shared: null | { answers: Answers | null; rating: number | null; summary: string | null; acknowledged: boolean; agrees?: boolean | null; comment: string | null } }[];
   goals?: { id: string; title: string; details: string | null; dueDate: string | null; progress: number; status: string }[];
@@ -22,16 +24,16 @@ const range = (a: string, b: string) => (a === b ? fmt(a) : `${fmt(a)} – ${fmt
 const usd = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 const STATUS = { PENDING: ['Waiting for approval', 'a'], APPROVED: ['Approved', 'g'], DENIED: ['Not approved', 'r'], CANCELLED: ['Withdrawn', ''] } as const;
 
-/** The employee part of a worker's private page: job, time off, pay, documents and contact details. */
+/** The employee part of a worker's private page: profile, tasks, job, time off, reviews, pay, documents, internal jobs and training sign-up. */
 export default function WorkerSelfService({ token, me, onChange }: { token: string; me: WorkerMe; onChange: () => void }) {
   const [asking, setAsking] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [photoV, setPhotoV] = useState(() => Date.now());
   const [msg, setMsg] = useState<{ text: string; bad?: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
   const today = new Date().toLocaleDateString('en-CA');
   const tracked = me.timeOff?.policies.filter((p) => p.tracked) ?? [];
   const [f, setF] = useState({ policyId: me.timeOff?.policies[0]?.id ?? '', startDate: today, endDate: today, hoursPerDay: '8', note: '' });
-  const [contact, setContact] = useState({ email: me.contact.email ?? '', phone: me.contact.phone ?? '' });
   const [drafts, setDrafts] = useState<Record<string, Answers>>(() => Object.fromEntries((me.reviews ?? []).map((r) => [r.id, r.self ?? {}])));
   const [ack, setAck] = useState<Record<string, string>>({});
 
@@ -44,17 +46,34 @@ export default function WorkerSelfService({ token, me, onChange }: { token: stri
     setMsg({ text: j.message }); after?.(); onChange();
   }
 
+  const openTasks = me.tasks.filter((t) => !t.done), freshTasks = openTasks.filter((t) => t.isNew || t.newUpdates).length;
+  const startProfile = () => { setEditing(true); requestAnimationFrame(() => document.getElementById('profile')?.scrollIntoView({ behavior: 'smooth', block: 'start' })); };
+  const sections = [
+    me.tasks.length ? ['tasks', `Tasks${freshTasks ? ` (${freshTasks} new)` : openTasks.length ? ` (${openTasks.length})` : ''}`] : null,
+    me.timeOff && me.timeOff.policies.length ? ['timeoff', 'Time off'] : null,
+    ['jobs', `Internal jobs${me.jobs.length ? ` (${me.jobs.length})` : ''}`],
+    me.courses.length ? ['courses', 'Training'] : null,
+    ['profile', 'Profile'],
+  ].filter(Boolean) as [string, string][];
+
   return (
-    <section className="selfserve" aria-label="Your job, time off and pay">
+    <section className="selfserve" aria-label="Your profile, tasks, time off and pay">
       <div className="card">
-        <h2 style={{ marginTop: 0 }}>Your job</h2>
-        <p style={{ margin: '4px 0' }}><b>{me.job.title}</b>{me.job.department ? ` · ${me.job.department}` : ''}{me.job.location ? ` · ${me.job.location}` : ''}</p>
-        <p className="muted" style={{ margin: 0 }}>{me.job.manager ? `Reports to ${me.job.manager} · ` : ''}Started {fmt(me.job.startDate)}{me.job.employeeNumber ? ` · Employee #${me.job.employeeNumber}` : ''}{me.job.status === 'ON_LEAVE' ? ' · On leave' : ''}</p>
+        <div className="row" style={{ gap: 14, alignItems: 'center', flexWrap: 'nowrap' }}>
+          <Avatar src={me.profile.photo ? `/api/public/me/${token}/photo?v=${photoV}` : null} name={me.profile.preferredName || me.name} />
+          <div style={{ minWidth: 0 }}>
+            <p style={{ margin: '0 0 2px' }}><b>{me.job.title}</b>{me.job.department ? ` · ${me.job.department}` : ''}{me.job.location ? ` · ${me.job.location}` : ''}</p>
+            <p className="muted" style={{ margin: 0 }}>{me.job.manager ? `Reports to ${me.job.manager} · ` : ''}Started {fmt(me.job.startDate)}{me.job.employeeNumber ? ` · Employee #${me.job.employeeNumber}` : ''}{me.job.status === 'ON_LEAVE' ? ' · On leave' : ''}</p>
+          </div>
+        </div>
+        <nav className="jump" aria-label="On this page">{sections.map(([id, label]) => <a key={id} href={`#${id}`}>{label}</a>)}</nav>
       </div>
       {msg && <p className={msg.bad ? 'error' : 'okc'} role={msg.bad ? 'alert' : 'status'}>{msg.text}</p>}
+      {!me.profileComplete && !editing && <ProfileSetup steps={me.steps} onStart={startProfile} />}
+      {me.tasks.length > 0 && <TasksCard token={token} tasks={me.tasks} send={send} busy={busy} />}
 
       {me.timeOff && me.timeOff.policies.length > 0 && (
-        <div className="card">
+        <div className="card" id="timeoff">
           <h2 style={{ marginTop: 0 }}>Time off</h2>
           {tracked.length > 0 && <div className="kpis">{tracked.map((p) => (
             <div key={p.id} className="kpi"><b>{(p.balance ?? 0).toFixed(1)}</b><span>{p.name} hours{p.pending ? ` · ${p.pending.toFixed(1)} requested` : ''}{p.usableFrom && p.usableFrom > today ? ` · usable from ${fmt(p.usableFrom)}` : ''}</span></div>
@@ -141,16 +160,10 @@ export default function WorkerSelfService({ token, me, onChange }: { token: stri
         </div>
       )}
 
-      <div className="card">
-        <h2 style={{ marginTop: 0 }}>Your contact details</h2>
-        {editing ? (
-          <div className="form">
-            <label><span>Email</span><input type="email" value={contact.email} onChange={(e) => setContact({ ...contact, email: e.target.value })} /></label>
-            <label><span>Mobile phone</span><input type="tel" value={contact.phone} onChange={(e) => setContact({ ...contact, phone: e.target.value })} /></label>
-            <div className="row full"><button className="btn" disabled={busy} onClick={() => send({ action: 'profile', ...contact }, () => setEditing(false))}>Save</button><button className="btn ghost" onClick={() => setEditing(false)}>Cancel</button></div>
-          </div>
-        ) : <><p style={{ margin: '4px 0' }}>{me.contact.email ?? <span className="muted">No email</span>} · {me.contact.phone ?? <span className="muted">No phone</span>}</p><button className="btn ghost sm" onClick={() => setEditing(true)}>Update</button></>}
-      </div>
+      <JobsCard jobs={me.jobs} send={send} busy={busy} />
+      {me.courses.length > 0 && <CoursesCard courses={me.courses} send={send} busy={busy} />}
+      <ProfileCard token={token} name={me.name} profile={me.profile} editing={editing} setEditing={setEditing} send={send} busy={busy} photoV={photoV}
+        onPhoto={(m) => { setMsg(m); setPhotoV(Date.now()); onChange(); }} />
     </section>
   );
 }

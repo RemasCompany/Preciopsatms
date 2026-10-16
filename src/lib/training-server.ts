@@ -45,6 +45,8 @@ export async function removeCourse(tdb: TenantDb, org: Organization, user: User,
   const c = await tdb.trainingCourse.findFirst({ where: { id } });
   if (!c) throw new HttpError(404, 'That course was already removed.');
   if (await tdb.trainingEnrollment.count({ where: { courseId: id, status: { in: OPEN_STATUSES } } })) throw new HttpError(409, 'Some workers are still taking this course. Cancel their training first.');
+  // Employees' pending requests to take it are closed with it.
+  await tdb.trainingEnrollment.updateMany({ where: { courseId: id, status: 'requested' }, data: { status: 'cancelled' } });
   const used = await tdb.trainingEnrollment.count({ where: { courseId: id } });
   if (used) await tdb.trainingCourse.updateMany({ where: { id }, data: { archived: true } });
   else await tdb.trainingCourse.deleteMany({ where: { id } });
@@ -98,6 +100,8 @@ export async function assign(org: Organization, user: User, body: unknown) {
   let assigned = 0;
   for (const c of cands) {
     if (skip.has(c.id)) continue;
+    // Assigning it answers any request they made for it.
+    await tdb.trainingEnrollment.updateMany({ where: { courseId: course.id, candidateId: c.id, status: 'requested' }, data: { status: 'cancelled' } });
     const e = await tdb.trainingEnrollment.create({ data: { courseId: course.id, candidateId: c.id, reason: b.reason, dueDate: b.dueDate ? day(b.dueDate) : null, assignedById: user.id } as never });
     assigned++;
     problems.push(...await invite(tdb, org, user, e, course, b.channels));

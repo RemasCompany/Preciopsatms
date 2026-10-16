@@ -5,7 +5,7 @@ import type { Feature } from './plans';
 export const SECTORS = ['IT & Software', 'Healthcare', 'Manufacturing', 'Warehouse', 'Logistics', 'Security', 'Other'];
 
 export type Opt = string | [value: string, label: string];
-export type FieldType = 'text' | 'email' | 'tel' | 'url' | 'num' | 'date' | 'sel' | 'ref' | 'user' | 'chk' | 'tags' | 'area';
+export type FieldType = 'text' | 'email' | 'tel' | 'url' | 'num' | 'date' | 'sel' | 'ref' | 'user' | 'emp' | 'chk' | 'tags' | 'area';
 export type Field = { key: string; label: string; type: FieldType; options?: Opt[]; ref?: RecordKind; required?: boolean; notNull?: boolean; min?: number; max?: number; int?: boolean };
 export type RecordKind = 'jobs' | 'candidates' | 'clients' | 'contacts' | 'deals' | 'leads' | 'vendors' | 'tasks' | 'branches';
 
@@ -20,6 +20,7 @@ export const RECORDS: Record<RecordKind, { one: string; titleKey: string; featur
     f('status', 'Status', 'sel', { notNull: true, options: [['OPEN', 'Open'], ['ON_HOLD', 'On hold'], ['FILLED', 'Filled'], ['CLOSED', 'Closed']] }),
     f('hot', 'Hot job (highlighted on the careers page)', 'chk'), f('startDate', 'Target start', 'date'),
     f('applyUrl', 'Apply link (leave blank to apply on your careers page)', 'url'), f('publish', 'Show on careers page', 'chk'),
+    f('internal', 'Post to employees (they can see it and apply from their employee page)', 'chk'),
     f('skills', 'Required skills (comma separated)', 'tags'), f('description', 'Description', 'area'),
   ] },
   candidates: { one: 'candidate', titleKey: 'name', feature: 'ats', fields: [
@@ -62,6 +63,7 @@ export const RECORDS: Record<RecordKind, { one: string; titleKey: string; featur
   ] },
   tasks: { one: 'task', titleKey: 'title', fields: [
     f('title', 'Task', 'text', { required: true }), f('dueAt', 'Due date', 'date'), f('priority', 'Priority', 'sel', { notNull: true, options: ['Normal', 'High', 'Low'] }),
+    f('employeeId', 'Assign to an employee (they see it on their employee page)', 'emp'), f('details', 'Details for the employee', 'area'),
     f('related', 'Related to'), f('done', 'Done', 'chk'),
   ] },
   branches: { one: 'branch', titleKey: 'name', fields: [

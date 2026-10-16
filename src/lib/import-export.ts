@@ -38,6 +38,12 @@ export function mapColumns(kind: RecordKind, header: string[]) {
   return { map, first: header.findIndex((h) => norm(h) === 'firstname'), last: header.findIndex((h) => norm(h) === 'lastname') };
 }
 
+/** Employees by name, for task assignment (current ones only, unless exporting history). */
+async function employeeNames(tdb: TenantDb, all = false) {
+  const rows = await tdb.employee.findMany({ where: all ? {} : { status: { not: 'TERMINATED' } }, select: { id: true, candidate: { select: { name: true } } } });
+  return rows.map((e) => ({ id: e.id, name: e.candidate.name }));
+}
+
 function coerce(fl: Field, raw: string, refs: Map<string, Map<string, string>>) {
   const v = raw.trim();
   if (v === '') return fl.type === 'tags' ? [] : fl.type === 'chk' ? false : null;
@@ -49,6 +55,7 @@ function coerce(fl: Field, raw: string, refs: Map<string, Map<string, string>>) 
     case 'date': { const m = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); return m ? `${m[3]}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}` : v; }
     case 'ref': return refs.get(fl.ref!)?.get(v.toLowerCase()) ?? `__missing:${v}`;
     case 'user': return refs.get('__team')?.get(v.toLowerCase()) ?? `__noone:${v}`;
+    case 'emp': return refs.get('__emp')?.get(v.toLowerCase()) ?? `__noemp:${v}`;
     default: return v;
   }
 }
@@ -72,6 +79,7 @@ export async function importCsv(tdb: TenantDb, kind: RecordKind, text: string, o
   const team = new Map<string, string>();
   for (const u of await teamOf(orgId)) { team.set(u.email.toLowerCase(), u.id); if (u.name) team.set(u.name.toLowerCase(), u.id); }
   refs.set('__team', team);
+  if (RECORDS[kind].fields.some((f) => f.type === 'emp')) refs.set('__emp', new Map((await employeeNames(tdb)).map((e) => [e.name.toLowerCase(), e.id])));
   let created = 0; const skipped: { row: number; error: string }[] = [];
   for (let i = 1; i < rows.length; i++) {
     const body: Record<string, unknown> = {};
@@ -79,6 +87,8 @@ export async function importCsv(tdb: TenantDb, kind: RecordKind, text: string, o
     if (titleKey === 'name' && !body.name && first >= 0) body.name = [rows[i][first], last >= 0 ? rows[i][last] : ''].map((s) => s?.trim()).filter(Boolean).join(' ');
     const missingRef = Object.entries(body).find(([, v]) => typeof v === 'string' && v.startsWith('__missing:'));
     const noOwner = Object.values(body).find((v) => typeof v === 'string' && v.startsWith('__noone:'));
+    const noEmp = Object.values(body).find((v) => typeof v === 'string' && v.startsWith('__noemp:'));
+    if (noEmp) { skipped.push({ row: i + 1, error: `No current employee named “${String(noEmp).slice(8)}”.` }); continue; }
     if (noOwner) { skipped.push({ row: i + 1, error: `No one on your team named “${String(noOwner).slice(8)}”.` }); continue; }
     if (missingRef) { skipped.push({ row: i + 1, error: `No ${RECORDS[RECORDS[kind].fields.find((f) => f.key === missingRef[0])!.ref!].one} named “${String(missingRef[1]).slice(10)}”.` }); continue; }
     try {
@@ -102,6 +112,7 @@ export async function exportRows(tdb: TenantDb, kind: RecordKind, orgId: string)
     for (const r of await delegate(tdb, fl.ref!).findMany({ select: { id: true, [key]: true } })) names.set(String(r.id), String(r[key]));
   }
   if (fields.some((f) => f.type === 'user')) for (const u of await teamOf(orgId)) names.set(u.id, u.name || u.email);
+  if (fields.some((f) => f.type === 'emp')) for (const e of await employeeNames(tdb, true)) names.set(e.id, e.name);
   const rows = await delegate(tdb, kind).findMany({ orderBy: { createdAt: 'asc' } });
   return [
     ['ID', ...fields.map((f) => f.label.replace(/ \(comma separated\)/, ''))],
@@ -109,7 +120,7 @@ export async function exportRows(tdb: TenantDb, kind: RecordKind, orgId: string)
       const v = toValues(kind, row);
       return [v.id, ...fields.map((f) => {
         const x = v[f.key];
-        if (f.type === 'ref' || f.type === 'user') return x ? names.get(String(x)) ?? '' : '';
+        if (f.type === 'ref' || f.type === 'user' || f.type === 'emp') return x ? names.get(String(x)) ?? '' : '';
         if (f.type === 'sel') return x == null ? '' : optLabel(f.options!.find((o) => optValue(o) === x) ?? String(x));
         if (f.type === 'tags') return ((x as string[]) ?? []).join('; ');
         if (f.type === 'chk') return x ? 'Yes' : 'No';

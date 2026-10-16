@@ -85,9 +85,12 @@ function RecordDrawer({ kind, id, preset, onClose }: Open & { onClose: () => voi
     setBusy(true); setError('');
     try {
       let note = '';
-      if (id) await api(`/api/records/${kind}/${id}`, 'PATCH', values);
+      // A task given to an employee: say whether they were told.
+      const told = (r: { notified?: string | null }) => { if (r && 'notified' in r) note = r.notified ? ` The employee wasn’t notified (${r.notified}).` : ' The employee was notified.'; };
+      if (id) told(await api(`/api/records/${kind}/${id}`, 'PATCH', values));
       else {
         const created = await api(`/api/records/${kind}`, 'POST', values);
+        told(created);
         if (kind === 'candidates' && pendingResume) {
           const fd = new FormData(); fd.set('file', pendingResume);
           const up = await fetch(`/api/candidates/${created.id}/resume`, { method: 'POST', body: fd });
@@ -96,7 +99,7 @@ function RecordDrawer({ kind, id, preset, onClose }: Open & { onClose: () => voi
           else if (j.filled?.addedSkills?.length || j.filled?.addedCerts?.length || j.filled?.filled?.length) note = ` ${j.note}`;
         }
       }
-      if (!note || id) toast(id ? 'Saved.' : 'Added.'); else toast(`Added.${note}`);
+      toast(`${id ? 'Saved.' : 'Added.'}${note}`, /wasn’t/.test(note));
       changed(); onClose();
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
@@ -241,6 +244,7 @@ function RelatedExtras({ kind, id, values, extras, reload, open, toast, canEdit,
     </>;
   }
   if (kind === 'leads') return <LeadWork id={id} values={values} reload={reload} />;
+  if (kind === 'tasks') return <TaskUpdates id={id} extras={extras} reload={reload} canEdit={canEdit} toast={toast} />;
   if (kind === 'vendors') {
     const issues = vendorCompliance(values as never);
     const cands = (extras.candidates ?? []) as { id: string; name: string; title: string | null; status: string }[];
@@ -253,6 +257,31 @@ function RelatedExtras({ kind, id, values, extras, reload, open, toast, canEdit,
     </>;
   }
   return null;
+}
+
+type TaskUpdate = { id: string; byEmployee: boolean; author: string; body: string; at: string };
+/** Updates on a task, both ways: the team's reach the employee it's assigned to. */
+function TaskUpdates({ id, extras, reload, canEdit, toast }: { id: string; extras: Extras; reload: () => void; canEdit: boolean; toast: Ctx['toast'] }) {
+  const [body, setBody] = useState('');
+  const [busy, setBusy] = useState(false);
+  const updates = (extras.updates ?? []) as TaskUpdate[], employee = extras.employee as string | null, seenAt = extras.seenAt as string | null;
+  async function post() {
+    setBusy(true);
+    try {
+      const r = await api(`/api/records/tasks/${id}/updates`, 'POST', { body });
+      setBody(''); reload();
+      toast(employee ? (r.notified ? `Posted, but ${employee} wasn’t notified (${r.notified}).` : `Posted. ${employee} was notified.`) : 'Posted.', !!r.notified);
+    } catch (e) { toast((e as Error).message, true); } finally { setBusy(false); }
+  }
+  return (
+    <section className="sec"><h3>Updates <span className="muted">{updates.length}</span></h3>
+      {employee && <p className="muted" style={{ marginTop: 0 }}>Assigned to {employee}. {seenAt ? `They last looked ${new Date(seenAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}.` : 'They haven’t opened it yet.'}</p>}
+      <ul className="thread">{updates.map((u) => <li key={u.id} className={u.byEmployee ? '' : 'mine'}><b>{u.author}</b>{u.byEmployee && <span className="pill" style={{ marginLeft: 6 }}>Employee</span>} <span className="muted">{new Date(u.at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span><div style={{ whiteSpace: 'pre-wrap' }}>{u.body}</div></li>)}</ul>
+      {!updates.length && <p className="muted">No updates yet.</p>}
+      {canEdit && <><textarea rows={2} maxLength={1000} value={body} aria-label="Post an update" placeholder={employee ? `Post an update ${employee.split(' ')[0]} will see` : 'Post an update'} onChange={(e) => setBody(e.target.value)} style={{ width: '100%' }} />
+        <div className="row"><button className="btn ghost sm" disabled={busy || !body.trim()} onClick={post}>Post update</button></div></>}
+    </section>
+  );
 }
 
 type LeadAi = { score: number; why: string; nextStep: string; subject: string; body: string };

@@ -1,6 +1,7 @@
 import { requireApiContext, withApi, logActivity, HttpError } from '@/lib/tenant';
 import { RECORDS, OWNED_KINDS, isRecordKind, type RecordKind } from '@/lib/records';
 import { delegate, parseRecord } from '@/lib/records-server';
+import { notifyTask } from '@/lib/employee-hub';
 
 function kindOf(k: string): RecordKind {
   if (!isRecordKind(k)) throw new HttpError(404, 'Not found');
@@ -29,7 +30,10 @@ export const POST = withApi(async (req: Request, { params }: { params: { kind: s
     if (!client) throw new HttpError(400, 'That client was not found.');
     data.clientId = client.id;
   }
+  if (kind === 'tasks' && data.done === true) data.doneAt = new Date();
   const row = await delegate(tdb, kind).create({ data });
   await logActivity(org.id, `Added ${RECORDS[kind].one} ${row[RECORDS[kind].titleKey]}`, user.id);
-  return Response.json({ id: row.id }, { status: 201 });
+  // A task for an employee: let them know, with a link to their page.
+  const notified = kind === 'tasks' && row.employeeId && !row.done ? await notifyTask(tdb, org, String(row.employeeId), String(row.title), 'assigned', user.id) : undefined;
+  return Response.json({ id: row.id, ...(notified !== undefined ? { notified } : {}) }, { status: 201 });
 });

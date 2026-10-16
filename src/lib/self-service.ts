@@ -7,10 +7,12 @@ import { hoursAmount, leaveAmount } from './payroll';
 import { totals, type RunItem } from './payroll-run';
 import { acknowledge, saveSelfReview, updateOwnGoal, type Question } from './reviews';
 import { SELF_LEAD_DAYS } from './review-nudges';
+import { applyInternal, employeeTaskAction, employeeTasks, markTasksSeen, internalJobs, profileSteps, saveProfile, trainingCatalog, trainingSignup } from './employee-hub';
 
 /**
  * An employee's own page, on the private link they already use for their schedule and time clock: their job,
- * time off (balances, requests), pay stubs, signed documents and contact details. Only for employees.
+ * profile and photo, tasks, time off (balances, requests), pay stubs, signed documents, reviews, internal jobs and
+ * training they can sign up for. Only for employees.
  */
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
 type Link = { organizationId: string; organization: Organization; candidate: { id: string; name: string } };
@@ -20,7 +22,7 @@ export async function employeeHub(link: Link) {
   if (!hasFeature(o, 'people')) return null;
   const tdb = tenantDb(o.id);
   const e = await tdb.employee.findFirst({ where: { candidateId: link.candidate.id, status: { not: 'TERMINATED' } },
-    include: { candidate: { select: { email: true, phone: true } }, department: { select: { name: true } }, branch: { select: { name: true } }, manager: { select: { candidate: { select: { name: true } } } } } });
+    include: { candidate: { select: { email: true, phone: true, photoFileId: true, skills: true, certs: true } }, department: { select: { name: true } }, branch: { select: { name: true } }, manager: { select: { candidate: { select: { name: true } } } } } });
   if (!e) return null;
 
   let timeOff = null;
@@ -62,7 +64,21 @@ export async function employeeHub(link: Link) {
     tdb.goal.findMany({ where: { employeeId: e.id, status: { not: 'DROPPED' } }, orderBy: [{ status: 'desc' }, { createdAt: 'asc' }], take: 20 }),
   ]) : [[], []];
 
+  const profile = {
+    preferredName: e.preferredName, pronouns: e.pronouns, homeAddress: e.homeAddress, emergencyName: e.emergencyName, emergencyRelation: e.emergencyRelation, emergencyPhone: e.emergencyPhone,
+    bio: e.bio, skills: e.candidate.skills, certs: e.candidate.certs, email: e.candidate.email, phone: e.candidate.phone, photo: !!e.candidate.photoFileId,
+  };
+  // Complete once every step is done, whichever order they did them in (a picture added last counts too).
+  const steps = profileSteps(profile), complete = steps.every((x) => x.done);
+  if (complete && !e.profileCompletedAt) await tdb.employee.updateMany({ where: { id: e.id }, data: { profileCompletedAt: new Date() } });
+  const [tasks, jobs, courses] = await Promise.all([
+    employeeTasks(tdb, e.id),
+    internalJobs(tdb, e),
+    hasFeature(o, 'training') ? trainingCatalog(tdb, e.candidateId) : [],
+  ]);
+
   return {
+    name: link.candidate.name, profile, steps, profileComplete: complete, tasks, jobs, courses,
     reviews: reviews.map((r) => ({
       id: r.id, cycle: r.cycle.name, dueDate: ymd(new Date((r.dueDate ?? r.cycle.dueDate).getTime() - (o.reviewScheduleOn && o.reviewRemindEmployees ? SELF_LEAD_DAYS * 864e5 : 0))), questions: r.cycle.questions as Question[],
       canSelf: r.cycle.status === 'OPEN' && r.cycle.selfReview && !r.selfSubmittedAt && !r.sharedAt, // once the manager's review is shared, the self review is moot self: r.selfAnswers, selfSubmitted: !!r.selfSubmittedAt,
@@ -77,14 +93,14 @@ export async function employeeHub(link: Link) {
   };
 }
 
-const Profile = z.object({
-  email: z.string().trim().email('Enter a valid email address.').or(z.literal('')).optional(),
-  phone: z.string().trim().max(30, 'That phone number is too long.').regex(/^[\d\s()+.-]*$/, 'Use digits for the phone number.').optional(),
-});
 const Action = z.discriminatedUnion('action', [
   z.object({ action: z.literal('leave'), policyId: z.string(), startDate: z.string(), endDate: z.string(), hoursPerDay: z.coerce.number(), note: z.string().max(500).optional() }),
   z.object({ action: z.literal('cancelLeave'), requestId: z.string() }),
-  z.object({ action: z.literal('profile'), email: z.string().optional(), phone: z.string().optional() }),
+  z.object({ action: z.literal('profile') }).passthrough(),
+  z.object({ action: z.literal('task') }).passthrough(),
+  z.object({ action: z.literal('seenTasks') }),
+  z.object({ action: z.literal('applyJob') }).passthrough(),
+  z.object({ action: z.literal('trainingSignup') }).passthrough(),
   z.object({ action: z.literal('selfReview'), reviewId: z.string(), answers: z.unknown(), submit: z.boolean().optional() }),
   z.object({ action: z.literal('acknowledge'), reviewId: z.string(), comment: z.string().max(2000).optional(), agree: z.boolean().optional() }),
   z.object({ action: z.literal('goal'), goalId: z.string(), progress: z.number() }),
@@ -96,9 +112,15 @@ export async function employeeAction(link: Link, body: unknown) {
   if (!p.success) throw new HttpError(400, 'Check the form and try again.');
   const o = link.organization;
   const tdb = tenantDb(o.id);
-  const e = await tdb.employee.findFirst({ where: { candidateId: link.candidate.id, status: { not: 'TERMINATED' } } });
+  const e = await tdb.employee.findFirst({ where: { candidateId: link.candidate.id, status: { not: 'TERMINATED' } },
+    include: { candidate: { select: { id: true, name: true, email: true, phone: true, photoFileId: true, skills: true } }, manager: { select: { candidate: { select: { name: true } } } } } });
   if (!e || !hasFeature(o, 'people')) throw new HttpError(404, 'This page is for employees.');
   const b = p.data;
+  if (b.action === 'profile') return saveProfile(tdb, o, e, body);
+  if (b.action === 'task') return employeeTaskAction(tdb, o, e, body);
+  if (b.action === 'seenTasks') return markTasksSeen(tdb, e.id);
+  if (b.action === 'applyJob') return applyInternal(tdb, o, e, body);
+  if (b.action === 'trainingSignup') return trainingSignup(tdb, o, e.candidate, body);
   if (b.action === 'leave') {
     if (!hasFeature(o, 'timeoff')) throw new HttpError(404, 'Time off isn’t set up here. Ask your manager.');
     const r = await requestLeave({ tdb, org: o, user: null }, { employeeId: e.id, policyId: b.policyId, startDate: b.startDate, endDate: b.endDate, hoursPerDay: b.hoursPerDay, note: b.note }, { byEmployee: true });
@@ -118,11 +140,5 @@ export async function employeeAction(link: Link, body: unknown) {
     await logActivity(o.id, `${link.candidate.name} withdrew a time-off request (${ymd(r.startDate)})`);
     return { message: 'Request withdrawn.' };
   }
-  const c = Profile.safeParse({ email: b.email, phone: b.phone });
-  if (!c.success) throw new HttpError(400, c.error.issues[0]?.message ?? 'Check your details.');
-  const data = { ...(c.data.email !== undefined ? { email: c.data.email || null } : {}), ...(c.data.phone !== undefined ? { phone: c.data.phone || null } : {}) };
-  if (!Object.keys(data).length) return { message: 'Nothing to change.' };
-  await tdb.candidate.updateMany({ where: { id: link.candidate.id }, data });
-  await logActivity(o.id, `${link.candidate.name} updated their ${Object.keys(data).join(' and ')} from their employee page`);
-  return { message: 'Saved. Thanks for keeping your details current.' };
+  throw new HttpError(400, 'Check the form and try again.');
 }

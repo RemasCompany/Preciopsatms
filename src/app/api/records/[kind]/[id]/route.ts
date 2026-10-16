@@ -1,6 +1,7 @@
 import { requireApiContext, withApi, logActivity, HttpError } from '@/lib/tenant';
 import { RECORDS, isRecordKind, type RecordKind } from '@/lib/records';
 import { delegate, loadExtras, parseRecord, toValues } from '@/lib/records-server';
+import { notifyTask } from '@/lib/employee-hub';
 
 type Ctx = { params: { kind: string; id: string } };
 function kindOf(k: string): RecordKind {
@@ -31,6 +32,9 @@ export const PATCH = withApi(async (req: Request, { params }: Ctx) => {
     data.closedAt = data.stage === 'Won' || data.stage === 'Lost' ? new Date() : null;
   }
   if (kind === 'leads' && data.status && data.status !== before.status) data.convertedAt = data.status === 'Converted' ? new Date() : null;
+  if (kind === 'tasks' && data.done !== undefined && data.done !== before.done) data.doneAt = data.done ? new Date() : null;
+  // Reassigned to someone else: it's new to them.
+  if (kind === 'tasks' && 'employeeId' in data && data.employeeId !== before.employeeId) data.employeeSeenAt = null;
   await delegate(tdb, kind).updateMany({ where: { id: params.id }, data });
 
   // Side effects from the prototype: winning a deal activates its client; deal moves and finished tasks are logged.
@@ -40,7 +44,9 @@ export const PATCH = withApi(async (req: Request, { params }: Ctx) => {
     if (data.stage === 'Won' && clientId) await tdb.client.updateMany({ where: { id: clientId, status: { not: 'Active' } }, data: { status: 'Active' } });
   }
   if (kind === 'tasks' && data.done === true && !before.done) await logActivity(org.id, `Completed: ${before.title}`, user.id);
-  return Response.json({ ok: true });
+  const notified = kind === 'tasks' && data.employeeId && data.employeeId !== before.employeeId && !(data.done ?? before.done)
+    ? await notifyTask(tdb, org, String(data.employeeId), String(data.title ?? before.title), 'assigned', user.id) : undefined;
+  return Response.json({ ok: true, ...(notified !== undefined ? { notified } : {}) });
 });
 
 export const DELETE = withApi(async (_req: Request, { params }: Ctx) => {

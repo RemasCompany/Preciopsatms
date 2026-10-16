@@ -67,6 +67,7 @@ function fieldSchema(fl: Field) {
     }
     case 'ref':
     case 'user':
+    case 'emp':
       return z.union([z.string(), z.null()]).transform((v) => (blank(v) ? null : v!.trim()));
     default: {
       const max = fl.type === 'area' ? 20000 : 300;
@@ -104,6 +105,10 @@ export async function parseRecord(tdb: TenantDb, kind: RecordKind, body: unknown
       // Owners must be members of the caller's company.
       const m = await db.membership.findFirst({ where: { organizationId: orgId, userId: String(data[fl.key]) }, select: { id: true } });
       if (!m) throw new HttpError(400, 'That person isn’t on your team.');
+    }
+    if (fl.type === 'emp' && data[fl.key]) {
+      const e = await tdb.employee.findFirst({ where: { id: String(data[fl.key]), status: { not: 'TERMINATED' } }, select: { id: true } });
+      if (!e) throw new HttpError(400, 'Choose a current employee.');
     }
   }
   for (const k of Object.keys(data)) if (data[k] === undefined) delete data[k];
@@ -160,6 +165,16 @@ async function loadRelated(tdb: TenantDb, kind: RecordKind, id: string) {
         tdb.deal.findMany({ where: { clientId: id }, select: { id: true, title: true, value: true, stage: true }, orderBy: { createdAt: 'desc' } }),
       ]);
       return { contacts: contacts.map((c) => toValues('contacts', c)), jobs, deals: deals.map((d) => ({ ...d, value: num(d.value) })) };
+    }
+    case 'tasks': {
+      const [t, comments] = await Promise.all([
+        tdb.task.findFirst({ where: { id }, select: { employeeSeenAt: true, employee: { select: { candidate: { select: { name: true } } } } } }),
+        tdb.taskComment.findMany({ where: { taskId: id }, orderBy: { createdAt: 'asc' }, take: 100 }),
+      ]);
+      return {
+        employee: t?.employee?.candidate.name ?? null, seenAt: t?.employeeSeenAt?.toISOString() ?? null,
+        updates: comments.map((c) => ({ id: c.id, byEmployee: c.byEmployee, author: c.authorName, body: c.body, at: c.createdAt.toISOString() })),
+      };
     }
     case 'vendors': {
       const cands = await tdb.candidate.findMany({ where: { vendorId: id }, select: { id: true, name: true, title: true, status: true }, orderBy: { name: 'asc' } });

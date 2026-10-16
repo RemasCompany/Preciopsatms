@@ -5,11 +5,11 @@ import { CREDENTIAL_TYPES } from './credentials';
 
 export type Lesson = { title: string; body: string; videoUrl?: string | null };
 export type Question = { q: string; choices: string[]; answer: number };
-export type Status = 'assigned' | 'evaluation' | 'certified' | 'failed' | 'cancelled';
+export type Status = 'requested' | 'assigned' | 'evaluation' | 'certified' | 'failed' | 'cancelled';
 export const OPEN_STATUSES: Status[] = ['assigned', 'evaluation'];
 
 export const STATUS_LABEL: Record<Status, string> = {
-  assigned: 'Taking the course', evaluation: 'Ready for hands-on evaluation', certified: 'Certified', failed: 'Didn’t pass the evaluation', cancelled: 'Cancelled',
+  requested: 'Asked to take it', assigned: 'Taking the course', evaluation: 'Ready for hands-on evaluation', certified: 'Certified', failed: 'Didn’t pass the evaluation', cancelled: 'Cancelled',
 };
 export const REASON_LABEL: Record<string, string> = { initial: 'First certification', recert: 'Recertification', refresher: 'Refresher' };
 
@@ -47,8 +47,9 @@ export const CourseBody = z.object({
     answer: z.number().int().min(0),
   }).refine((x) => x.answer < x.choices.length, 'Mark the correct answer for every question.')).min(3, 'Add at least three quiz questions.').max(50),
   checklist: z.array(z.string().trim().min(1).max(200)).min(1, 'Add at least one item to the hands-on evaluation checklist.').max(40),
+  signup: z.enum(['none', 'open', 'approval']).default('none'), // can employees sign up themselves from their page?
 });
-export type CourseInput = z.infer<typeof CourseBody>;
+export type CourseInput = z.input<typeof CourseBody>;
 
 /** Grades a quiz. Unanswered questions count as wrong. Returns the percent score and which questions were missed. */
 export function grade(questions: Question[], answers: (number | null)[], passScore: number) {

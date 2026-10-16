@@ -4,10 +4,10 @@ import { useRouter } from 'next/navigation';
 import { useRecords } from './Records';
 import { REASON_LABEL, REFRESHER_TRIGGERS, STATUS_LABEL, MAX_RECERT_MONTHS, type Lesson, type Question, type Status } from '@/lib/training';
 
-type Course = { id: string; title: string; certType: string; prerequisite: string | null; description: string | null; recertMonths: number; passScore: number; lessons: Lesson[]; questions: Question[]; questionCount: number; checklist: string[] };
+type Course = { id: string; title: string; certType: string; prerequisite: string | null; description: string | null; recertMonths: number; passScore: number; lessons: Lesson[]; questions: Question[]; questionCount: number; checklist: string[]; signup: string };
 type Enrollment = {
   id: string; candidateId: string; name: string; course: string; certType: string; status: string; reason: string; trigger: string | null; dueDate: string | null; invited: boolean;
-  lessonsDone: number; lessons: number; quizScore: number | null; attempts: number; checklist: string[]; evaluatedAt: string | null; evaluator: string | null; expiresAt: string | null;
+  lessonsDone: number; lessons: number; quizScore: number | null; attempts: number; checklist: string[]; evaluatedAt: string | null; evaluator: string | null; expiresAt: string | null; requestNote?: string | null;
 };
 type Due = { credentialId: string; candidateId: string; name: string; certType: string; expiresAt: string; expired: boolean; courseId: string };
 type Operator = { id: string; candidateId: string; name: string; certType: string; expiresAt: string | null; verified: boolean; certificateId: string | null; onHold: boolean };
@@ -16,7 +16,7 @@ type Template = { key: string; label: string; title: string; added: boolean };
 type Props = { today: string; isAdmin: boolean; canEdit: boolean; certTypes: string[]; trainable: string[]; external: string[]; templates: Template[]; courses: Course[]; enrollments: Enrollment[]; due: Due[]; operators: Operator[]; jobs: Job[]; people: { id: string; name: string; status: string | null }[] };
 
 const fmt = (s: string | null) => (s ? new Date(`${s}T00:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) : '—');
-const PILL: Record<string, string> = { assigned: 'a', evaluation: 'a', certified: 'g', failed: 'r', cancelled: '' };
+const PILL: Record<string, string> = { requested: 'a', assigned: 'a', evaluation: 'a', certified: 'g', failed: 'r', cancelled: '' };
 type Channels = ('sms' | 'email')[];
 
 export default function TrainingBoard(p: Props) {
@@ -38,6 +38,7 @@ export default function TrainingBoard(p: Props) {
 
   const ready = p.enrollments.filter((e) => e.status === 'evaluation');
   const learning = p.enrollments.filter((e) => e.status === 'assigned');
+  const requests = p.enrollments.filter((e) => e.status === 'requested');
   const closed = p.enrollments.filter((e) => ['certified', 'failed'].includes(e.status));
   const current = p.operators.filter((o) => o.verified && o.expiresAt && o.expiresAt >= p.today && !o.onHold).length;
   const edit = p.canEdit;
@@ -57,6 +58,18 @@ export default function TrainingBoard(p: Props) {
             <div className="row" style={{ justifyContent: 'center', flexWrap: 'wrap' }}>{p.templates.map((t) => <button key={t.key} className="btn" disabled={busy} onClick={() => call('/api/training/courses', 'POST', { template: t.key }, `${t.label} course added. Review the lessons and quiz below.`)}>Add the {t.label.toLowerCase()} course</button>)}</div></>
             : 'An owner or admin can add the first course.'}
         </div>
+      )}
+
+      {requests.length > 0 && (
+        <section className="card"><h2 style={{ marginTop: 0 }}>Requests from employees</h2>
+          <p className="muted">These employees asked to take a course from their employee page. Approving adds it to their training list.</p>
+          <div className="list">{requests.map((e) => (
+            <div key={e.id} className="li"><span className="x"><button className="linkish" onClick={() => open('candidates', e.candidateId)}><b>{e.name}</b></button><span className="muted">{e.course}{e.requestNote ? ` · “${e.requestNote}”` : ''}</span></span>
+              {edit && <span style={{ whiteSpace: 'nowrap' }}><button className="btn sm" disabled={busy} onClick={() => call(`/api/training/enrollments/${e.id}`, 'PATCH', { action: 'approve' }, `Approved. ${e.name} can start ${e.course} from their employee page.`)}>Approve</button>{' '}
+                <button className="btn ghost sm" disabled={busy} onClick={() => call(`/api/training/enrollments/${e.id}`, 'PATCH', { action: 'decline' }, 'Request declined.')}>Decline</button></span>}
+            </div>
+          ))}</div>
+        </section>
       )}
 
       {ready.length > 0 && (
@@ -259,12 +272,12 @@ function Operators({ operators, courses, today, canEdit, busy, call, open }: { o
 
 function Courses({ courses, certTypes, external, templates, isAdmin, canEdit, busy, call }: { courses: Course[]; certTypes: string[]; external: string[]; templates: Template[]; isAdmin: boolean; canEdit: boolean; busy: boolean; call: Call }) {
   const [editing, setEditing] = useState<(Course & { checklistText: string }) | null>(null);
-  const blank = (): Course & { checklistText: string } => ({ id: '', title: '', certType: certTypes[0], prerequisite: null, description: '', recertMonths: MAX_RECERT_MONTHS, passScore: 80, lessons: [{ title: '', body: '', videoUrl: '' }], questions: [{ q: '', choices: ['', '', '', ''], answer: 0 }], questionCount: 0, checklist: [], checklistText: '' });
+  const blank = (): Course & { checklistText: string } => ({ id: '', title: '', certType: certTypes[0], prerequisite: null, description: '', recertMonths: MAX_RECERT_MONTHS, passScore: 80, lessons: [{ title: '', body: '', videoUrl: '' }], questions: [{ q: '', choices: ['', '', '', ''], answer: 0 }], questionCount: 0, checklist: [], checklistText: '', signup: 'none' });
   const save = async () => {
     if (!editing) return;
     const body = { title: editing.title, certType: editing.certType, prerequisite: editing.prerequisite || null, description: editing.description || null, recertMonths: editing.recertMonths, passScore: editing.passScore,
       lessons: editing.lessons.map((l) => ({ ...l, videoUrl: l.videoUrl || null })), questions: editing.questions.map((q) => ({ ...q, choices: q.choices.filter((c) => c.trim()) })),
-      checklist: editing.checklistText.split('\n').map((x) => x.trim()).filter(Boolean) };
+      checklist: editing.checklistText.split('\n').map((x) => x.trim()).filter(Boolean), signup: editing.signup };
     if (await call(editing.id ? `/api/training/courses/${editing.id}` : '/api/training/courses', editing.id ? 'PATCH' : 'POST', body, 'Course saved.')) setEditing(null);
   };
   const set = (patch: Partial<Course & { checklistText: string }>) => setEditing((e) => (e ? { ...e, ...patch } : e));
@@ -272,7 +285,7 @@ function Courses({ courses, certTypes, external, templates, isAdmin, canEdit, bu
     <section className="card"><h2 style={{ marginTop: 0 }}>Courses {isAdmin && canEdit && !editing && <button className="btn ghost sm" onClick={() => setEditing(blank())}>+ New course</button>}</h2>
       {!editing && (
         <div className="list">{courses.map((c) => (
-          <div key={c.id} className="li"><span className="x"><b>{c.title}</b><span className="muted">Issues “{c.certType}”{c.prerequisite ? ` · requires a current ${c.prerequisite}` : ''} · {c.lessons.length} lessons · {c.questionCount} quiz questions (pass {c.passScore}%) · recertify every {c.recertMonths} months</span></span>
+          <div key={c.id} className="li"><span className="x"><b>{c.title}</b><span className="muted">Issues “{c.certType}”{c.prerequisite ? ` · requires a current ${c.prerequisite}` : ''} · {c.lessons.length} lessons · {c.questionCount} quiz questions (pass {c.passScore}%) · recertify every {c.recertMonths} months{c.signup === 'open' ? ' · employees can sign up' : c.signup === 'approval' ? ' · employees can ask to take it' : ''}</span></span>
             {isAdmin && canEdit && <span style={{ whiteSpace: 'nowrap' }}><button className="btn ghost sm" onClick={() => setEditing({ ...c, checklistText: c.checklist.join('\n') })}>Edit</button>{' '}
               <button className="btn ghost sm" disabled={busy} onClick={() => confirm(`Remove “${c.title}”? Courses with training records are archived, not deleted.`) && call(`/api/training/courses/${c.id}`, 'DELETE', undefined, (j) => (j.archived ? 'Course archived.' : 'Course deleted.'))}>Remove</button></span>}
           </div>
@@ -294,6 +307,8 @@ function Courses({ courses, certTypes, external, templates, isAdmin, canEdit, bu
           </div>
           <label>Must already hold (issued outside the company)<select value={editing.prerequisite ?? ''} onChange={(e) => set({ prerequisite: e.target.value || null })}><option value="">Nothing</option>{external.map((t) => <option key={t}>{t}</option>)}</select></label>
           <label>Description<textarea rows={2} maxLength={2000} value={editing.description ?? ''} onChange={(e) => set({ description: e.target.value })} /></label>
+          <label>Employee sign-up<select value={editing.signup} onChange={(e) => set({ signup: e.target.value })}>
+            <option value="none">Assigned by the team only</option><option value="open">Employees can sign up from their page</option><option value="approval">Employees can ask; a manager approves</option></select></label>
           <h3>Lessons</h3>
           {editing.lessons.map((l, i) => (
             <fieldset key={i}><legend>Lesson {i + 1}</legend>

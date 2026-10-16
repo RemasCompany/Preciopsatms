@@ -124,6 +124,7 @@ model Organization {
   leads                 Lead[]
   vendors               Vendor[]
   tasks                 Task[]
+  taskComments          TaskComment[]
   timesheets            Timesheet[]
   documents             SignDocument[]
   messages              Message[]
@@ -242,6 +243,7 @@ model Job {
   posting        String? // public-facing posting text
   applyUrl       String? // optional external apply link; default is the built-in apply form
   publish        Boolean        @default(true) // show on public careers page / feeds
+  internal       Boolean        @default(false) // posted to employees on their employee page
   postedTo       Json? // { "Indeed": "2026-09-27", ... }
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
@@ -283,6 +285,7 @@ model Candidate {
   birthDay         Int?
   lastGreetedYear  Int? // year of the last birthday greeting sent
   resumeFileId     String?
+  photoFileId      String? // profile picture (a StoredFile), uploaded by the employee or HR
   emailOptOut      Boolean              @default(false)
   smsOptOut        Boolean              @default(false) // set by Twilio STOP webhook (TCPA)
   createdAt        DateTime             @default(now())
@@ -468,17 +471,41 @@ model Vendor {
 }
 
 model Task {
-  id             String       @id @default(cuid())
+  id             String        @id @default(cuid())
   organizationId String
   title          String
   dueAt          DateTime?
-  priority       String       @default("Normal")
+  priority       String        @default("Normal")
   related        String?
-  done           Boolean      @default(false)
+  done           Boolean       @default(false)
   assigneeId     String?
+  employeeId     String? // assigned to an employee, who sees it on their employee page
+  details        String? // instructions for the employee
+  doneAt         DateTime?
+  employeeSeenAt DateTime? // when the employee last looked; later changes and updates show as new
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  employee       Employee?     @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  comments       TaskComment[]
+
+  @@index([organizationId, employeeId])
+}
+
+/// An update on a task: from the team, or from the employee it's assigned to.
+model TaskComment {
+  id             String       @id @default(cuid())
+  organizationId String
+  taskId         String
+  byEmployee     Boolean      @default(false)
+  authorName     String
+  userId         String?
+  body           String
   createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  task           Task         @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, taskId])
 }
 
 enum TimesheetStatus {
@@ -1291,6 +1318,7 @@ model TrainingCourse {
   questions      Json // [{ q, choices: string[], answer: index }] — answers never leave the server
   checklist      Json // string[]: the practical evaluation items
   prerequisite   String? // a credential type (issued elsewhere) the worker must hold before they can be certified
+  signup         String               @default("none") // none | open (employees enrol themselves) | approval (employees ask; a manager approves)
   archived       Boolean              @default(false)
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt
@@ -1307,7 +1335,8 @@ model TrainingEnrollment {
   candidateId    String
   reason         String         @default("initial") // initial | recert | refresher
   trigger        String? // why a refresher was required
-  status         String         @default("assigned") // assigned | evaluation | certified | failed | cancelled
+  status         String         @default("assigned") // requested | assigned | evaluation | certified | failed | cancelled
+  requestNote    String? // why the employee asked to take it
   dueDate        DateTime?      @db.Date
   assignedById   String?
   invitedAt      DateTime?
@@ -1361,39 +1390,49 @@ model Department {
 // Someone on the company's own payroll. Their position is a placement (Application) on a job, so scheduling,
 // the time clock, timesheets and payroll work for employees exactly as they do for placed workers.
 model Employee {
-  id              String               @id @default(cuid())
-  organizationId  String
-  candidateId     String               @unique // the person record (contact details, documents, credentials, training)
-  applicationId   String?              @unique // their position
-  employeeNumber  String?
-  title           String
-  departmentId    String?
-  branchId        String? // work location
-  managerId       String?
-  employmentType  EmploymentType       @default(FULL_TIME)
-  status          EmployeeStatus       @default(ACTIVE)
-  startDate       DateTime             @db.Date
-  endDate         DateTime?            @db.Date
-  endReason       String?
-  payType         PayType              @default(HOURLY)
-  payRate         Decimal              @db.Decimal(12, 2) // per hour, or per year when salaried
-  workEmail       String?
-  reviewFrequency String? // ANNUAL | SEMIANNUAL | NONE; null follows the company default
-  createdAt       DateTime             @default(now())
-  updatedAt       DateTime             @updatedAt
-  organization    Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  candidate       Candidate            @relation(fields: [candidateId], references: [id], onDelete: Cascade)
-  application     Application?         @relation(fields: [applicationId], references: [id], onDelete: SetNull)
-  department      Department?          @relation(fields: [departmentId], references: [id], onDelete: SetNull)
-  branch          Branch?              @relation(fields: [branchId], references: [id], onDelete: SetNull)
-  manager         Employee?            @relation("Reports", fields: [managerId], references: [id], onDelete: SetNull)
-  reports         Employee[]           @relation("Reports")
-  compensation    CompensationChange[]
-  leaveRequests   LeaveRequest[]
-  leaveEntries    LeaveEntry[]
-  reviews         Review[]
-  goals           Goal[]
-  offboarding     OffboardingTask[]
+  id                 String               @id @default(cuid())
+  organizationId     String
+  candidateId        String               @unique // the person record (contact details, documents, credentials, training)
+  applicationId      String?              @unique // their position
+  employeeNumber     String?
+  title              String
+  departmentId       String?
+  branchId           String? // work location
+  managerId          String?
+  employmentType     EmploymentType       @default(FULL_TIME)
+  status             EmployeeStatus       @default(ACTIVE)
+  startDate          DateTime             @db.Date
+  endDate            DateTime?            @db.Date
+  endReason          String?
+  payType            PayType              @default(HOURLY)
+  payRate            Decimal              @db.Decimal(12, 2) // per hour, or per year when salaried
+  workEmail          String?
+  reviewFrequency    String? // ANNUAL | SEMIANNUAL | NONE; null follows the company default
+  // Their own profile, filled in from their employee page.
+  preferredName      String?
+  pronouns           String?
+  homeAddress        String?
+  emergencyName      String?
+  emergencyRelation  String?
+  emergencyPhone     String?
+  bio                String?
+  profileCompletedAt DateTime?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  organization       Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  candidate          Candidate            @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  application        Application?         @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  department         Department?          @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  branch             Branch?              @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  manager            Employee?            @relation("Reports", fields: [managerId], references: [id], onDelete: SetNull)
+  reports            Employee[]           @relation("Reports")
+  compensation       CompensationChange[]
+  leaveRequests      LeaveRequest[]
+  leaveEntries       LeaveEntry[]
+  reviews            Review[]
+  goals              Goal[]
+  offboarding        OffboardingTask[]
+  tasks              Task[]
 
   @@index([organizationId, status])
 }

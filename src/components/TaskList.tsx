@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useRecords } from './Records';
 
-export type TaskRow = { id: string; title: string; dueAt: string | null; priority: string; related: string | null; done: boolean };
+export type TaskRow = { id: string; title: string; dueAt: string | null; priority: string; related: string | null; done: boolean; employee?: string | null; employeeUpdate?: boolean };
 const fmt = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
 const todayYmd = () => { const d = new Date(); return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())).toISOString().slice(0, 10); };
 
@@ -62,7 +62,8 @@ export default function TaskList({ tasks: initial, showDone: showDoneProp }: { t
                   <input type="checkbox" checked={t.done} disabled={!canEdit} onChange={(e) => toggle(t, e.target.checked)} aria-label={`Done: ${t.title}`} />
                   <span className="x" style={t.done ? { opacity: 0.5, textDecoration: 'line-through' } : undefined}>
                     <b style={{ color: 'var(--text)' }}>{t.title}</b>
-                    <span className={overdue ? 'warn' : 'muted'}>{t.dueAt ? `${overdue ? 'Overdue · ' : t.dueAt === today ? 'Today · ' : ''}${fmt(t.dueAt)}` : 'No date'}{t.related ? ` · ${t.related}` : ''}{t.priority === 'High' ? ' · High priority' : ''}</span>
+                    <span className={overdue ? 'warn' : 'muted'}>{t.dueAt ? `${overdue ? 'Overdue · ' : t.dueAt === today ? 'Today · ' : ''}${fmt(t.dueAt)}` : 'No date'}{t.employee ? ` · ${t.employee}` : ''}{t.related && !/^\w+:c\w{20,}$/.test(t.related) ? ` · ${t.related}` : ''}{t.priority === 'High' ? ' · High priority' : ''}</span>
+                    {t.employeeUpdate && <span className="pill a" style={{ marginTop: 3, alignSelf: 'flex-start' }}>New update from {t.employee?.split(' ')[0] ?? 'the employee'}</span>}
                   </span>
                 </label>
                 <button className="btn ghost sm" onClick={() => open('tasks', t.id)}>{canEdit ? 'Edit' : 'View'}</button>
