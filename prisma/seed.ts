@@ -267,4 +267,7 @@ async function seedReviews(orgId: string, userId: string) {
   }
 }
 
-main().catch((e) => { console.error(e); process.exit(1); }).finally(() => db.$disconnect());
+main()
+  // Two years of weekly hours, so labor planning can compare this year with last.
+  .then(async () => { const { seedHistory } = await import('./seed-history'); for (const slug of ['demo-staffing', 'demo-employer']) await seedHistory(db, slug); })
+  .catch((e) => { console.error(e); process.exit(1); }).finally(() => db.$disconnect());
