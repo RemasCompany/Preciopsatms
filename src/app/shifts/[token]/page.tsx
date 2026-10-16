@@ -8,13 +8,14 @@ import WorkerReferrals, { type WorkerRef } from '@/components/WorkerReferrals';
 import WorkerTraining, { type WorkerCourse } from '@/components/WorkerTraining';
 import WorkerSelfService, { type WorkerMe } from '@/components/WorkerSelfService';
 import { WorkerDocs, type WorkerDoc } from '@/components/HiringDocs';
+import { WorkerInterviews, type WorkerInterview } from '@/components/Interviews';
 
 type Shift = {
   id: string; date: string; start: string; end: string; breakMinutes: number; unit: string | null; notes: string | null;
   job: string; client: string | null; location: string | null; state: 'pending' | 'confirmed' | 'declined' | 'cancelled' | 'updating'; past: boolean;
 };
 type Offer = { id: string; status: 'open' | 'taken'; date: string; start: string; end: string; breakMinutes: number; unit: string | null; notes: string | null; job: string; client: string | null; location: string | null };
-type Data = { documents?: WorkerDoc[]; me?: WorkerMe | null; training?: WorkerCourse[]; referrals?: WorkerRef | null; offers?: Offer[]; company: string; brandColor: string; contactEmail: string | null; logoUrl: string | null; firstName: string; shifts: Shift[]; clock: ClockData | null; onboarding?: WorkerOb[]; engagement?: WorkerEng | null };
+type Data = { interviews?: WorkerInterview[]; documents?: WorkerDoc[]; me?: WorkerMe | null; training?: WorkerCourse[]; referrals?: WorkerRef | null; offers?: Offer[]; company: string; brandColor: string; contactEmail: string | null; logoUrl: string | null; firstName: string; shifts: Shift[]; clock: ClockData | null; onboarding?: WorkerOb[]; engagement?: WorkerEng | null };
 
 const STATE: Record<Shift['state'], { text: string; cls: string }> = {
   pending: { text: 'Please confirm', cls: 'a' }, confirmed: { text: 'Confirmed', cls: 'g' }, declined: { text: 'You can’t make it', cls: 'r' },
@@ -30,12 +31,20 @@ export default function MyShifts({ params }: { params: { token: string } }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState('');
 
+  const [offline, setOffline] = useState<string | null>(null); // when the copy on screen was saved, if offline
   const load = useCallback(async () => {
-    const r = await fetch(`/api/public/shifts/${params.token}`);
-    const j = await r.json().catch(() => ({}));
-    if (r.ok) setData(j); else setError(j.error ?? 'This link isn’t working.');
+    try {
+      const r = await fetch(`/api/public/shifts/${params.token}`);
+      const j = await r.json().catch(() => ({}));
+      const cached = r.headers.get('x-from-cache');
+      setOffline(cached ? (Number.isNaN(Date.parse(cached)) ? 'earlier' : new Date(cached).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' })) : null);
+      if (r.ok) setData(j); else setError(j.error ?? 'This link isn’t working.');
+    } catch { setError('You’re offline, and this page hasn’t been saved on this phone yet. Open it once with a signal.'); }
   }, [params.token]);
   useEffect(() => { load(); }, [load]);
+  // The worker app: installable from this page, and the last copy stays readable without a signal.
+  const install = useInstall(params.token);
+  useEffect(() => { const back = () => load(); window.addEventListener('online', back); return () => window.removeEventListener('online', back); }, [load]);
 
   async function respond(s: Shift, response: 'CONFIRMED' | 'DECLINED') {
     setBusy(s.id); setNote('');
@@ -65,7 +74,11 @@ export default function MyShifts({ params }: { params: { token: string } }) {
       {/* eslint-disable-next-line @next/next/no-img-element */}
       {data.logoUrl && /^https:\/\//.test(data.logoUrl) && <img className="careers-logo" src={data.logoUrl} alt={data.company} />}
       <p className="muted" style={{ margin: 0 }}>{data.company}</p>
-      <h1>Hi {data.firstName}{data.me || data.clock || data.onboarding?.length || data.training?.length || data.documents?.length ? '' : ', here’s your schedule'}</h1>
+      {offline && <p className="card banner" role="status">You’re offline. This is your page as of {offline}. Clocking in and other changes need a signal.</p>}
+      {install && !offline && <div className="installbar"><span>{install.ios ? 'Add this page to your home screen: tap Share, then “Add to Home Screen”.' : 'Add this page to your phone like an app.'}</span>
+        {!install.ios && <button className="btn sm" onClick={install.prompt}>Add to home screen</button>}<button className="btn ghost sm" onClick={install.dismiss} aria-label="Not now">Not now</button></div>}
+      <h1>Hi {data.firstName}{data.me || data.clock || data.onboarding?.length || data.training?.length || data.documents?.length || data.interviews?.length ? '' : ', here’s your schedule'}</h1>
+      {!!data.interviews?.length && <WorkerInterviews token={params.token} items={data.interviews} onChange={load} />}
       {!!data.documents?.length && <WorkerDocs token={params.token} docs={data.documents} onChange={load} />}
       {data.me && <WorkerSelfService token={params.token} me={data.me} onChange={load} />}
       {!!data.onboarding?.length && <WorkerOnboarding token={params.token} items={data.onboarding} onChange={load} />}
@@ -87,7 +100,7 @@ export default function MyShifts({ params }: { params: { token: string } }) {
           ))}</ul>
         </section>
       )}
-      {(data.clock || !!data.onboarding?.length || !!data.offers?.length || !!data.training?.length || !!data.documents?.length) && <h2 style={{ marginBottom: 4 }}>Your schedule</h2>}
+      {(data.clock || !!data.onboarding?.length || !!data.offers?.length || !!data.training?.length || !!data.documents?.length || !!data.interviews?.length) && <h2 style={{ marginBottom: 4 }}>Your schedule</h2>}
       <p className="lede">{toConfirm ? `${toConfirm} shift${toConfirm === 1 ? '' : 's'} waiting for you to confirm.` : upcoming.length ? 'You’re all set.' : 'You have no upcoming shifts.'}</p>
       {note && <p className="card banner" role="status">{note}</p>}
       <ul className="shiftlist">
@@ -121,4 +134,28 @@ export default function MyShifts({ params }: { params: { token: string } }) {
       {data.contactEmail && <p className="muted">Questions? Email <a href={`mailto:${data.contactEmail}`}>{data.contactEmail}</a>.</p>}
     </main>
   );
+}
+
+type BIP = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: string }> };
+/** Registers the offline helper and offers "Add to home screen" (Android's prompt, or a hint on iPhone) until dismissed. */
+function useInstall(token: string) {
+  const [evt, setEvt] = useState<BIP | null>(null);
+  const [ios, setIos] = useState(false);
+  const [hidden, setHidden] = useState(true);
+  useEffect(() => {
+    // This worker's own manifest (opens straight to their page), in place of the team app's.
+    const l = document.querySelector<HTMLLinkElement>('link[rel="manifest"]') ?? document.head.appendChild(Object.assign(document.createElement('link'), { rel: 'manifest' }));
+    l.href = `/api/public/shifts/${token}/manifest`;
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/worker-sw.js', { scope: '/shifts/' }).catch(() => undefined);
+    const standalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as unknown as { standalone?: boolean }).standalone;
+    let dismissed = false; try { dismissed = localStorage.getItem('preciops-install-dismissed') === '1'; } catch { /* storage blocked */ }
+    if (standalone || dismissed) return;
+    const onPrompt = (e: Event) => { e.preventDefault(); setEvt(e as BIP); setHidden(false); };
+    window.addEventListener('beforeinstallprompt', onPrompt);
+    if (/iphone|ipad|ipod/i.test(navigator.userAgent)) { setIos(true); setHidden(false); }
+    return () => window.removeEventListener('beforeinstallprompt', onPrompt);
+  }, [token]);
+  if (hidden) return null;
+  const dismiss = () => { setHidden(true); try { localStorage.setItem('preciops-install-dismissed', '1'); } catch { /* storage blocked */ } };
+  return { ios, dismiss, prompt: async () => { if (!evt) return; await evt.prompt(); await evt.userChoice.catch(() => undefined); setEvt(null); setHidden(true); } };
 }

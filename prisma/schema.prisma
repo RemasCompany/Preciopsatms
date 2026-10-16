@@ -126,6 +126,8 @@ model Organization {
   tasks                 Task[]
   taskComments          TaskComment[]
   hiringDocuments       HiringDocument[]
+  interviews            Interview[]
+  scorecards            Scorecard[]
   timesheets            Timesheet[]
   documents             SignDocument[]
   messages              Message[]
@@ -331,12 +333,16 @@ model Application {
   matchScore      Int?
   source          String? // where the application came from: a job board key, google, careers or manual
   stageChangedAt  DateTime     @default(now())
+  assignmentEnd   DateTime?    @db.Date // last day of a placement, for redeployment
+  redeployNote    String? // what the recruiter did about the ending assignment
+  redeployedAt    DateTime? // marked handled (placed elsewhere, or not looking)
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
   organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   candidate       Candidate    @relation(fields: [candidateId], references: [id], onDelete: Cascade)
   job             Job          @relation(fields: [jobId], references: [id], onDelete: Cascade)
   onboardings     Onboarding[]
+  interviews      Interview[]
   timeEntries     TimeEntry[]
   shifts          Shift[]
   timesheets      Timesheet[]
@@ -1654,4 +1660,53 @@ model HiringDocument {
 
   @@index([organizationId, candidateId])
   @@index([onboardingStepId])
+}
+
+/// An interview for one application: offered times the candidate picks from (or one fixed time), calendar invites,
+/// and a scorecard from each interviewer.
+model Interview {
+  id             String       @id @default(cuid())
+  organizationId String
+  applicationId  String
+  candidateId    String
+  jobId          String
+  title          String
+  kind           String       @default("VIDEO") // PHONE | VIDEO | ONSITE
+  durationMin    Int          @default(30)
+  location       String? // address, phone number or video link
+  notes          String? // shown to the candidate
+  status         String       @default("PROPOSED") // PROPOSED | SCHEDULED | COMPLETED | NO_SHOW | CANCELLED
+  slots          Json         @default("[]") // ISO start times offered to the candidate
+  startsAt       DateTime?
+  interviewerIds String[]
+  sequence       Int          @default(0) // calendar invite revision
+  createdById    String?
+  cancelReason   String?
+  candidateNote  String? // e.g. "none of these times work"
+  remindedAt     DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  application    Application  @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  scorecards     Scorecard[]
+
+  @@index([organizationId, startsAt])
+  @@index([candidateId])
+}
+
+/// One interviewer's structured feedback: a 1–4 rating per competency, an overall recommendation and notes.
+model Scorecard {
+  id             String       @id @default(cuid())
+  organizationId String
+  interviewId    String
+  userId         String
+  ratings        Json         @default("{}")
+  recommendation String // STRONG_YES | YES | NO | STRONG_NO
+  notes          String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  interview      Interview    @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+
+  @@unique([interviewId, userId])
 }

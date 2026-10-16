@@ -12,6 +12,7 @@ import { workerReferrals } from '@/lib/referrals';
 import { workerTraining } from '@/lib/training-server';
 import { employeeHub } from '@/lib/self-service';
 import { workerDocs } from '@/lib/hiring-docs-server';
+import { workerInterviews } from '@/lib/interviews-server';
 import { HttpError } from '@/lib/tenant';
 
 type Ctx = { params: { token: string } };
@@ -33,6 +34,7 @@ export async function GET(_req: Request, { params }: Ctx) {
   return Response.json({
     me: await employeeHub(link),
     documents: await workerDocs(link.organizationId, link.candidateId),
+    interviews: hasFeature(o, 'ats') ? await workerInterviews(link) : [],
     referrals: hasFeature(o, 'engagement') ? await workerReferrals(o, link.candidateId) : null,
     offers: hasFeature(o, 'scheduling') ? await workerOffers(link.organizationId, link.candidateId) : [],
     engagement: hasFeature(o, 'engagement') ? await workerEngagement(link.organizationId, link.candidateId) : null,

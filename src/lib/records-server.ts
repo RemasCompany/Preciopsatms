@@ -154,7 +154,7 @@ async function loadRelated(tdb: TenantDb, kind: RecordKind, id: string) {
       return {
         resume,
         optOut: { email: !!c?.emailOptOut, sms: !!c?.smsOptOut },
-        applications: apps.map((a) => ({ id: a.id, jobId: a.jobId, job: a.job.title, client: a.job.client?.name ?? null, billRate: num(a.job.billRate), stage: a.stage })),
+        applications: apps.map((a) => ({ id: a.id, jobId: a.jobId, job: a.job.title, client: a.job.client?.name ?? null, billRate: num(a.job.billRate), stage: a.stage, assignmentEnd: a.assignmentEnd ? ymd(a.assignmentEnd) : null })),
         openJobs: open.map((j) => ({ id: j.id, label: jobLabel(j) })),
       };
     }

@@ -14,6 +14,7 @@ import BackgroundChecks from './BackgroundChecks';
 import { BOARD_INFO, isBoard, sourceLabel, type Board } from '@/lib/boards';
 import DoNotReturn from './DoNotReturn';
 import { CandidateDocs } from './HiringDocs';
+import { CandidateInterviews } from './Interviews';
 import { CandidateJobMatches, JobMatches } from './Matches';
 
 type Open = { kind: RecordKind; id?: string; preset?: RecordValues };
@@ -195,7 +196,11 @@ function RelatedExtras({ kind, id, values, extras, reload, open, toast, canEdit,
   const [pick, setPick] = useState('');
   const { kind: orgKind } = useRecords();
   if (kind === 'candidates') {
-    const apps = (extras.applications ?? []) as { id: string; jobId: string; job: string; client: string | null; billRate: number | null; stage: Stage }[];
+    const apps = (extras.applications ?? []) as { id: string; jobId: string; job: string; client: string | null; billRate: number | null; stage: Stage; assignmentEnd?: string | null }[];
+    const setEnd = async (appId: string, date: string) => {
+      try { await api('/api/redeploy', 'POST', { action: 'endDate', applicationId: appId, date: date || null }); toast(date ? 'Assignment end date saved.' : 'End date cleared.'); reload(); }
+      catch (e) { toast((e as Error).message, true); }
+    };
     const jobs = (extras.openJobs ?? []) as { id: string; label: string }[];
     const submit = async () => {
       if (!pick) return;
@@ -207,7 +212,8 @@ function RelatedExtras({ kind, id, values, extras, reload, open, toast, canEdit,
         <div className="list">
           {apps.map((a) => (
             <div key={a.id} className="li"><button className="link x" onClick={() => open('jobs', a.jobId)}><b>{a.job}</b><span className="muted">{[a.client, a.billRate ? `bill ${money(a.billRate)}/hr` : null].filter(Boolean).join(' · ')}</span></button>
-              <StageSelect appId={a.id} stage={a.stage} onMoved={reload} canEdit={canEdit} /></div>
+              <span className="row" style={{ gap: 6 }}>{a.stage === 'PLACED' && orgKind !== 'EMPLOYER' && <label className="muted" style={{ fontSize: 12, display: 'flex', gap: 4, alignItems: 'center' }}>Ends<input type="date" defaultValue={a.assignmentEnd ?? ''} disabled={!canEdit} aria-label={`Assignment end date for ${a.job}`} onChange={(e) => setEnd(a.id, e.target.value)} style={{ width: 'auto' }} /></label>}
+              <StageSelect appId={a.id} stage={a.stage} onMoved={reload} canEdit={canEdit} /></span></div>
           ))}
           {!apps.length && <p className="muted">Not submitted to any job yet.</p>}
         </div>
@@ -216,6 +222,7 @@ function RelatedExtras({ kind, id, values, extras, reload, open, toast, canEdit,
             <button className="btn ghost" onClick={submit} disabled={!pick}>Add to pipeline</button></div>
         )}
       </section>
+      <CandidateInterviews candidateId={id} applications={apps.map((a) => ({ id: a.id, job: a.job, stage: a.stage }))} canEdit={canEdit} toast={toast} contact={{ email: !!values.email, phone: !!values.phone }} />
       <CandidateJobMatches key={apps.length} candidateId={id} canEdit={canEdit} reload={reload} />
     </>);
   }
