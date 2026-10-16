@@ -107,7 +107,7 @@ export function scoreMatch(job: MatchJob, c: MatchCandidate): Match {
 
   // Availability: ready now beats weeks out.
   const a = (c.availability ?? '').toLowerCase();
-  const av = !a ? 0.5 : /immediate|now|asap|today|available/.test(a) ? 1 : /week/.test(a) ? 0.6 : /month/.test(a) ? 0.3 : 0.5;
+  const av = !a ? 0.5 : /immediate|now|asap|today|available/.test(a) ? 1 : /week/.test(a) ? 0.6 : /month|\d+\s*days?/.test(a) ? 0.3 : /passive|not looking/.test(a) ? 0.2 : 0.5;
   factors.push({ key: 'availability', label: 'Availability', points: round(WEIGHTS.availability * av), max: WEIGHTS.availability, note: c.availability || 'Not recorded' });
 
   return { score: Math.round(factors.reduce((t, f) => t + f.points, 0)), factors, matched, missing, certGaps };

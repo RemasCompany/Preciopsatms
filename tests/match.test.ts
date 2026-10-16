@@ -54,6 +54,7 @@ describe('match scoring', () => {
     expect([pts(m, 'certs'), pts(m, 'location'), pts(m, 'pay'), pts(m, 'availability')]).toEqual([0, 6, 0, 3]);
     expect(pts(scoreMatch(job({ remote: true }), cand({ location: 'Miami, FL' })), 'location')).toBe(10);
     expect(pts(scoreMatch(job(), cand({ desiredRate: 22.5 })), 'pay')).toBe(2.5); // within 10%
+    expect(['30 days', 'Passive'].map((a) => pts(scoreMatch(job(), cand({ availability: a })), 'availability'))).toEqual([1.5, 1]);
   });
 
   it('falls back to the job title when the job lists no skills', () => {
