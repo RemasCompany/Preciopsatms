@@ -6,7 +6,7 @@ import { useRecords } from './Records';
 import { fmtDate } from '@/lib/people-shared';
 
 export type Schedule = { on: boolean; frequency: 'ANNUAL' | 'SEMIANNUAL' | 'NONE'; basis: 'HIRE_DATE' | 'CALENDAR'; month: number; leadDays: number };
-export type Upcoming = { employeeId: string; name: string; title: string; manager: string | null; frequency: 'ANNUAL' | 'SEMIANNUAL'; due: string; daysLeft: number; reviewId: string | null };
+export type Upcoming = { employeeId: string; name: string; title: string; manager: string | null; frequency: 'ANNUAL' | 'SEMIANNUAL'; due: string; daysLeft: number; reviewId: string | null; inCycle: string | null };
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const FREQ = { ANNUAL: 'Annual', SEMIANNUAL: 'Semi-annual', NONE: 'No scheduled reviews' } as const;
 const when = (d: number) => (d > 1 ? `in ${d} days` : d === 1 ? 'tomorrow' : d === 0 ? 'today' : `${-d} day${d === -1 ? '' : 's'} overdue`);
@@ -50,7 +50,7 @@ export default function ReviewSchedule({ schedule, upcoming, admin, onOpen }: { 
             <div className="x"><b>{u.name}</b><span className="muted">{u.title} · {FREQ[u.frequency].toLowerCase()} review · manager {u.manager ?? <i>not set — HR is reminded</i>}</span></div>
             <span className="row" style={{ gap: 8, margin: 0 }}>
               <span className={`pill ${u.daysLeft < 0 ? 'r' : u.daysLeft <= 7 ? 'a' : ''}`}>{fmtDate(u.due)} · {when(u.daysLeft)}</span>
-              {u.reviewId && onOpen ? <button className="btn ghost sm" onClick={() => onOpen(u.reviewId!)}>Open</button> : <span className="muted" style={{ fontSize: 12.5 }}>{u.reviewId ? 'Added' : `Added ${schedule.leadDays} days before`}</span>}
+              {u.reviewId && onOpen ? <button className="btn ghost sm" onClick={() => onOpen(u.reviewId!)}>Open</button> : <span className="muted" style={{ fontSize: 12.5 }}>{u.inCycle ? `In ${u.inCycle}` : u.reviewId ? 'Added' : `Added ${schedule.leadDays} days before`}</span>}
             </span>
           </div>
         ))}</div>

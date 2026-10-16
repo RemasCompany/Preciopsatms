@@ -83,7 +83,9 @@ export const frequencyOf = (org: Pick<Organization, 'reviewFrequency'>, e: Pick<
 export async function upcoming(tdb: TenantDb, org: Organization, today: string, days = 90) {
   const people = await tdb.employee.findMany({ where: { status: { not: 'TERMINATED' } }, include: { candidate: { select: { name: true } }, manager: { include: { candidate: { select: { name: true } } } },
     reviews: { where: { cycle: { auto: { not: null } } }, select: { dueDate: true, managerSubmittedAt: true, id: true }, orderBy: { dueDate: 'desc' }, take: 1 } } });
-  const out: { employeeId: string; name: string; title: string; manager: string | null; frequency: Frequency; due: string; daysLeft: number; reviewId: string | null; done: boolean }[] = [];
+  // Someone already in an unfinished review that HR started by hand isn't given a second one.
+  const busy = new Map((await tdb.review.findMany({ where: { managerSubmittedAt: null, cycle: { status: 'OPEN', auto: null } }, select: { employeeId: true, cycle: { select: { name: true } } } })).map((r) => [r.employeeId, r.cycle.name]));
+  const out: { employeeId: string; name: string; title: string; manager: string | null; frequency: Frequency; due: string; daysLeft: number; reviewId: string | null; inCycle: string | null }[] = [];
   for (const e of people) {
     const frequency = frequencyOf(org, e);
     if (frequency === 'NONE') continue;
@@ -92,7 +94,7 @@ export async function upcoming(tdb: TenantDb, org: Organization, today: string, 
     const open = last?.dueDate && !last.managerSubmittedAt ? ymd(last.dueDate) : null;
     const due = open ?? nextDue({ startDate: ymd(e.startDate), frequency, basis: org.reviewBasis as Basis, month: org.reviewMonth, after: last?.dueDate ? ymd(last.dueDate) : addDaysYmd(today, -1) });
     if (!due || daysBetween(today, due) > days) continue;
-    out.push({ employeeId: e.id, name: e.candidate.name, title: e.title, manager: e.manager?.candidate.name ?? null, frequency, due, daysLeft: daysBetween(today, due), reviewId: open ? last!.id : null, done: false });
+    out.push({ employeeId: e.id, name: e.candidate.name, title: e.title, manager: e.manager?.candidate.name ?? null, frequency, due, daysLeft: daysBetween(today, due), reviewId: open ? last!.id : null, inCycle: open ? null : busy.get(e.id) ?? null });
   }
   return out.sort((a, b) => a.due.localeCompare(b.due) || a.name.localeCompare(b.name));
 }
@@ -115,7 +117,7 @@ export async function scheduleReviews(tdb: TenantDb, org: Organization, today: s
   const horizon = addDaysYmd(today, org.reviewLeadDays);
   let added = 0;
   for (const u of await upcoming(tdb, org, today, org.reviewLeadDays)) {
-    if (u.reviewId || u.due > horizon || u.frequency === 'NONE') continue;
+    if (u.reviewId || u.inCycle || u.due > horizon || u.frequency === 'NONE') continue;
     const c = await cycleFor(tdb, u.frequency, u.due);
     const r = await tdb.review.createMany({ data: [{ organizationId: org.id, cycleId: c.id, employeeId: u.employeeId, dueDate: day(u.due) }], skipDuplicates: true });
     added += r.count;

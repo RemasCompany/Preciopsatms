@@ -130,6 +130,18 @@ describe('scheduled reviews and manager reminders', () => {
     expect(maya?.text ?? '').not.toContain('Ana Ruiz');
   });
 
+  it('doesn’t add a second review for someone already in a review HR started', async () => {
+    const o = await db.organization.findUniqueOrThrow({ where: { id: org } });
+    const c = await db.reviewCycle.create({ data: { organizationId: org, name: '2027 midyear', periodStart: new Date('2027-01-01'), periodEnd: new Date('2027-06-30'), dueDate: new Date('2027-07-15'), questions: [] } });
+    const late = await db.candidate.create({ data: { organizationId: org, name: 'Lia Busy' } });
+    const lia = (await db.employee.create({ data: { organizationId: org, candidateId: late.id, title: 'Picker', startDate: new Date('2025-12-01T00:00:00Z'), payRate: 20, managerId: mgr } })).id;
+    await db.review.create({ data: { organizationId: org, cycleId: c.id, employeeId: lia } });
+    const u = (await upcoming(tenantDb(org), o, '2026-11-10', 60)).find((x) => x.employeeId === lia)!;
+    expect([u.due, u.inCycle, u.reviewId]).toEqual(['2026-12-01', '2027 midyear', null]);
+    await runReviewReminders(new Date('2026-11-10T15:00:00Z'));
+    expect(await db.review.count({ where: { employeeId: lia } })).toBe(1);
+  });
+
   it('honors a manager’s email opt-out (HR is told instead)', async () => {
     const nia = await db.employee.findUniqueOrThrow({ where: { id: noAcct } });
     await db.candidate.update({ where: { id: nia.candidateId }, data: { emailOptOut: true } });
