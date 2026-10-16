@@ -17,7 +17,7 @@ const appUrl = () => process.env.APP_URL ?? 'http://localhost:3000';
 type DocFile = { fileId: string; name: string; size: number; at: string };
 const filesOf = (d: { files: unknown }) => (Array.isArray(d.files) ? (d.files as DocFile[]) : []);
 const isAdmin = (r: Role) => r === 'OWNER' || r === 'ADMIN';
-const OPEN = ['REQUESTED', 'RECEIVED', 'ACCEPTED'];
+const OPEN = ['REQUESTED', 'RECEIVED', 'ACCEPTED', 'REJECTED']; // a document sent back is still being asked for
 
 export const RequestBody = z.object({
   kinds: z.array(z.string()).max(12).default([]),

@@ -134,6 +134,8 @@ describe('hiring documents', () => {
     const res = await REVIEW(json({ action: 'reject', note: 'Page 1 is missing your signature.', channels: ['sms'] }, 'PATCH'), { params: { id: w4.id } });
     expect(await res.json()).toMatchObject({ ok: true, sent: ['sms'] });
     expect(out.texts.at(-1)!.body).toMatch(/^Acme: please send your hiring documents \(\d\) securely here: https:\/\/app\.test\/shifts\/[\w-]+#documents$/);
+    // Asking for it again doesn't make a second request: the one sent back is still open.
+    expect(await (await REQUEST(json({ kinds: ['w4'] }), { params: { id: cand } })).json()).toMatchObject({ requested: 0, skipped: 1 });
     const back = (await page(token)).documents.find((d: { id: string }) => d.id === w4.id);
     expect(back).toMatchObject({ status: 'REJECTED', note: 'Page 1 is missing your signature.' });
     await SEND_FILE(fileForm({ docId: w4.id }, PDF, 'w4-signed.pdf'), { params: { token } });
