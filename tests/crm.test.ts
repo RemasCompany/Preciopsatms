@@ -69,6 +69,18 @@ describe('AI lead scoring', () => {
     for (const secret of ['Omar', 'Zuberi', 'omar@northwind.test', '555-0199']) expect(prompt).not.toContain(secret);
   });
 
+  it('masks names and contact details in the notes and the sender’s name', async () => {
+    const lead = await db.lead.create({ data: { organizationId: org, company: 'Northwind Freight', contact: 'Omar Zuberi', role: 'VP Operations', industry: 'Logistics',
+      notes: 'Met Omar Zuberi at the expo. Omar wants 12 pickers for peak. Cell (512) 555-0142, omar.z@northwind.test, linkedin.com/in/omarz, office at 400 Congress Ave.' } });
+    ai.reply = { score: 70, why: 'Needs [name]’s team', nextStep: 'Call [name]', subject: 'Peak staffing', body: 'Hi [First name],\n\nAbout your 12 pickers...\n\n[Your name]' };
+    const out = await (await SCORE(new Request('http://x', { method: 'POST', body: JSON.stringify({ leadId: lead.id }) }))).json();
+    const prompt = ai.prompts.at(-1)!;
+    expect(prompt).toContain('[name] wants 12 pickers for peak. Cell [phone], [email], [link] office at [address]');
+    for (const secret of ['Omar', 'Zuberi', '555-0142', 'omar.z@northwind.test', 'linkedin.com/in/omarz', '400 Congress', 'Pat Owner']) expect(prompt).not.toContain(secret);
+    expect(out.body).toBe('Hi [First name],\n\nAbout your 12 pickers...\n\nPat Owner');
+    expect(out.nextStep).toBe('Call [First name]');
+  });
+
   it('clamps the score and rejects unreadable replies', async () => {
     const lead = await db.lead.create({ data: { organizationId: org, company: 'Z Corp' } });
     const call = () => SCORE(new Request('http://x', { method: 'POST', body: JSON.stringify({ leadId: lead.id }) }));

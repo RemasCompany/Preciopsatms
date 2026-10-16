@@ -37,6 +37,8 @@ export async function extractResumeText(buf: Buffer, filename: string): Promise<
 const EMAIL = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
 const PHONE = /(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\b/g;
 const URL_RE = /\b(?:https?:\/\/|www\.)\S+|\b(?:linkedin\.com|github\.com)\/\S+/gi;
+// Just the address itself, for free text such as notes, where a whole line can be a paragraph.
+const STREET_INLINE = /\b\d{1,6}\s+(?:[A-Z0-9][A-Za-z0-9.']*\s+){1,4}(?:St|Street|Ave|Avenue|Rd|Road|Blvd|Boulevard|Dr|Drive|Ln|Lane|Way|Ct|Court|Pl|Place|Hwy|Highway|Pkwy|Parkway|Cir|Circle|Ter|Terrace)\b\.?(?:,?\s*(?:Apt|Suite|Ste|Unit|#)\.?\s*[\w-]+)?/g;
 const STREET = /^.*\b\d{1,6}\s+[A-Za-z0-9.' ]+\b(?:St|Street|Ave|Avenue|Rd|Road|Blvd|Boulevard|Dr|Drive|Ln|Lane|Way|Ct|Court|Pl|Place|Hwy|Pkwy|Cir|Ter|Apt|Suite)\b.*$/gim;
 const NOT_A_NAME = /\b(resume|résumé|curriculum|vitae|cv|profile|summary|objective|experience|education|skills|contact|references|phone|email)\b/i;
 
@@ -59,8 +61,8 @@ export function extractContact(text: string) {
 }
 
 /** The resume with contact details, links, street addresses and the person's name removed. */
-export function redactResume(text: string, name: string | null) {
-  let out = text.replace(EMAIL, '[email]').replace(URL_RE, '[link]').replace(PHONE, '[phone]').replace(STREET, '[address]');
+export function redactResume(text: string, name: string | null, opts: { inline?: boolean } = {}) {
+  let out = text.replace(EMAIL, '[email]').replace(URL_RE, '[link]').replace(PHONE, '[phone]').replace(opts.inline ? STREET_INLINE : STREET, '[address]');
   if (name) {
     const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     out = out.replace(new RegExp(esc(name), 'gi'), '[name]');
@@ -68,6 +70,9 @@ export function redactResume(text: string, name: string | null) {
   }
   return out;
 }
+
+/** Free text such as notes, with the same details masked but only the address itself removed from a sentence. */
+export const redactNotes = (text: string, name: string | null) => redactResume(text, name, { inline: true });
 
 export type ParsedProfile = {
   name: string | null; email: string | null; phone: string | null; title: string | null; location: string | null;
