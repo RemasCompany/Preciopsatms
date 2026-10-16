@@ -1,6 +1,7 @@
 import { requirePageContext } from '@/lib/tenant';
 import { ACTIVE_STATUSES } from '@/lib/plans';
 import PipelineBoard, { type BoardApp } from '@/components/PipelineBoard';
+import { scoreApplications } from '@/lib/match-server';
 import { appInBranch, currentBranch, jobInBranch } from '@/lib/branches';
 
 export default async function Pipeline({ searchParams }: { searchParams: { job?: string } }) {
@@ -16,8 +17,10 @@ export default async function Pipeline({ searchParams }: { searchParams: { job?:
     tdb.job.findMany({ where: jobInBranch(branch), select: { id: true, title: true, status: true, client: { select: { name: true } } }, orderBy: { createdAt: 'desc' } }),
     tdb.candidate.findMany({ select: { id: true, name: true, title: true }, orderBy: { name: 'asc' }, take: 1000 }),
   ]);
+  // Scores are worked out live, so they follow edits to the job or the candidate's profile.
+  const scores = await scoreApplications(tdb, apps);
   const rows: BoardApp[] = apps.map((a) => ({
-    id: a.id, jobId: a.jobId, candidateId: a.candidateId, stage: a.stage, matchScore: a.matchScore, stageChangedAt: a.stageChangedAt.toISOString(),
+    id: a.id, jobId: a.jobId, candidateId: a.candidateId, stage: a.stage, matchScore: scores.get(a.id) ?? null, stageChangedAt: a.stageChangedAt.toISOString(),
     candidate: a.candidate.name, availability: a.candidate.availability, job: a.job.title, client: a.job.client?.name ?? null,
   }));
   const canEdit = role !== 'VIEWER' && ACTIVE_STATUSES.has(org.subscriptionStatus);

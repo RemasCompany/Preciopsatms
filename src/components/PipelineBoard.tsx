@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import type { Stage } from '@prisma/client';
 import Drawer from './Drawer';
 import { useRecords } from './Records';
+import { matchTone } from '@/lib/match';
 import { BOARD_STAGES, START_STAGES, REJECTION_REASONS, stageLabel, type RejectionReason } from '@/lib/pipeline';
 
 export type BoardApp = {
@@ -28,6 +29,7 @@ export default function PipelineBoard({ apps: initial, jobs, candidates, initial
   const [over, setOver] = useState<Stage | null>(null);
   const [rejecting, setRejecting] = useState<BoardApp | null>(null);
   const [adding, setAdding] = useState(false);
+  const [sort, setSort] = useState<'recent' | 'match'>('recent');
   const [toast, setToast] = useState<{ text: string; error?: boolean } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout>>();
 
@@ -85,6 +87,10 @@ export default function PipelineBoard({ apps: initial, jobs, candidates, initial
           <option value="">All jobs</option>
           {jobs.map((j) => <option key={j.id} value={j.id}>{jobLabel(j)}</option>)}
         </select>
+        <select value={sort} onChange={(e) => setSort(e.target.value as 'recent' | 'match')} aria-label="Sort cards">
+          <option value="recent">Recently moved first</option>
+          <option value="match">Best match first</option>
+        </select>
         {canEdit && <button className="btn" onClick={() => setAdding(true)}>+ Add to pipeline</button>}
       </div>
 
@@ -94,6 +100,7 @@ export default function PipelineBoard({ apps: initial, jobs, candidates, initial
         <div className="board" role="list" aria-label="Pipeline stages">
           {BOARD_STAGES.map((s, i) => {
             const items = visible.filter((a) => a.stage === s);
+            if (sort === 'match') items.sort((x, y) => (y.matchScore ?? -1) - (x.matchScore ?? -1));
             return (
               <section key={s} role="listitem" aria-label={`${stageLabel(s, kind)}, ${items.length}`} className={`col${over === s ? ' over' : ''}`} style={{ '--c': `var(--s${i})` } as React.CSSProperties}
                 onDragOver={(e) => { if (!canEdit) return; e.preventDefault(); setOver(s); }}
@@ -109,7 +116,7 @@ export default function PipelineBoard({ apps: initial, jobs, candidates, initial
                       onKeyDown={(e) => onKey(e, a)} onClick={() => open('candidates', a.candidateId)}>
                       <b>{a.candidate}</b>
                       <span className="muted">{a.job}{a.client ? ` · ${a.client}` : ''}</span>
-                      <div className="meta"><span>{a.matchScore ? `Match ${a.matchScore}` : a.availability ?? ''}</span><span>{d ? `${d}d in stage` : 'today'}</span></div>
+                      <div className="meta"><span>{a.matchScore != null ? <span className={`pill ${matchTone(a.matchScore)}`} title="Match score out of 100: skills, experience, role, certifications, location, pay and availability">{a.matchScore}% match</span> : a.availability ?? ''}</span><span>{d ? `${d}d in stage` : 'today'}</span></div>
                       {canEdit && (
                         <select className="movesel" aria-label={`Move ${a.candidate} to stage`} value={a.stage}
                           onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}

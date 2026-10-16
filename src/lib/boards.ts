@@ -37,3 +37,5 @@ export const isBoard = (b: string | null | undefined): b is Board => !!b && Obje
 export const ORIGINAL_BOARDS: Board[] = ['indeed', 'ziprecruiter', 'talent', 'jooble', 'careerjet', 'adzuna'];
 /** Whether a job goes to this board: the board is on, and the job is posted everywhere or picked it. */
 export const postsTo = (orgBoards: string[], jobBoards: string[], b: Board) => orgBoards.includes(b) && (!jobBoards.length || jobBoards.includes(b));
+/** How an applicant's source reads in the app. */
+export const sourceLabel = (k: string) => (isBoard(k) ? BOARD_INFO[k].name : k === 'google' ? 'Google for Jobs' : k === 'careers' ? 'careers page' : k);

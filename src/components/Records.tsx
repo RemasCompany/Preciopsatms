@@ -11,8 +11,9 @@ import RecordForm, { invalidateRefs } from './RecordForm';
 import { RECORDS, defaultsFor, labelFor, vendorCompliance, HOURS_PER_WEEK, type RecordKind, type RecordValues } from '@/lib/records';
 import { BOARD_STAGES, REJECTION_REASONS, stageLabel } from '@/lib/pipeline';
 import BackgroundChecks from './BackgroundChecks';
-import { BOARD_INFO, isBoard, type Board } from '@/lib/boards';
+import { BOARD_INFO, isBoard, sourceLabel, type Board } from '@/lib/boards';
 import DoNotReturn from './DoNotReturn';
+import { CandidateJobMatches, JobMatches } from './Matches';
 
 type Open = { kind: RecordKind; id?: string; preset?: RecordValues };
 type Ctx = { open: (kind: RecordKind, id?: string, preset?: RecordValues) => void; toast: (text: string, error?: boolean) => void; canEdit: boolean; ai: boolean; credentials?: boolean; portal?: boolean; kind?: 'STAFFING' | 'EMPLOYER' };
@@ -192,7 +193,7 @@ function RelatedExtras({ kind, id, values, extras, reload, open, toast, canEdit,
       try { await api('/api/applications', 'POST', { jobId: pick, candidateId: id, stage: 'SOURCED' }); setPick(''); toast('Added to pipeline.'); reload(); }
       catch (e) { toast((e as Error).message, true); }
     };
-    return (
+    return (<>
       <section className="sec"><h3>Submissions <span className="muted">{apps.length}</span></h3>
         <div className="list">
           {apps.map((a) => (
@@ -206,7 +207,8 @@ function RelatedExtras({ kind, id, values, extras, reload, open, toast, canEdit,
             <button className="btn ghost" onClick={submit} disabled={!pick}>Add to pipeline</button></div>
         )}
       </section>
-    );
+      <CandidateJobMatches key={apps.length} candidateId={id} canEdit={canEdit} reload={reload} />
+    </>);
   }
   if (kind === 'jobs') {
     const pay = Number(values.payRate) || 0, bill = Number(values.billRate) || 0, spread = bill - pay, openings = Number(values.openings) || 1;
@@ -216,14 +218,7 @@ function RelatedExtras({ kind, id, values, extras, reload, open, toast, canEdit,
       {!employer && <section className="sec"><h3>Economics</h3>
         <div className="kpis"><div className="kpi"><b>{money(spread)}/hr</b><span>Spread</span></div><div className="kpi"><b>{bill ? `${Math.round((spread / bill) * 100)}%` : '—'}</b><span>Gross margin</span></div>
           <div className="kpi"><b>{money(spread * HOURS_PER_WEEK * openings)}</b><span>Weekly GP if filled</span></div></div></section>}
-      <section className="sec"><h3>Pipeline <a className="btn ghost sm" href={`/app/pipeline?job=${id}`}>Open board</a></h3>
-        <div className="list">
-          {apps.map((a) => (
-            <div key={a.id} className="li"><button className="link x" onClick={() => open('candidates', a.candidateId)}><b>{a.name}</b><span className="muted">{[a.matchScore ? `Match ${a.matchScore}` : null, a.title, a.source ? `via ${sourceLabel(a.source)}` : null].filter(Boolean).join(' · ')}</span></button>
-              <StageSelect appId={a.id} stage={a.stage} onMoved={reload} canEdit={canEdit} /></div>
-          ))}
-          {!apps.length && <p className="muted">No candidates yet.</p>}
-        </div></section>
+      <JobMatches jobId={id} canEdit={canEdit} reload={reload} />
       {extras.boards ? <JobBoardPicker jobId={id} data={extras.boards as BoardData} canEdit={canEdit} reload={reload} /> : null}
     </>;
   }
@@ -354,7 +349,6 @@ export function Pill({ s }: { s: string | null | undefined }) {
 }
 
 type BoardData = { on: string[]; selected: string[]; live: boolean; stats: Record<string, { applicants: number; hired: number }> };
-const sourceLabel = (k: string) => (isBoard(k) ? BOARD_INFO[k].name : k === 'google' ? 'Google for Jobs' : k === 'careers' ? 'careers page' : k);
 
 /** Which job boards this job goes to (all that are on, or a chosen few), and what each has sent. */
 function JobBoardPicker({ jobId, data, canEdit, reload }: { jobId: string; data: BoardData; canEdit: boolean; reload: () => void }) {
