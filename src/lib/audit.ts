@@ -51,6 +51,7 @@ export const AUDIT_ACTIONS = {
   'leave.decide': { group: 'People', label: 'Approved or denied time off' },
   'leave.adjust': { group: 'People', label: 'Adjusted a time-off balance' },
   'review.cycle': { group: 'People', label: 'Started or closed a review cycle' },
+  'review.schedule': { group: 'People', label: 'Changed the review schedule' },
   'review.share': { group: 'People', label: 'Shared a review with an employee' },
   'offboarding.template': { group: 'People', label: 'Changed the offboarding checklist' },
 } as const;

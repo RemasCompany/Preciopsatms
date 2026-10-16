@@ -122,7 +122,7 @@ function EmployeeDrawer({ id, everyone, departments, branches, canEdit, admin, o
       const r: Detail = await api(`/api/employees/${id}`, 'GET'); setD(r);
       const e = r.employee;
       setV({ name: e.name, email: e.email ?? '', phone: e.phone ?? '', title: e.title, employmentType: e.employmentType, departmentId: e.departmentId ?? '', branchId: e.branchId ?? '',
-        managerId: e.managerId ?? '', employeeNumber: e.employeeNumber ?? '', workEmail: e.workEmail ?? '', startDate: e.startDate });
+        managerId: e.managerId ?? '', employeeNumber: e.employeeNumber ?? '', workEmail: e.workEmail ?? '', startDate: e.startDate, reviewFrequency: e.reviewFrequency ?? '' });
     } catch (err) { toast((err as Error).message, true); onClose(); }
   }, [id, toast, onClose]);
   useEffect(() => { load(); }, [load]);
@@ -135,7 +135,7 @@ function EmployeeDrawer({ id, everyone, departments, branches, canEdit, admin, o
   const e = d.employee;
   const ended = e.status === 'TERMINATED';
   const save = () => run(async () => {
-    await api(`/api/employees/${id}`, 'PATCH', { name: v.name, email: v.email, phone: v.phone, title: v.title, employmentType: v.employmentType, employeeNumber: v.employeeNumber, workEmail: v.workEmail, startDate: v.startDate, ...blankToNull(v, ['departmentId', 'branchId', 'managerId']) });
+    await api(`/api/employees/${id}`, 'PATCH', { name: v.name, email: v.email, phone: v.phone, title: v.title, employmentType: v.employmentType, employeeNumber: v.employeeNumber, workEmail: v.workEmail, startDate: v.startDate, ...blankToNull(v, ['departmentId', 'branchId', 'managerId', 'reviewFrequency']) });
     return 'Saved.';
   });
   const leave = (status: 'ACTIVE' | 'ON_LEAVE') => run(async () => { await api(`/api/employees/${id}`, 'PATCH', { status }); return status === 'ON_LEAVE' ? `${e.name} is on leave.` : `${e.name} is back from leave.`; });
@@ -170,7 +170,8 @@ function EmployeeDrawer({ id, everyone, departments, branches, canEdit, admin, o
           <label className="full"><span>Full name</span><input value={v.name ?? ''} readOnly={!canEdit || ended} onChange={(x) => set('name', x.target.value)} /></label>
           <label><span>Personal email</span><input type="email" value={v.email ?? ''} readOnly={!canEdit || ended} onChange={(x) => set('email', x.target.value)} /></label>
           <label><span>Mobile phone</span><input type="tel" value={v.phone ?? ''} readOnly={!canEdit || ended} onChange={(x) => set('phone', x.target.value)} /></label>
-          {canEdit && !ended ? <JobFields v={v} set={set} everyone={everyone} departments={departments} branches={branches} self={e.id} /> : <>
+          {canEdit && !ended ? <><JobFields v={v} set={set} everyone={everyone} departments={departments} branches={branches} self={e.id} />
+            <label><span>Performance reviews</span><select value={v.reviewFrequency ?? ''} onChange={(x) => set('reviewFrequency', x.target.value)}><option value="">Company default</option><option value="ANNUAL">Annual</option><option value="SEMIANNUAL">Semi-annual</option><option value="NONE">Not reviewed on a schedule</option></select></label></> : <>
             <label><span>Manager</span><input readOnly value={e.manager ?? '—'} /></label><label><span>Location</span><input readOnly value={e.location ?? '—'} /></label>
           </>}
         </div>

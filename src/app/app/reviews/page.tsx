@@ -4,6 +4,8 @@ import { isAdmin } from '@/lib/people';
 import { DEFAULT_QUESTIONS } from '@/lib/reviews';
 import Reviews, { type CycleRow, type ReviewRow } from '@/components/Reviews';
 import Gate from '@/components/Gate';
+import { upcoming } from '@/lib/review-schedule';
+import { localDate } from '@/lib/timeclock';
 
 export const dynamic = 'force-dynamic';
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
@@ -15,9 +17,11 @@ export default async function ReviewsPage({ searchParams }: { searchParams: { cy
   const { tdb } = ctx;
   const cycles = await tdb.reviewCycle.findMany({ orderBy: [{ status: 'desc' }, { createdAt: 'desc' }], include: { reviews: { select: { selfSubmittedAt: true, managerSubmittedAt: true, sharedAt: true, acknowledgedAt: true } } } });
   const current = cycles.find((c) => c.id === searchParams.cycle) ?? cycles[0] ?? null;
-  const [reviews, departments] = await Promise.all([
+  const today = localDate(new Date(), ctx.org.timezone);
+  const [reviews, departments, coming] = await Promise.all([
     current ? tdb.review.findMany({ where: { cycleId: current.id }, include: { employee: { include: { candidate: { select: { name: true } }, department: { select: { name: true } }, manager: { select: { candidate: { select: { name: true } } } }, goals: { where: { status: 'OPEN' }, select: { id: true } } } } }, orderBy: { employee: { candidate: { name: 'asc' } } } }) : [],
     tdb.department.findMany({ orderBy: { name: 'asc' }, select: { id: true, name: true } }),
+    ctx.org.reviewScheduleOn ? upcoming(tdb, ctx.org, today, 60) : [],
   ]);
   const cycleRows: CycleRow[] = cycles.map((c) => ({
     id: c.id, name: c.name, status: c.status as 'OPEN' | 'CLOSED', selfReview: c.selfReview, periodStart: ymd(c.periodStart), periodEnd: ymd(c.periodEnd), dueDate: ymd(c.dueDate),
@@ -25,14 +29,16 @@ export default async function ReviewsPage({ searchParams }: { searchParams: { cy
   }));
   const rows: ReviewRow[] = reviews.map((r) => ({
     id: r.id, employeeId: r.employeeId, name: r.employee.candidate.name, title: r.employee.title, department: r.employee.department?.name ?? null, manager: r.employee.manager?.candidate.name ?? null,
-    self: !!r.selfSubmittedAt, managerDraft: !!r.managerAnswers && !r.managerSubmittedAt, manager_: !!r.managerSubmittedAt, shared: !!r.sharedAt, acknowledged: !!r.acknowledgedAt, rating: r.rating, goals: r.employee.goals.length,
+    self: !!r.selfSubmittedAt, managerDraft: !!r.managerAnswers && !r.managerSubmittedAt, manager_: !!r.managerSubmittedAt, shared: !!r.sharedAt, acknowledged: !!r.acknowledgedAt, rating: r.rating, goals: r.employee.goals.length, due: ymd(r.dueDate ?? current!.dueDate),
   }));
   return (
     <>
       <h1>{ctx.org.kind === 'EMPLOYER' ? 'Reviews & goals' : 'Staff reviews'}</h1>
       <p className="lede">Run a review cycle: employees answer a self review on their employee page, you write the manager review and share it, and they acknowledge it there. Set goals they can update as they go.</p>
       <Reviews cycles={cycleRows} current={current?.id ?? null} rows={rows} departments={departments} defaults={DEFAULT_QUESTIONS.map((q) => ({ text: q.text, kind: q.kind }))}
-        canEdit={canEdit(ctx)} admin={isAdmin(ctx.role) && canEdit(ctx)} today={ymd(new Date())} />
+        canEdit={canEdit(ctx)} admin={isAdmin(ctx.role) && canEdit(ctx)} today={today}
+        schedule={{ on: ctx.org.reviewScheduleOn, frequency: ctx.org.reviewFrequency as 'ANNUAL', basis: ctx.org.reviewBasis as 'HIRE_DATE', month: ctx.org.reviewMonth, leadDays: ctx.org.reviewLeadDays }}
+        upcoming={coming.map((u) => ({ ...u, frequency: u.frequency as 'ANNUAL' | 'SEMIANNUAL' }))} />
     </>
   );
 }

@@ -104,6 +104,8 @@ export async function saveManagerReview(ctx: Ctx, id: string, body: unknown) {
   const answers = clean(r.cycle.questions as Question[], b.answers, b.submit);
   if (b.submit && !b.rating) throw new HttpError(400, 'Choose an overall rating before submitting.');
   await ctx.tdb.review.updateMany({ where: { id }, data: { managerAnswers: answers, rating: b.rating ?? null, summary: b.summary || null, reviewerId: ctx.user.id, ...(b.submit ? { managerSubmittedAt: new Date() } : {}) } });
+  // The reminder task for this review is done once it's written.
+  if (b.submit) await ctx.tdb.task.updateMany({ where: { related: `review:${id}`, done: false }, data: { done: true } });
   return { submitted: b.submit };
 }
 

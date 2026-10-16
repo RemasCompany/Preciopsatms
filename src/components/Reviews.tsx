@@ -5,9 +5,10 @@ import Drawer from './Drawer';
 import { useRecords } from './Records';
 import ReviewAnswers, { RATING, type Answers, type Question } from './ReviewAnswers';
 import { fmtDate } from '@/lib/people-shared';
+import ReviewSchedule, { type Schedule, type Upcoming } from './ReviewSchedule';
 
 export type CycleRow = { id: string; name: string; status: 'OPEN' | 'CLOSED'; selfReview: boolean; periodStart: string; periodEnd: string; dueDate: string; total: number; self: number; manager: number; shared: number; acknowledged: number };
-export type ReviewRow = { id: string; employeeId: string; name: string; title: string; department: string | null; manager: string | null; self: boolean; managerDraft: boolean; manager_: boolean; shared: boolean; acknowledged: boolean; rating: number | null; goals: number };
+export type ReviewRow = { id: string; employeeId: string; name: string; title: string; department: string | null; manager: string | null; self: boolean; managerDraft: boolean; manager_: boolean; shared: boolean; acknowledged: boolean; rating: number | null; goals: number; due: string };
 type Goal = { id: string; title: string; details: string | null; dueDate: string | null; progress: number; status: 'OPEN' | 'DONE' | 'DROPPED' };
 type Detail = {
   id: string; employeeId: string; employee: string; title: string; cycle: { id: string; name: string; status: string; selfReview: boolean; questions: Question[]; dueDate: string };
@@ -24,8 +25,9 @@ async function api(url: string, method: string, body?: unknown) {
 const stage = (r: ReviewRow, selfReview: boolean): [string, string] =>
   r.acknowledged ? ['Acknowledged', 'g'] : r.shared ? ['Shared, not yet read', 'a'] : r.manager_ ? ['Ready to share', 'a'] : r.managerDraft ? ['Manager review started', ''] : selfReview && !r.self ? ['Waiting for self review', ''] : ['Ready for manager review', 'a'];
 
-export default function Reviews({ cycles, current, rows, departments, defaults, canEdit, admin, today }: {
+export default function Reviews({ cycles, current, rows, departments, defaults, canEdit, admin, today, schedule, upcoming }: {
   cycles: CycleRow[]; current: string | null; rows: ReviewRow[]; departments: { id: string; name: string }[]; defaults: { text: string; kind: 'rating' | 'text' }[]; canEdit: boolean; admin: boolean; today: string;
+  schedule: Schedule; upcoming: Upcoming[];
 }) {
   const router = useRouter();
   const { toast } = useRecords();
@@ -36,6 +38,7 @@ export default function Reviews({ cycles, current, rows, departments, defaults, 
 
   return (
     <>
+      <ReviewSchedule schedule={schedule} upcoming={upcoming} admin={admin} onOpen={setOpen} />
       <div className="bar">
         {cycles.length > 1 && <select aria-label="Review cycle" value={current ?? ''} onChange={(e) => router.push(`?cycle=${e.target.value}`)}>{cycles.map((c) => <option key={c.id} value={c.id}>{c.name}{c.status === 'CLOSED' ? ' (closed)' : ''}</option>)}</select>}
         <span className="grow" />
@@ -56,11 +59,12 @@ export default function Reviews({ cycles, current, rows, departments, defaults, 
         </div>
         {rows.length ? (
           <div className="tablewrap"><table>
-            <thead><tr><th>Employee</th><th>Manager</th><th>Status</th><th>Rating</th><th>Open goals</th></tr></thead>
+            <thead><tr><th>Employee</th><th>Manager</th><th>Due</th><th>Status</th><th>Rating</th><th>Open goals</th></tr></thead>
             <tbody>{rows.map((r) => { const [label, pill] = stage(r, cycle.selfReview); return (
               <tr key={r.id} className="clickrow" tabIndex={0} onClick={() => setOpen(r.id)} onKeyDown={(k) => k.key === 'Enter' && setOpen(r.id)}>
                 <td><b>{r.name}</b><div className="muted">{r.title}{r.department ? ` · ${r.department}` : ''}</div></td>
                 <td>{r.manager ?? <span className="muted">—</span>}</td>
+                <td className={cycle.status === 'OPEN' && !r.manager_ && r.due < today ? 'warnnum' : undefined}>{fmtDate(r.due)}{cycle.status === 'OPEN' && !r.manager_ && r.due < today && <div style={{ fontSize: 12 }}>Overdue</div>}</td>
                 <td><span className={`pill ${pill}`}>{label}</span>{cycle.selfReview && r.self && !r.shared && <div className="muted">Self review in</div>}</td>
                 <td>{r.rating ? `${r.rating} · ${RATING[r.rating]}` : <span className="muted">—</span>}</td>
                 <td>{r.goals || <span className="muted">0</span>}</td>

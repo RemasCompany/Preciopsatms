@@ -44,6 +44,8 @@ export const EditEmployee = z.object({
   employmentType: z.enum(EMPLOYMENT_TYPES).optional(), startDate: DATE.optional(), employeeNumber: optText(40),
   workEmail: z.string().trim().email('Enter a valid work email.').optional().or(z.literal('')).transform((v) => (v === undefined ? undefined : v || null)),
   status: z.enum(['ACTIVE', 'ON_LEAVE']).optional(),
+  // How often they're reviewed; null follows the company's default.
+  reviewFrequency: z.enum(['ANNUAL', 'SEMIANNUAL', 'NONE'], { errorMap: () => ({ message: 'Choose how often they’re reviewed.' }) }).nullable().optional(),
 }).partial();
 export const PayChange = z.object({ effectiveDate: DATE, ...Pay, title: optText(120), reason: z.string().trim().min(2, 'Give a reason (e.g. annual raise, promotion).').max(300) });
 export const Termination = z.object({
@@ -152,7 +154,7 @@ export async function updateEmployee(ctx: Ctx, employeeId: string, body: unknown
   const person = { ...(b.name !== undefined ? { name: b.name } : {}), ...(b.email !== undefined ? { email: b.email } : {}), ...(b.phone !== undefined ? { phone: b.phone } : {}) };
   if (Object.keys(person).length) await tdb.candidate.updateMany({ where: { id: e.candidateId }, data: person });
   const data: Record<string, unknown> = {};
-  for (const k of ['title', 'departmentId', 'branchId', 'managerId', 'employmentType', 'employeeNumber', 'workEmail', 'status'] as const) if (b[k] !== undefined) data[k] = b[k];
+  for (const k of ['title', 'departmentId', 'branchId', 'managerId', 'employmentType', 'employeeNumber', 'workEmail', 'status', 'reviewFrequency'] as const) if (b[k] !== undefined) data[k] = b[k];
   if (b.startDate) data.startDate = day(b.startDate);
   // A new title or type moves them to the matching position, so schedules and timesheets show it.
   if ((b.title && b.title !== e.title) || (b.employmentType && b.employmentType !== e.employmentType) || (b.branchId !== undefined && b.branchId !== e.branchId)) {
@@ -281,7 +283,7 @@ export async function employeeList(tdb: TenantDb, role: Role, f: { status?: stri
     id: e.id, candidateId: e.candidateId, name: e.candidate.name, email: e.candidate.email, phone: e.candidate.phone, title: e.title,
     department: e.department?.name ?? null, departmentId: e.departmentId, location: e.branch?.name ?? null, branchId: e.branchId,
     manager: e.manager?.candidate.name ?? null, managerId: e.managerId, reports: e._count.reports, employmentType: e.employmentType,
-    status: e.status, startDate: ymd(e.startDate), endDate: e.endDate ? ymd(e.endDate) : null, endReason: e.endReason, employeeNumber: e.employeeNumber, workEmail: e.workEmail,
+    status: e.status, startDate: ymd(e.startDate), endDate: e.endDate ? ymd(e.endDate) : null, endReason: e.endReason, employeeNumber: e.employeeNumber, workEmail: e.workEmail, reviewFrequency: e.reviewFrequency,
     // Pay is for owners and admins only.
     payType: pay ? e.payType : null, payRate: pay ? Number(e.payRate) : null,
   }));

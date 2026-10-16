@@ -51,6 +51,11 @@ model Organization {
   taxId                 String? // EIN, shown on invoices when set
   remitInstructions     String? // how to pay: ACH details, check mailing address, payment link
   invoiceFooter         String? // a closing line on every invoice
+  reviewScheduleOn      Boolean              @default(false) // add reviews automatically as they come due, and remind managers
+  reviewFrequency       String               @default("ANNUAL") // company default: ANNUAL | SEMIANNUAL | NONE
+  reviewBasis           String               @default("HIRE_DATE") // HIRE_DATE (work anniversary) | CALENDAR (fixed months)
+  reviewMonth           Int                  @default(1) // CALENDAR: the month reviews are due (and six months later for semi-annual)
+  reviewLeadDays        Int                  @default(30) // how far ahead a review is added and the first reminder goes out
   careersHeadline       String               @default("Find your next role")
   careersIntro          String?
   showPayOnCareers      Boolean              @default(true)
@@ -1355,38 +1360,39 @@ model Department {
 // Someone on the company's own payroll. Their position is a placement (Application) on a job, so scheduling,
 // the time clock, timesheets and payroll work for employees exactly as they do for placed workers.
 model Employee {
-  id             String               @id @default(cuid())
-  organizationId String
-  candidateId    String               @unique // the person record (contact details, documents, credentials, training)
-  applicationId  String?              @unique // their position
-  employeeNumber String?
-  title          String
-  departmentId   String?
-  branchId       String? // work location
-  managerId      String?
-  employmentType EmploymentType       @default(FULL_TIME)
-  status         EmployeeStatus       @default(ACTIVE)
-  startDate      DateTime             @db.Date
-  endDate        DateTime?            @db.Date
-  endReason      String?
-  payType        PayType              @default(HOURLY)
-  payRate        Decimal              @db.Decimal(12, 2) // per hour, or per year when salaried
-  workEmail      String?
-  createdAt      DateTime             @default(now())
-  updatedAt      DateTime             @updatedAt
-  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  candidate      Candidate            @relation(fields: [candidateId], references: [id], onDelete: Cascade)
-  application    Application?         @relation(fields: [applicationId], references: [id], onDelete: SetNull)
-  department     Department?          @relation(fields: [departmentId], references: [id], onDelete: SetNull)
-  branch         Branch?              @relation(fields: [branchId], references: [id], onDelete: SetNull)
-  manager        Employee?            @relation("Reports", fields: [managerId], references: [id], onDelete: SetNull)
-  reports        Employee[]           @relation("Reports")
-  compensation   CompensationChange[]
-  leaveRequests  LeaveRequest[]
-  leaveEntries   LeaveEntry[]
-  reviews        Review[]
-  goals          Goal[]
-  offboarding    OffboardingTask[]
+  id              String               @id @default(cuid())
+  organizationId  String
+  candidateId     String               @unique // the person record (contact details, documents, credentials, training)
+  applicationId   String?              @unique // their position
+  employeeNumber  String?
+  title           String
+  departmentId    String?
+  branchId        String? // work location
+  managerId       String?
+  employmentType  EmploymentType       @default(FULL_TIME)
+  status          EmployeeStatus       @default(ACTIVE)
+  startDate       DateTime             @db.Date
+  endDate         DateTime?            @db.Date
+  endReason       String?
+  payType         PayType              @default(HOURLY)
+  payRate         Decimal              @db.Decimal(12, 2) // per hour, or per year when salaried
+  workEmail       String?
+  reviewFrequency String? // ANNUAL | SEMIANNUAL | NONE; null follows the company default
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  organization    Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  candidate       Candidate            @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  application     Application?         @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  department      Department?          @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  branch          Branch?              @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  manager         Employee?            @relation("Reports", fields: [managerId], references: [id], onDelete: SetNull)
+  reports         Employee[]           @relation("Reports")
+  compensation    CompensationChange[]
+  leaveRequests   LeaveRequest[]
+  leaveEntries    LeaveEntry[]
+  reviews         Review[]
+  goals           Goal[]
+  offboarding     OffboardingTask[]
 
   @@index([organizationId, status])
 }
@@ -1503,6 +1509,7 @@ model ReviewCycle {
   selfReview     Boolean      @default(true)
   questions      Json // [{ id, text, kind: 'rating' | 'text' }]
   status         String       @default("OPEN") // OPEN | CLOSED
+  auto           String? // ANNUAL | SEMIANNUAL when the review schedule made it (one per due month); null when started by hand
   createdById    String?
   closedAt       DateTime?
   createdAt      DateTime     @default(now())
@@ -1527,6 +1534,9 @@ model Review {
   sharedAt           DateTime? // the employee can see the manager review
   acknowledgedAt     DateTime?
   employeeComment    String?
+  dueDate            DateTime?    @db.Date // this person's due date (scheduled reviews); otherwise the cycle's
+  reminderStage      Int          @default(-1) // the last reminder sent to the manager, as an index into REMINDER_DAYS
+  lastRemindedAt     DateTime?
   createdAt          DateTime     @default(now())
   updatedAt          DateTime     @updatedAt
   organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
