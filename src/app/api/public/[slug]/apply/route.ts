@@ -6,6 +6,8 @@ import { tenantDb } from '@/lib/tenant';
 import { putFile } from '@/lib/storage';
 import { sendEmail } from '@/lib/email';
 import { limited } from '@/lib/rate-limit';
+import { factsFromFile, fillFromResume } from '@/lib/resume-fill';
+import type { ResumeFacts } from '@/lib/skills';
 
 const Fields = z.object({
   jobId: z.string(), name: z.string().min(2).max(120), email: z.string().email(), phone: z.string().max(30).optional(),
@@ -13,6 +15,12 @@ const Fields = z.object({
   gender: z.string().max(60).optional(), race: z.string().max(80).optional(), veteran: z.string().max(60).optional(), disability: z.string().max(60).optional(),
   smsConsent: z.enum(['on']).optional(),
   src: z.string().max(40).optional(), // job board the applicant came from (?src= on the apply link)
+  profile: z.string().max(5000).optional(), // what the applicant confirmed from their resume (JSON), see Reviewed
+});
+/** Skills and experience the applicant checked on the form after their resume was read. */
+const Reviewed = z.object({
+  skills: z.array(z.string().trim().min(1).max(60)).max(40), certs: z.array(z.string().trim().min(1).max(60)).max(20),
+  yearsExp: z.number().int().min(0).max(60).nullable(), title: z.string().trim().max(120).nullable(), location: z.string().trim().max(120).nullable(),
 });
 
 
@@ -31,15 +39,20 @@ export async function POST(req: Request, { params }: { params: { slug: string } 
   if (!job) return Response.json({ error: 'This job is no longer open.' }, { status: 404 });
 
   const resume = form.get('resume');
-  let resumeFileId: string | undefined;
+  let resumeFileId: string | undefined, facts: ResumeFacts | null = null;
+  const reviewed = (() => { try { return f.profile ? Reviewed.safeParse(JSON.parse(f.profile)) : null; } catch { return null; } })();
   if (resume instanceof File && resume.size > 0) {
-    try { resumeFileId = (await putFile(org.id, resume.name, resume.type, Buffer.from(await resume.arrayBuffer()))).id; }
+    const buf = Buffer.from(await resume.arrayBuffer());
+    try { resumeFileId = (await putFile(org.id, resume.name, resume.type, buf)).id; }
     catch (e) { return Response.json({ error: (e as Error).message }, { status: 400 }); }
+    // The applicant's checked list wins; without one (the embed widget, no JavaScript) read the resume here.
+    facts = reviewed?.success ? { ...reviewed.data, title: reviewed.data.title || null, location: reviewed.data.location || null } : await factsFromFile(tdb, buf, resume.name, job.id);
   }
   const email = f.email.toLowerCase();
   let cand = await tdb.candidate.findFirst({ where: { email } });
   if (!cand) cand = await tdb.candidate.create({ data: { name: f.name, email, phone: f.phone, source: sourceFor(f.src), summary: f.message, resumeFileId, smsOptOut: !f.smsConsent } as never });
   else await tdb.candidate.updateMany({ where: { id: cand.id }, data: { ...(resumeFileId ? { resumeFileId } : {}), ...(f.phone ? { phone: f.phone } : {}) } });
+  if (facts) await fillFromResume(tdb, cand.id, facts);
 
   const existing = await tdb.application.findFirst({ where: { candidateId: cand.id, jobId: job.id } });
   if (!existing) await tdb.application.create({ data: { candidateId: cand.id, jobId: job.id, stage: 'APPLIED', maxStage: 'APPLIED', source: sourceKey(f.src) } as never });

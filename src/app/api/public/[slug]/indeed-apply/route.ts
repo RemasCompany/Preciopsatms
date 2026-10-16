@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { db } from '@/lib/db';
 import { tenantDb } from '@/lib/tenant';
 import { putFile } from '@/lib/storage';
+import { factsFromFile, fillFromResume } from '@/lib/resume-fill';
 import { sendEmail } from '@/lib/email';
 import { verifyIndeedSignature } from '@/lib/job-boards';
 
@@ -42,12 +43,13 @@ export async function POST(req: Request, { params }: { params: { slug: string } 
   const job = await tdb.job.findFirst({ where: { id: j.jobId } });
   if (!job) return Response.json({ error: 'Unknown job' }, { status: 404 });
 
-  let resumeFileId: string | undefined;
+  let resumeFileId: string | undefined, facts: Awaited<ReturnType<typeof factsFromFile>> = null;
   const file = a.resume?.file;
   if (file?.data) {
     const ext = file.fileName.split('.').pop()?.toLowerCase() ?? '';
     const type = RESUME_TYPES[ext] ?? file.contentType;
-    try { resumeFileId = (await putFile(org.id, file.fileName, type, Buffer.from(file.data, 'base64'))).id; }
+    const buf = Buffer.from(file.data, 'base64');
+    try { resumeFileId = (await putFile(org.id, file.fileName, type, buf)).id; facts = await factsFromFile(tdb, buf, file.fileName, job.id); }
     catch (e) { console.error('[indeed-apply] resume not stored', (e as Error).message); } // still accept the application
   }
 
@@ -58,6 +60,7 @@ export async function POST(req: Request, { params }: { params: { slug: string } 
   } else {
     await tdb.candidate.updateMany({ where: { id: cand.id }, data: { ...(resumeFileId ? { resumeFileId } : {}), ...(a.phoneNumber && !cand.phone ? { phone: a.phoneNumber } : {}) } });
   }
+  if (facts) await fillFromResume(tdb, cand.id, facts);
   const existing = await tdb.application.findFirst({ where: { candidateId: cand.id, jobId: job.id } });
   if (existing) return Response.json({ ok: true, duplicate: true });
   await tdb.application.create({ data: { candidateId: cand.id, jobId: job.id, stage: 'APPLIED', maxStage: 'APPLIED', source: 'indeed' } as never });

@@ -51,8 +51,18 @@ export default function ResumePanel({ candidateId, resume, ai, values, setValues
     const fd = new FormData(); fd.set('file', f);
     const res = await fetch(`/api/candidates/${candidateId}/resume`, { method: 'POST', body: fd });
     setBusy('');
-    if (!res.ok) return toast((await res.json().catch(() => ({}))).error ?? 'Upload failed.', true);
-    toast('Resume attached.'); reload?.();
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) return toast(j.error ?? 'Upload failed.', true);
+    toast(`Resume attached. ${j.note ?? ''}`.trim()); reload?.();
+  }
+  /** Reads skills, certifications and experience from the resume on file, without AI. */
+  async function readSkills() {
+    setBusy('skills'); setMsg(null);
+    const res = await fetch(`/api/candidates/${candidateId}/resume`, { method: 'PATCH' });
+    const j = await res.json().catch(() => ({}));
+    setBusy('');
+    if (!res.ok) return setMsg({ text: j.error ?? 'The resume couldn’t be read. Try again.', error: true });
+    setMsg({ text: j.note }); reload?.();
   }
 
   if (candidateId) return (
@@ -60,6 +70,7 @@ export default function ResumePanel({ candidateId, resume, ai, values, setValues
       <div className="row" style={{ marginTop: 0 }}>
         <b style={{ flex: 1 }}>Resume{resume ? `: ${resume.filename}` : ''}</b>
         {resume && <a className="btn ghost sm" href={`/api/candidates/${candidateId}/resume`}>Download</a>}
+        {resume && <button className="btn ghost sm" disabled={!!busy} onClick={readSkills} title="Adds skills, certifications, title, years of experience and location found in the resume. Nothing is overwritten.">{busy === 'skills' ? 'Reading…' : 'Add skills from resume'}</button>}
         {resume && ai && <button className="btn ghost sm" disabled={!!busy} onClick={() => run('stored', { candidateId }, true)}>{busy === 'stored' ? 'Reading…' : 'Fill empty fields from resume'}</button>}
         <button className="btn ghost sm" disabled={!!busy} onClick={() => input.current?.click()}>{busy === 'upload' ? 'Uploading…' : resume ? 'Replace' : 'Attach resume'}</button>
         <input ref={input} type="file" accept=".pdf,.docx,.doc,.txt" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = ''; }} />
@@ -71,7 +82,8 @@ export default function ResumePanel({ candidateId, resume, ai, values, setValues
   return (
     <section className="resume">
       <h3 style={{ margin: '0 0 6px', fontSize: 15 }}>{ai ? 'Fill from a resume' : 'Attach a resume'}</h3>
-      {ai && <p className="muted" style={{ margin: '0 0 8px' }}>Upload a PDF or Word resume, or paste the text, and the profile fills in. The name, email and phone are read here; they aren’t sent to the AI.</p>}
+      {ai ? <p className="muted" style={{ margin: '0 0 8px' }}>Upload a PDF or Word resume, or paste the text, and the profile fills in. The name, email and phone are read here; they aren’t sent to the AI.</p>
+        : <p className="muted" style={{ margin: '0 0 8px' }}>Skills, certifications, title and years of experience in the resume are added to the profile when you add the candidate.</p>}
       <label className="filepick"><input type="file" accept=".pdf,.docx,.doc,.txt" onChange={(e) => pick(e.target.files?.[0] ?? null)} /></label>
       {file && <p className="muted" style={{ margin: '4px 0' }}>{file.name} will be attached when you add the candidate.</p>}
       {ai && <>

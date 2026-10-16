@@ -84,16 +84,20 @@ function RecordDrawer({ kind, id, preset, onClose }: Open & { onClose: () => voi
     if (missing) return setError(`${missing.label} is required.`);
     setBusy(true); setError('');
     try {
+      let note = '';
       if (id) await api(`/api/records/${kind}/${id}`, 'PATCH', values);
       else {
         const created = await api(`/api/records/${kind}`, 'POST', values);
         if (kind === 'candidates' && pendingResume) {
           const fd = new FormData(); fd.set('file', pendingResume);
           const up = await fetch(`/api/candidates/${created.id}/resume`, { method: 'POST', body: fd });
-          if (!up.ok) toast(`Candidate added, but the resume wasn’t attached: ${(await up.json().catch(() => ({}))).error ?? 'upload failed'}`, true);
+          const j = await up.json().catch(() => ({}));
+          if (!up.ok) toast(`Candidate added, but the resume wasn’t attached: ${j.error ?? 'upload failed'}`, true);
+          else if (j.filled?.addedSkills?.length || j.filled?.addedCerts?.length || j.filled?.filled?.length) note = ` ${j.note}`;
         }
       }
-      toast(id ? 'Saved.' : 'Added.'); changed(); onClose();
+      if (!note || id) toast(id ? 'Saved.' : 'Added.'); else toast(`Added.${note}`);
+      changed(); onClose();
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
   async function remove() {

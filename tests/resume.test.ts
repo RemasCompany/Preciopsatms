@@ -120,7 +120,9 @@ describe('parse-resume API', () => {
   it('attaches, downloads and parses the resume on file — for the caller’s own candidates only', async () => {
     expect((await PARSE(new Request('http://x', { method: 'POST', body: JSON.stringify({ candidateId: cand }) }))).status).toBe(404);
     const up = await UPLOAD(new Request('http://x', { method: 'POST', body: await upload(await docx(RESUME), 'maria.docx') }), { params: { id: cand } });
-    expect(await up.json()).toEqual({ ok: true, filename: 'maria.docx' });
+    const upJson = await up.json();
+    expect(upJson).toMatchObject({ ok: true, filename: 'maria.docx' });
+    expect(upJson.filled.addedSkills).toContain('Forklift'); // attaching a Word resume fills in skills too
     const dl = await DOWNLOAD(new Request('http://x'), { params: { id: cand } });
     expect(dl.headers.get('content-disposition')).toBe('attachment; filename="maria.docx"');
     expect((await PARSE(new Request('http://x', { method: 'POST', body: JSON.stringify({ candidateId: cand }) }))).status).toBe(200);

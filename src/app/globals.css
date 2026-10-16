@@ -354,3 +354,11 @@ h3.boardgroup{font-size:14px;color:var(--muted);text-transform:uppercase;letter-
 .mpts{text-align:right;font-variant-numeric:tabular-nums}
 .mai{font-size:13px;padding:8px 10px;border-radius:8px;background:var(--soft)}
 .mrow>.li{flex-wrap:wrap;gap:8px}.mrow>.li>.x{flex:1 1 160px;min-width:140px}.mrow>.li>.row{margin-left:auto}
+/* Apply form: checking what was read from the resume */
+fieldset.resumecheck{border:1px solid var(--line);border-radius:10px;padding:10px 14px 4px;margin:10px 0}
+fieldset.resumecheck legend{font-size:14px;font-weight:600;padding:0 4px}fieldset.resumecheck .muted{font-size:13px;margin:0 0 8px}
+fieldset.resumecheck .lbl{display:block;font-size:14px;color:var(--muted);margin:8px 0 4px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}.chip{display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:3px 4px 3px 10px;background:var(--soft);font-size:13px}
+.chip button{border:0;background:none;cursor:pointer;font-size:15px;line-height:1;padding:0 5px;color:var(--muted);border-radius:999px}.chip button:hover{color:var(--red)}
+fieldset.resumecheck .row{display:flex;gap:8px;align-items:flex-end;margin-top:8px}fieldset.resumecheck .row input{flex:1;min-width:0}
+fieldset.resumecheck .row.three{flex-wrap:wrap}fieldset.resumecheck .row.three label{flex:1 1 140px;margin:4px 0}
