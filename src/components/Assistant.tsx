@@ -1,4 +1,5 @@
 'use client';
+import { ASSISTANT_NAME } from '@/lib/assistant-name';
 import { useState } from 'react';
 
 type Turn = { q: string; a: string };
@@ -18,7 +19,7 @@ export default function Assistant({ admin, credits: initial }: { admin: boolean;
     try {
       const r = await fetch('/api/assistant', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question, history: turns.slice(-4) }) });
       const j = await r.json().catch(() => ({}));
-      if (!r.ok) { setError(j.error ?? 'The assistant couldn’t answer. Try again.'); return; }
+      if (!r.ok) { setError(j.error ?? `${ASSISTANT_NAME} couldn’t answer. Try again.`); return; }
       setTurns((t) => [...t, { q: question, a: j.answer }]); setQ(''); setCredits((c) => Math.max(0, c - 1));
     } catch { setError('Couldn’t reach the server. Check your connection and try again.'); }
     finally { setBusy(false); }
@@ -35,10 +36,10 @@ export default function Assistant({ admin, credits: initial }: { admin: boolean;
       {turns.map((t, i) => (
         <div key={i} style={{ marginBottom: 16 }}>
           <p><b>You:</b> {t.q}</p>
-          <div style={{ whiteSpace: 'pre-wrap' }}>{t.a}</div>
+          <div style={{ whiteSpace: 'pre-wrap' }}><b>{ASSISTANT_NAME}:</b> {t.a}</div>
         </div>
       ))}
-      {busy && <p className="muted" aria-live="polite">Looking that up…</p>}
+      {busy && <p className="muted" aria-live="polite">{ASSISTANT_NAME} is looking that up…</p>}
       {error && <p className="error" role="alert">{error}</p>}
       <form onSubmit={(e) => { e.preventDefault(); ask(q); }}>
         <label><span>Your question</span><textarea rows={2} maxLength={1000} value={q} onChange={(e) => setQ(e.target.value)} placeholder="e.g. How many timesheets are waiting for approval?"

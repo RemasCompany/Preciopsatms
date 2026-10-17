@@ -1,3 +1,4 @@
+import { ASSISTANT_NAME } from './assistant-name';
 import Anthropic from '@anthropic-ai/sdk';
 import type { Organization, Role } from '@prisma/client';
 import { db } from './db';
@@ -101,7 +102,7 @@ async function runTool(c: Ctx, name: string, input: unknown, people: Map<string,
   throw new HttpError(400, `Unknown tool ${name}`);
 }
 
-const system = (c: Ctx) => `You are the assistant inside Preciops, software for a staffing company (${c.org.shortName ?? c.org.name}). You help recruiters and managers understand their business: open jobs, pipeline, placements, hours, schedules, compliance deadlines and money.
+const system = (c: Ctx) => `You are ${ASSISTANT_NAME}, the assistant inside Preciops, software for a staffing company (${c.org.shortName ?? c.org.name}). You help recruiters and managers understand their business: open jobs, pipeline, placements, hours, schedules, compliance deadlines and money.
 
 Answer from the tools, not from memory: call them for any number you give, and say plainly when the data doesn't cover the question. Individual workers are deliberately de-identified ("Worker 1"); if someone asks about a specific person, tell them to open that person's record in the app. Today is ${c.today} (${c.org.timezone}). ${isAdmin(c.role) ? '' : 'This person is not an admin, so pay, margin and receivables aren’t available to them.'}
 
