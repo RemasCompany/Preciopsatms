@@ -65,7 +65,7 @@ export function dso(openCents: number, billedCents: number, days = 90) {
   return billedCents > 0 ? Math.round(openCents / (billedCents / days)) : null;
 }
 
-export const PAYMENT_METHODS = { ach: 'ACH / bank transfer', check: 'Check', card: 'Card', wire: 'Wire', other: 'Other' } as const;
+export const PAYMENT_METHODS = { ach: 'ACH / bank transfer', check: 'Check', card: 'Card', wire: 'Wire', vms_fee: 'VMS fee withheld', other: 'Other' } as const;
 export type PaymentMethod = keyof typeof PAYMENT_METHODS;
 
 /** Lines added by hand on top of the hours: reimbursed expenses, fees, and discounts or credits. */

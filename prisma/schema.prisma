@@ -146,6 +146,7 @@ model Organization {
   accountingConnections AccountingConnection[]
   payrollConnections    PayrollConnection[]
   payrollWorkers        PayrollWorker[]
+  vmsPrograms           VmsProgram[]
   everifyCases          EVerifyCase[]
   doNotReturns          DoNotReturn[]
   referrals             Referral[]
@@ -263,7 +264,11 @@ model Job {
   boards         String[]       @default([]) // job boards to post to; empty = every board that's turned on
   branchId       String?
   branch         Branch?        @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  vmsProgramId   String? // the client's VMS program this requisition came from
+  vmsReqId       String? // requisition / job posting ID in the VMS
+  vmsProgram     VmsProgram?    @relation(fields: [vmsProgramId], references: [id], onDelete: SetNull)
 
+  @@unique([organizationId, vmsProgramId, vmsReqId])
   @@index([organizationId, status])
 }
 
@@ -338,6 +343,8 @@ model Application {
   assignmentEnd   DateTime?    @db.Date // last day of a placement, for redeployment
   redeployNote    String? // what the recruiter did about the ending assignment
   redeployedAt    DateTime? // marked handled (placed elsewhere, or not looking)
+  vmsWorkOrderId  String? // the placement's work order / assignment ID in the client's VMS (time and invoices match on it)
+  vmsWorkerId     String? // the worker's ID in the VMS, where the program uses one
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
   organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -395,6 +402,7 @@ model Client {
   jobs                Job[]
   deals               Deal[]
   invoices            Invoice[]
+  vmsPrograms         VmsProgram[]
 }
 
 model Contact {
@@ -540,6 +548,7 @@ model Timesheet {
   clientApprovedBy  String? // contact name, as they appeared then
   clientDisputeNote String? // the client questioned these hours (cleared when they approve)
   clientDisputedAt  DateTime?
+  vmsExportedAt     DateTime? // included in a time file for the client's VMS
   approvedAt        DateTime?
   approvedById      String?
   paidAt            DateTime?
@@ -755,6 +764,28 @@ model PayrollWorker {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, provider, candidateId])
+}
+
+/// A client's vendor management system (SAP Fieldglass, Beeline, Workday VNDLY): we import its requisitions,
+/// send it approved time in its upload format, and import its remittances. Column layouts are saved per program.
+model VmsProgram {
+  id             String       @id @default(cuid())
+  organizationId String
+  clientId       String
+  vms            String // fieldglass | beeline | vndly | other
+  name           String
+  supplierCode   String? // our supplier / vendor ID in their VMS
+  feePct         Decimal      @default(0) @db.Decimal(5, 2) // the VMS fee taken out of each remittance
+  mappings       Json? // { requisitions: {field: column}, remittance: {...}, time: {field: header} } overrides of the preset
+  rateCodes      Json? // { regular: "ST", overtime: "OT" } overrides of the preset
+  createdById    String?
+  createdAt      DateTime     @default(now())
+  lastImportAt   DateTime?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client         Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  jobs           Job[]
+
+  @@index([organizationId, clientId])
 }
 
 /// Our record ↔ the accounting system's (customers, invoices, payments), so nothing is pushed twice.
@@ -1120,29 +1151,29 @@ enum PayrollAdjustmentKind {
 // A pay run for one pay period: approved timesheets are snapshotted into items. Taxes, direct deposit and filings
 // happen in the agency's payroll provider, which imports the run's export.
 model PayrollRun {
-  id             String           @id @default(cuid())
-  organizationId String
-  number         String
-  frequency      String // WEEKLY | BIWEEKLY
-  periodStart    DateTime         @db.Date
-  periodEnd      DateTime         @db.Date // a Sunday
-  payDate        DateTime         @db.Date
-  status         PayrollRunStatus @default(DRAFT)
-  notes          String?
-  createdById    String?
-  approvedById   String?
-  approvedAt     DateTime?
-  paidAt         DateTime?
-  voidedAt       DateTime?
+  id                String           @id @default(cuid())
+  organizationId    String
+  number            String
+  frequency         String // WEEKLY | BIWEEKLY
+  periodStart       DateTime         @db.Date
+  periodEnd         DateTime         @db.Date // a Sunday
+  payDate           DateTime         @db.Date
+  status            PayrollRunStatus @default(DRAFT)
+  notes             String?
+  createdById       String?
+  approvedById      String?
+  approvedAt        DateTime?
+  paidAt            DateTime?
+  voidedAt          DateTime?
   providerPayrollId String? // the payroll in the connected payroll provider (Check), once sent
   providerStatus    String? // draft | pending | processing | paid | partially_paid | failed (as the provider reports it)
   providerTotals    Json? // preview from the provider: gross, employee taxes, net pay, employer taxes, cash needed (cents)
   providerSentAt    DateTime?
   providerError     String?
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
-  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  items          PayrollItem[]
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  organization      Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  items             PayrollItem[]
 
   @@unique([organizationId, number])
   @@index([organizationId, periodEnd])
