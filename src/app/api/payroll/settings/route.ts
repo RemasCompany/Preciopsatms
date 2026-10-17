@@ -6,6 +6,7 @@ import { audit, diff } from '@/lib/audit';
 
 const Body = z.object({
   provider: z.union([z.enum(Object.keys(EXPORT_FORMATS) as [keyof typeof EXPORT_FORMATS]), z.null()]),
+  exportDeductions: z.boolean().optional(),
   companyCode: z.union([z.string().trim().max(20, 'Company codes are at most 20 characters.').regex(/^[\w-]*$/, 'Use letters, numbers and dashes only.'), z.null()]),
 });
 
@@ -14,7 +15,7 @@ export const PATCH = withApi(async (req: Request) => {
   const { org, user } = await requireApiContext({ minRole: 'ADMIN', feature: 'payrollRuns', write: true });
   const r = Body.safeParse(await req.json().catch(() => null));
   if (!r.success) throw new HttpError(400, r.error.issues[0]?.message ?? 'Invalid input');
-  const next = { payrollProvider: r.data.provider, payrollCompanyCode: r.data.companyCode || null };
+  const next = { payrollProvider: r.data.provider, payrollCompanyCode: r.data.companyCode || null, ...(r.data.exportDeductions !== undefined && { payrollExportDeductions: r.data.exportDeductions }) };
   await db.organization.update({ where: { id: org.id }, data: next });
   await audit(org.id, user, 'settings.payroll', 'Changed payroll settings', { changes: diff(org, next), req });
   return Response.json({ ok: true });

@@ -2,6 +2,7 @@ import { hourlyWhere } from './schedule-server';
 import { Prisma } from '@prisma/client';
 import { HttpError, type TenantDb } from './tenant';
 import { wages, cents, dollars, runChecks, type Frequency, type RunItem } from './payroll-run';
+import { applyDeductions } from './deductions-server';
 
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
 const day = (s: string) => new Date(`${s}T00:00:00Z`);
@@ -15,7 +16,7 @@ type Tx = Omit<TenantDb, '$transaction' | '$connect' | '$disconnect' | '$on' | '
  * Snapshots every approved timesheet in the run's period that isn't already in another run.
  * Existing items keep their adjustments; items whose timesheet was reopened drop out.
  */
-export async function syncItems(tx: Tx, run: { id: string; periodEnd: Date; frequency: string }) {
+export async function syncItems(tx: Tx, run: { id: string; periodEnd: Date; payDate: Date; frequency: string }) {
   const weeks = weeksIn(ymd(run.periodEnd), run.frequency as Frequency);
   const sheets = await tx.timesheet.findMany({
     where: { status: 'APPROVED', weekEnding: { in: weeks }, OR: [{ payrollRunId: null }, { payrollRunId: run.id }] },
@@ -42,6 +43,8 @@ export async function syncItems(tx: Tx, run: { id: string; periodEnd: Date; freq
     else await tx.payrollItem.create({ data: { ...data, runId: run.id, timesheetId: t.id } as never });
   }
   if (sheets.length) await tx.timesheet.updateMany({ where: { id: { in: sheets.map((s) => s.id) } }, data: { payrollRunId: run.id } });
+  // Recurring deductions (benefits, retirement) for everyone now in the run.
+  await applyDeductions(tx, run);
   return { included: sheets.length, dropped: dropped.length };
 }
 
@@ -53,7 +56,7 @@ export async function loadRun(tdb: TenantDb, id: string) {
     id: i.id, candidateId: i.candidateId, workerName: i.workerName, payrollId: i.payrollId, position: i.position, clientId: i.clientId, clientName: i.clientName,
     weekEnding: ymd(i.weekEnding), regularHours: Number(i.regularHours), overtimeHours: Number(i.overtimeHours), payRate: Number(i.payRate), billRate: Number(i.billRate),
     regularPay: Number(i.regularPay), overtimePay: Number(i.overtimePay), leaveHours: Number(i.leaveHours), leavePay: Number(i.leavePay),
-    adjustments: i.adjustments.map((a) => ({ id: a.id, kind: a.kind, description: a.description, amount: Number(a.amount) })),
+    adjustments: i.adjustments.map((a) => ({ id: a.id, kind: a.kind, description: a.description, amount: Number(a.amount), deductionId: a.deductionId, code: a.code })),
   }));
   const meta = { number: run.number, periodStart: ymd(run.periodStart), periodEnd: ymd(run.periodEnd), payDate: ymd(run.payDate) };
   return { run, items, meta };

@@ -42,6 +42,7 @@ export const AUDIT_ACTIONS = {
   'vms.program': { group: 'Billing', label: 'Changed a VMS program' },
   'vms.import': { group: 'Billing', label: 'Imported requisitions from a VMS' },
   'vms.export': { group: 'Billing', label: 'Exported time for a VMS' },
+  'payroll.deduction': { group: 'Payroll', label: 'Changed a recurring deduction' },
   'aca.policy': { group: 'Payroll', label: 'Changed ACA measurement settings' },
   'aca.offer': { group: 'Payroll', label: 'Recorded an offer of health coverage' },
   'payroll.connect': { group: 'Payroll', label: 'Connected payroll processing' },

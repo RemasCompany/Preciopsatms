@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useRecords } from './Records';
-import { ADJUSTMENTS, EXPORT_FORMATS, FREQUENCIES, totals as sumUp, type AdjustmentKind, type Check, type ExportFormat, type RunItem } from '@/lib/payroll-run';
+import { ADJUSTMENTS, MANUAL_ADJUSTMENTS, EXPORT_FORMATS, FREQUENCIES, totals as sumUp, type AdjustmentKind, type Check, type ExportFormat, type RunItem } from '@/lib/payroll-run';
 
 type Totals = ReturnType<typeof sumUp>;
 const money = (c: number) => (c / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
@@ -50,15 +50,16 @@ export function NewPayrollRun({ defaultEnd }: { defaultEnd: string }) {
   );
 }
 
-export function PayrollSettings({ provider, companyCode }: { provider: string | null; companyCode: string | null }) {
+export function PayrollSettings({ provider, companyCode, exportDeductions = false }: { provider: string | null; companyCode: string | null; exportDeductions?: boolean }) {
   const router = useRouter();
   const { toast } = useRecords();
   const [p, setP] = useState(provider ?? 'csv');
   const [code, setCode] = useState(companyCode ?? '');
+  const [ded, setDed] = useState(exportDeductions);
   const [busy, setBusy] = useState(false);
   async function save() {
     setBusy(true);
-    try { await api('/api/payroll/settings', 'PATCH', { provider: p, companyCode: code || null }); toast('Payroll settings saved.'); router.refresh(); }
+    try { await api('/api/payroll/settings', 'PATCH', { provider: p, companyCode: code || null, exportDeductions: ded }); toast('Payroll settings saved.'); router.refresh(); }
     catch (e) { toast((e as Error).message, true); } finally { setBusy(false); }
   }
   return (
@@ -69,6 +70,8 @@ export function PayrollSettings({ provider, companyCode }: { provider: string | 
         <label><span>Provider</span><select value={p} onChange={(e) => setP(e.target.value)}>{Object.entries(EXPORT_FORMATS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
         <label><span>Company code (if your provider uses one)</span><input value={code} maxLength={20} onChange={(e) => setCode(e.target.value)} placeholder="e.g. ADP Co Code" /></label>
       </div>
+      <label className="checkbox" style={{ display: 'flex', gap: 8, alignItems: 'flex-start', margin: '4px 0 10px', fontSize: 14 }}><input type="checkbox" checked={ded} onChange={(e) => setDed(e.target.checked)} />
+        <span>Put recurring deductions in export files. Leave this off if your provider already has each employee’s benefits set up, or they’d be taken twice. ADP and Gusto files can’t carry pre-tax deductions, so those stay in the provider either way.</span></label>
       <button className="btn ghost" onClick={save} disabled={busy}>Save</button>
     </div>
   );
@@ -128,7 +131,7 @@ export default function PayrollRunView({ run, workers, totals, checks, clients, 
         <div className="kpi"><b>{+totals.hours.toFixed(2)}</b><span>Hours</span><span className="sub">{+totals.overtimeHours.toFixed(2)} overtime</span></div>
         <div className="kpi"><b>{money(totals.gross)}</b><span>Gross pay</span><span className="sub">{money(totals.wages)} wages{totals.extraTaxable ? ` + ${money(totals.extraTaxable)} bonuses` : ''}</span></div>
         <div className="kpi"><b>{money(totals.reimbursements)}</b><span>Reimbursements</span></div>
-        <div className="kpi"><b>{money(totals.deductions)}</b><span>Deductions</span></div>
+        <div className="kpi"><b>{money(totals.deductions + totals.pretax)}</b><span>Deductions</span>{totals.pretax > 0 && <span className="sub">{money(totals.pretax)} pre-tax · {money(totals.taxableWages)} taxable wages</span>}</div>
         <div className="kpi"><b>{money(totals.billable)}</b><span>Billable</span><span className="sub">{money(totals.margin)} gross margin</span></div>
       </div>
 
@@ -168,7 +171,7 @@ export default function PayrollRunView({ run, workers, totals, checks, clients, 
             <section key={w.candidateId} className="card payworker">
               <div className="payworkerhead">
                 <div><b>{w.workerName}</b><span className="muted">{w.payrollId ? `Employee ID ${w.payrollId}` : 'No payroll employee ID'}</span>{processing && <SetupPill status={processing.workers[w.candidateId]?.status} />}</div>
-                <div className="paytotal"><b>{money(t.gross)}</b><span className="muted">gross{t.reimbursements ? ` · +${money(t.reimbursements)} reimb.` : ''}{t.deductions ? ` · −${money(t.deductions)} ded.` : ''}</span></div>
+                <div className="paytotal"><b>{money(t.gross)}</b><span className="muted">gross{t.reimbursements ? ` · +${money(t.reimbursements)} reimb.` : ''}{t.deductions + t.pretax ? ` · −${money(t.deductions + t.pretax)} ded.` : ''}</span></div>
               </div>
               <div className="tablewrap scroll"><table className="paylines">
                 <thead><tr><th>Assignment</th><th>Week ending</th><th>Reg hrs</th><th>OT hrs</th><th>Rate</th><th>Wages</th></tr></thead>
@@ -178,8 +181,8 @@ export default function PayrollRunView({ run, workers, totals, checks, clients, 
               </table></div>
               {items.some((i) => i.adjustments.length) && (
                 <ul className="adjlist">{items.flatMap((i) => i.adjustments.map((a) => (
-                  <li key={a.id}><span className={`pill ${a.kind === 'DEDUCTION' ? 'r' : a.kind === 'REIMBURSEMENT' ? '' : 'g'}`}>{ADJUSTMENTS[a.kind].label}</span> {a.description}<b>{a.kind === 'DEDUCTION' ? '−' : '+'}{usd(a.amount)}</b>
-                    {draft && canEdit && <button className="btn ghost sm" onClick={() => removeAdj(a.id)} aria-label={`Remove ${a.description}`}>✕</button>}</li>
+                  <li key={a.id}><span className={`pill ${a.kind === 'DEDUCTION' || a.kind === 'PRETAX_DEDUCTION' ? 'r' : a.kind === 'REIMBURSEMENT' ? '' : 'g'}`}>{a.deductionId ? (a.kind === 'PRETAX_DEDUCTION' ? 'Pre-tax' : 'After-tax') : ADJUSTMENTS[a.kind].label}</span> {a.description}<b>{a.kind === 'DEDUCTION' || a.kind === 'PRETAX_DEDUCTION' ? '−' : '+'}{usd(a.amount)}</b>
+                    {a.deductionId ? <span className="muted" style={{ fontSize: 12 }}>recurring</span> : draft && canEdit && <button className="btn ghost sm" onClick={() => removeAdj(a.id)} aria-label={`Remove ${a.description}`}>✕</button>}</li>
                 )))}</ul>
               )}
               {draft && canEdit && (adding === w.candidateId
@@ -207,7 +210,7 @@ function AdjustmentForm({ runId, itemId, onDone, onCancel }: { runId: string; it
   return (
     <div className="subform">
       <div className="form">
-        <label><span>Type</span><select value={kind} onChange={(e) => setKind(e.target.value as AdjustmentKind)}>{Object.entries(ADJUSTMENTS).map(([v, a]) => <option key={v} value={v}>{a.label}{a.taxable ? ' (taxable)' : v === 'REIMBURSEMENT' ? ' (not taxed)' : ' (after tax)'}</option>)}</select></label>
+        <label><span>Type</span><select value={kind} onChange={(e) => setKind(e.target.value as AdjustmentKind)}>{MANUAL_ADJUSTMENTS.map((v) => [v, ADJUSTMENTS[v]] as const).map(([v, a]) => <option key={v} value={v}>{a.label}{a.taxable ? ' (taxable)' : v === 'REIMBURSEMENT' ? ' (not taxed)' : ' (after tax)'}</option>)}</select></label>
         <label><span>Amount ($)</span><input type="number" min={0.01} step={0.01} inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} /></label>
         <label className="full"><span>Description</span><input value={description} maxLength={120} onChange={(e) => setDescription(e.target.value)} placeholder={kind === 'REIMBURSEMENT' ? 'e.g. Mileage, 42 miles' : kind === 'DEDUCTION' ? 'e.g. Pay advance repayment' : 'e.g. Referral bonus'} /></label>
       </div>

@@ -6,6 +6,9 @@ import { totals, type RunItem } from '@/lib/payroll-run';
 import { NewPayrollRun, PayrollProcessing, PayrollSettings } from '@/components/PayrollRun';
 import Gate from '@/components/Gate';
 import SetupChecklist from '@/components/SetupChecklist';
+import Deductions from '@/components/Deductions';
+import { listDeductions } from '@/lib/deductions-server';
+import { hourlyWhere } from '@/lib/schedule-server';
 import { payrollFacts, payrollSteps } from '@/lib/setup-checklist';
 import { checkEnabled } from '@/lib/check-payroll';
 
@@ -22,6 +25,13 @@ export default async function Payroll() {
   if (ctx.role !== 'OWNER' && ctx.role !== 'ADMIN') return <div className="card empty"><b>Payroll is limited to admins</b>Ask an owner or admin on your team for access.</div>;
   const runs = await ctx.tdb.payrollRun.findMany({ include: { items: { include: { adjustments: true } } }, orderBy: [{ periodEnd: 'desc' }, { createdAt: 'desc' }], take: 100 });
   const steps = payrollSteps(await payrollFacts(ctx.tdb, ctx.org, checkEnabled()));
+  const [deductions, onAssignment, employees] = await Promise.all([
+    listDeductions(ctx.tdb),
+    ctx.tdb.application.findMany({ where: hourlyWhere, select: { candidate: { select: { id: true, name: true } } } }),
+    ctx.tdb.employee.findMany({ where: { status: { in: ['ACTIVE', 'ON_LEAVE'] } }, select: { candidate: { select: { id: true, name: true } } } }),
+  ]);
+  const workers = [...new Map([...onAssignment, ...employees].map((a) => [a.candidate.id, a.candidate])).values()].sort((a, b) => a.name.localeCompare(b.name));
+  const viaCheck = !!(await ctx.tdb.payrollConnection.findFirst({ where: { provider: 'check' }, select: { id: true } }));
   const lastWeek = ymd(addWeeks(weekEnding(), -1));
   const lastEnd = runs.find((r) => r.status !== 'VOID')?.periodEnd;
   return (
@@ -47,8 +57,9 @@ export default async function Payroll() {
           })}</tbody>
         </table></div>
       ) : <div className="card empty"><b>No payroll runs yet</b>Approve timesheets on Timesheets & payroll, then start a run for the pay period above.</div>}
+      {canEdit(ctx) && <Deductions rows={deductions} workers={workers} viaCheck={viaCheck} />}
       {canEdit(ctx) && <PayrollProcessing isOwner={ctx.role === 'OWNER'} />}
-      {canEdit(ctx) && <PayrollSettings provider={ctx.org.payrollProvider} companyCode={ctx.org.payrollCompanyCode} />}
+      {canEdit(ctx) && <PayrollSettings provider={ctx.org.payrollProvider} companyCode={ctx.org.payrollCompanyCode} exportDeductions={ctx.org.payrollExportDeductions} />}
     </>
   );
 }

@@ -124,6 +124,7 @@ export function payrollItems(items: RunItem[], employeeIds: Map<string, string>,
       if (i.overtimeHours) earnings.push({ type: 'overtime', hours: i.overtimeHours.toFixed(2), amount: amt(cents(i.overtimePay)), description: what, workplace: workplaceId });
       if (i.leaveHours) earnings.push({ type: 'pto', hours: i.leaveHours.toFixed(2), amount: amt(cents(i.leavePay ?? 0)), description: `Paid time off · week ending ${i.weekEnding}`, workplace: workplaceId });
       for (const a of i.adjustments) {
+        if (a.deductionId) continue; // recurring deductions are set up on the employee in Check, which applies them itself
         const description = a.description || ADJUSTMENTS[a.kind].label;
         if (a.kind === 'REIMBURSEMENT') reimbursements.push({ amount: amt(cents(a.amount)), description });
         else if (a.kind === 'DEDUCTION') problems.push(`${i.workerName}: one-off deductions (“${description}”) aren’t sent to Check. Set it up as a post-tax deduction in Check, or remove it here.`);
@@ -161,6 +162,32 @@ export const getPayroll = async (id: string) => {
   return { id: p.id, status: p.status, company: p.company };
 };
 export const deletePayroll = (id: string) => check(`/payrolls/${encodeURIComponent(id)}`, { method: 'DELETE' });
+
+// ---- recurring deductions ----
+/**
+ * A recurring deduction as the employee's benefit (pre-tax plans and Roth 401(k)) or post-tax deduction in Check,
+ * which then takes it on every payroll. Amounts are per pay period; percents are of gross pay.
+ */
+export type CheckDeduction = { employee: string; checkBenefit: string | null; label: string; amountType: 'FIXED' | 'PERCENT'; amount: number; annualLimit: number | null; employerAmount: number | null; startDate: string; endDate: string | null };
+export async function createDeduction(d: CheckDeduction) {
+  if (d.checkBenefit) {
+    const b = await check<{ id: string }>('/benefits', { method: 'POST', body: {
+      employee: d.employee, benefit: d.checkBenefit, description: d.label, effective_start: d.startDate, effective_end: d.endDate ?? undefined,
+      ...(d.amountType === 'PERCENT' ? { employee_contribution_percent: d.amount } : { employee_contribution_amount: d.amount.toFixed(2) }),
+      ...(d.employerAmount ? { company_contribution_amount: d.employerAmount.toFixed(2) } : {}),
+      ...(d.annualLimit ? { employee_contribution_annual_limit: d.annualLimit.toFixed(2) } : {}),
+    } });
+    return { id: b.id, kind: 'benefit' as const };
+  }
+  const p = await check<{ id: string }>('/post_tax_deductions', { method: 'POST', body: {
+    employee: d.employee, type: 'miscellaneous', description: d.label, effective_start: d.startDate, effective_end: d.endDate ?? undefined,
+    miscellaneous: { ...(d.amountType === 'PERCENT' ? { percent: d.amount } : { amount: d.amount.toFixed(2) }), ...(d.annualLimit ? { annual_limit: d.annualLimit.toFixed(2) } : {}) },
+  } });
+  return { id: p.id, kind: 'post_tax' as const };
+}
+/** Ends it in Check from a date (Check keeps the history). */
+export const endDeduction = (id: string, kind: 'benefit' | 'post_tax', endDate: string) =>
+  check(`/${kind === 'benefit' ? 'benefits' : 'post_tax_deductions'}/${encodeURIComponent(id)}`, { method: 'PATCH', body: { effective_end: endDate } });
 
 /** Statuses after approval, when it can no longer be changed here. */
 export const LOCKED = new Set(['pending', 'processing', 'paid', 'partially_paid', 'failed']);

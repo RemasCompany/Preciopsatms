@@ -8,6 +8,7 @@ import { audit } from './audit';
 import { loadRun } from './payroll-run-server';
 import { totals } from './payroll-run';
 import * as check from './check-payroll';
+import { DEDUCTION_TYPES, type DeductionType } from './deductions';
 
 /**
  * Running payroll through Check: the firm's company in Check, workers as Check employees (who set up their own
@@ -180,6 +181,7 @@ export async function sendRun(tdb: TenantDb, org: Organization, user: Actor, run
   if (notReady.length) {
     return { ok: false as const, notReady: notReady.map((p) => ({ candidateId: p.id, name: p.name, missing: (workers.get(p.id)?.missing ?? []).map(check.stepLabel) })) };
   }
+  await syncDeductions(tdb, new Map([...workers].map(([id, w]) => [id, w.externalId])));
   const built = check.payrollItems(items, new Map([...workers].map(([id, w]) => [id, w.externalId])), conn.workplaceId);
   if (built.problems.length) throw new HttpError(400, built.problems.join(' '));
   if (run.providerPayrollId && run.providerStatus === 'draft') await check.deletePayroll(run.providerPayrollId).catch(() => null);
@@ -193,6 +195,33 @@ export async function sendRun(tdb: TenantDb, org: Organization, user: Actor, run
   } catch (e) {
     await tdb.payrollRun.updateMany({ where: { id: run.id }, data: { providerError: e instanceof Error ? e.message : 'Check didn’t accept the payroll.' } });
     throw e;
+  }
+}
+
+/**
+ * Sends recurring deductions to Check for these workers: new ones are created on the employee, ended ones are ended
+ * there too. Check then takes them on every payroll, so they aren't also put on the payroll items.
+ */
+export async function syncDeductions(tdb: TenantDb, employees: Map<string, string>) {
+  const rows = await tdb.payDeduction.findMany({ where: { candidateId: { in: [...employees.keys()] } } });
+  for (const d of rows) {
+    const t = DEDUCTION_TYPES[d.type as DeductionType] ?? DEDUCTION_TYPES.OTHER;
+    const end = d.endDate ? ymd(d.endDate) : null;
+    if (!d.providerId) {
+      const made = await check.createDeduction({
+        employee: employees.get(d.candidateId)!, checkBenefit: t.check, label: d.label, amountType: d.amountType as 'FIXED' | 'PERCENT', amount: Number(d.amount),
+        annualLimit: d.annualLimit === null ? null : Number(d.annualLimit), employerAmount: d.employerAmount === null ? null : Number(d.employerAmount), startDate: ymd(d.startDate), endDate: end,
+      });
+      await tdb.payDeduction.updateMany({ where: { id: d.id }, data: { providerId: `${made.kind}:${made.id}${end ? `|${end}` : ''}`, providerSyncedAt: new Date() } });
+    } else {
+      // providerId is "kind:id", plus "|end" once an end date was sent, so an end is sent once (again if it changes).
+      const [ref, sentEnd = null] = d.providerId.split('|');
+      if (end && end !== sentEnd) {
+        const [kind, id] = ref.split(':') as ['benefit' | 'post_tax', string];
+        await check.endDeduction(id, kind, end);
+        await tdb.payDeduction.updateMany({ where: { id: d.id }, data: { providerId: `${ref}|${end}`, providerSyncedAt: new Date() } });
+      }
+    }
   }
 }
 

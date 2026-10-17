@@ -32,86 +32,87 @@ enum PlanId {
 }
 
 model Organization {
-  id                    String               @id @default(cuid())
-  name                  String
-  slug                  String               @unique // used in public careers URLs
-  shortName             String?
-  ownerName             String?
-  ownerTitle            String?
-  city                  String?
-  website               String?
-  services              String?
-  pitch                 String?
-  logoUrl               String?
-  brandColor            String               @default("#0E7A6E")
-  applyEmail            String?
-  billingAddress        String? // street, city, state and ZIP printed on invoices (multi-line)
-  billingPhone          String?
-  billingEmail          String? // where clients send remittance questions; shown on invoices
-  taxId                 String? // EIN, shown on invoices when set
-  remitInstructions     String? // how to pay: ACH details, check mailing address, payment link
-  invoiceFooter         String? // a closing line on every invoice
-  reviewScheduleOn      Boolean              @default(false) // add reviews automatically as they come due, and remind managers
-  reviewFrequency       String               @default("ANNUAL") // company default: ANNUAL | SEMIANNUAL | NONE
-  reviewBasis           String               @default("HIRE_DATE") // HIRE_DATE (work anniversary) | CALENDAR (fixed months)
-  reviewMonth           Int                  @default(1) // CALENDAR: the month reviews are due (and six months later for semi-annual)
-  reviewLeadDays        Int                  @default(30) // how far ahead a review is added and the first reminder goes out
-  reviewRemindEmployees Boolean              @default(true) // with the schedule on: remind employees to do their self review and acknowledge shared reviews
-  careersHeadline       String               @default("Find your next role")
-  careersIntro          String?
-  showPayOnCareers      Boolean              @default(true)
-  showClientOnCareers   Boolean              @default(false)
-  payrollProvider       String? // adp | paychex | quickbooks | gusto | csv: default export format
-  payrollCompanyCode    String? // company code some providers need in imports (e.g. ADP Co Code)
-  timezone              String               @default("America/New_York") // IANA zone for time clock days and workweeks
-  geofenceMode          String               @default("flag") // off | flag | block: time clock punches outside a job site's geofence
-  everifyEnabled        Boolean              @default(false)
-  smsNumber             String?              @unique // the company's own Twilio number (E.164); replies to it land in this company's inbox
-  referralBonus         Decimal?             @db.Decimal(10, 2) // paid per referred worker who reaches referralMinHours; null = no bonus
-  referralMinHours      Int                  @default(80) // the company is enrolled in E-Verify: open a case to track for each new hire
-  onboardingEnabled     Boolean              @default(true) // the company can switch onboarding off (e.g. direct-hire only)
-  onboardingEnforcement String               @default("warn") // warn | block: unfinished onboarding blocks scheduling and clock-in
-  birthdayGreetings     Boolean              @default(false) // send workers on assignment a greeting on their birthday
-  kind                  OrgKind              @default(STAFFING)
-  hrEnabled             Boolean              @default(false) // a staffing agency also tracks its own (internal) employees
-  jobBoards             String[]             @default([]) // job boards turned on (their feeds list jobs)
-  linkedinCompanyId     String? // for the LinkedIn job feed
+  id                      String               @id @default(cuid())
+  name                    String
+  slug                    String               @unique // used in public careers URLs
+  shortName               String?
+  ownerName               String?
+  ownerTitle              String?
+  city                    String?
+  website                 String?
+  services                String?
+  pitch                   String?
+  logoUrl                 String?
+  brandColor              String               @default("#0E7A6E")
+  applyEmail              String?
+  billingAddress          String? // street, city, state and ZIP printed on invoices (multi-line)
+  billingPhone            String?
+  billingEmail            String? // where clients send remittance questions; shown on invoices
+  taxId                   String? // EIN, shown on invoices when set
+  remitInstructions       String? // how to pay: ACH details, check mailing address, payment link
+  invoiceFooter           String? // a closing line on every invoice
+  reviewScheduleOn        Boolean              @default(false) // add reviews automatically as they come due, and remind managers
+  reviewFrequency         String               @default("ANNUAL") // company default: ANNUAL | SEMIANNUAL | NONE
+  reviewBasis             String               @default("HIRE_DATE") // HIRE_DATE (work anniversary) | CALENDAR (fixed months)
+  reviewMonth             Int                  @default(1) // CALENDAR: the month reviews are due (and six months later for semi-annual)
+  reviewLeadDays          Int                  @default(30) // how far ahead a review is added and the first reminder goes out
+  reviewRemindEmployees   Boolean              @default(true) // with the schedule on: remind employees to do their self review and acknowledge shared reviews
+  careersHeadline         String               @default("Find your next role")
+  careersIntro            String?
+  showPayOnCareers        Boolean              @default(true)
+  showClientOnCareers     Boolean              @default(false)
+  payrollProvider         String? // adp | paychex | quickbooks | gusto | csv: default export format
+  payrollCompanyCode      String? // company code some providers need in imports (e.g. ADP Co Code)
+  payrollExportDeductions Boolean              @default(false) // put recurring deductions in export files (off when the provider already has them)
+  timezone                String               @default("America/New_York") // IANA zone for time clock days and workweeks
+  geofenceMode            String               @default("flag") // off | flag | block: time clock punches outside a job site's geofence
+  everifyEnabled          Boolean              @default(false)
+  smsNumber               String?              @unique // the company's own Twilio number (E.164); replies to it land in this company's inbox
+  referralBonus           Decimal?             @db.Decimal(10, 2) // paid per referred worker who reaches referralMinHours; null = no bonus
+  referralMinHours        Int                  @default(80) // the company is enrolled in E-Verify: open a case to track for each new hire
+  onboardingEnabled       Boolean              @default(true) // the company can switch onboarding off (e.g. direct-hire only)
+  onboardingEnforcement   String               @default("warn") // warn | block: unfinished onboarding blocks scheduling and clock-in
+  birthdayGreetings       Boolean              @default(false) // send workers on assignment a greeting on their birthday
+  kind                    OrgKind              @default(STAFFING)
+  hrEnabled               Boolean              @default(false) // a staffing agency also tracks its own (internal) employees
+  jobBoards               String[]             @default([]) // job boards turned on (their feeds list jobs)
+  linkedinCompanyId       String? // for the LinkedIn job feed
   // Billing
-  plan                  PlanId               @default(starter)
-  stripeCustomerId      String?              @unique
-  stripeSubscriptionId  String?              @unique
-  subscriptionStatus    String               @default("trialing") // mirrors Stripe: trialing|active|past_due|canceled|unpaid|incomplete
-  trialEndsAt           DateTime?
-  currentPeriodEnd      DateTime?
-  seats                 Int                  @default(1)
-  salesTargets          SalesTarget[]
-  credentials           Credential[]
-  shifts                Shift[]
-  workerLinks           WorkerLink[]
-  payrollRuns           PayrollRun[]
-  timeEntries           TimeEntry[]
-  onboardingPackages    OnboardingPackage[]
-  onboardings           Onboarding[]
-  feedback              Feedback[]
-  feedbackRequests      FeedbackRequest[]
-  recognitions          Recognition[]
-  departments           Department[]
-  employees             Employee[]
-  compensationChanges   CompensationChange[]
-  leavePolicies         LeavePolicy[]
-  leaveRequests         LeaveRequest[]
-  leaveEntries          LeaveEntry[]
-  reviewCycles          ReviewCycle[]
-  reviews               Review[]
-  goals                 Goal[]
-  offboardingTasks      OffboardingTask[]
-  offboardingTemplate   Json? // [{ title, owner, days }] — null uses the default checklist
-  aiCreditsUsed         Int                  @default(0) // reset each billing period by webhook
+  plan                    PlanId               @default(starter)
+  stripeCustomerId        String?              @unique
+  stripeSubscriptionId    String?              @unique
+  subscriptionStatus      String               @default("trialing") // mirrors Stripe: trialing|active|past_due|canceled|unpaid|incomplete
+  trialEndsAt             DateTime?
+  currentPeriodEnd        DateTime?
+  seats                   Int                  @default(1)
+  salesTargets            SalesTarget[]
+  credentials             Credential[]
+  shifts                  Shift[]
+  workerLinks             WorkerLink[]
+  payrollRuns             PayrollRun[]
+  timeEntries             TimeEntry[]
+  onboardingPackages      OnboardingPackage[]
+  onboardings             Onboarding[]
+  feedback                Feedback[]
+  feedbackRequests        FeedbackRequest[]
+  recognitions            Recognition[]
+  departments             Department[]
+  employees               Employee[]
+  compensationChanges     CompensationChange[]
+  leavePolicies           LeavePolicy[]
+  leaveRequests           LeaveRequest[]
+  leaveEntries            LeaveEntry[]
+  reviewCycles            ReviewCycle[]
+  reviews                 Review[]
+  goals                   Goal[]
+  offboardingTasks        OffboardingTask[]
+  offboardingTemplate     Json? // [{ title, owner, days }] — null uses the default checklist
+  aiCreditsUsed           Int                  @default(0) // reset each billing period by webhook
   // Indeed Apply (candidates apply on Indeed; Indeed POSTs applications to /api/public/<slug>/indeed-apply)
-  indeedApplyApiToken   String?
-  indeedApplySecret     String? // shared secret for X-Indeed-Signature; never returned to the browser
-  createdAt             DateTime             @default(now())
-  updatedAt             DateTime             @updatedAt
+  indeedApplyApiToken     String?
+  indeedApplySecret       String? // shared secret for X-Indeed-Signature; never returned to the browser
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
 
   members               Membership[]
   invites               Invite[]
@@ -149,6 +150,7 @@ model Organization {
   vmsPrograms           VmsProgram[]
   acaPolicies           AcaPolicy[]
   acaOffers             AcaOffer[]
+  payDeductions         PayDeduction[]
   everifyCases          EVerifyCase[]
   doNotReturns          DoNotReturn[]
   referrals             Referral[]
@@ -316,6 +318,7 @@ model Candidate {
   branchId         String?
   branch           Branch?              @relation(fields: [branchId], references: [id], onDelete: SetNull)
   acaOffers        AcaOffer[]
+  payDeductions    PayDeduction[]
 
   @@index([organizationId, email])
   @@index([organizationId, phone])
@@ -791,6 +794,32 @@ model VmsProgram {
   @@index([organizationId, clientId])
 }
 
+/// A recurring paycheck deduction for one worker (health premium, 401(k), other after-tax), taken every payroll run.
+model PayDeduction {
+  id               String       @id @default(cuid())
+  organizationId   String
+  candidateId      String
+  type             String // key in DEDUCTION_TYPES (src/lib/deductions.ts)
+  label            String
+  code             String // code in provider import files, e.g. 401K
+  pretax           Boolean
+  amountType       String // FIXED (dollars per pay run) | PERCENT (of gross pay)
+  amount           Decimal      @db.Decimal(10, 2)
+  annualLimit      Decimal?     @db.Decimal(10, 2) // stop for the calendar year once this much has been taken
+  employerAmount   Decimal?     @db.Decimal(10, 2) // company contribution per pay run, for the record and the payroll provider
+  startDate        DateTime     @db.Date
+  endDate          DateTime?    @db.Date
+  providerId       String? // the matching benefit or post-tax deduction in the payroll provider (Check)
+  providerSyncedAt DateTime?
+  createdById      String?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  candidate        Candidate    @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, candidateId])
+}
+
 /// The company's ACA look-back measurement settings (one per company).
 model AcaPolicy {
   id                String       @id @default(cuid())
@@ -1184,6 +1213,7 @@ enum PayrollAdjustmentKind {
   OTHER_EARNING // taxable (e.g. shift differential, holiday pay)
   REIMBURSEMENT // not taxable (mileage, scrubs, parking)
   DEDUCTION // after-tax (e.g. advance repayment, uniform)
+  PRETAX_DEDUCTION // before tax: benefit deductions such as health insurance or 401(k), from a recurring deduction
 }
 
 // A pay run for one pay period: approved timesheets are snapshotted into items. Taxes, direct deposit and filings
@@ -1254,6 +1284,8 @@ model PayrollAdjustment {
   kind           PayrollAdjustmentKind
   description    String
   amount         Decimal               @db.Decimal(12, 2)
+  deductionId    String? // set when it came from a recurring deduction (recalculated with the run; not edited by hand)
+  code           String? // the deduction's code for provider imports, snapshotted
   createdById    String?
   createdAt      DateTime              @default(now())
   item           PayrollItem           @relation(fields: [itemId], references: [id], onDelete: Cascade)
