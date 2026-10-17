@@ -445,3 +445,7 @@ input.missing{border-color:var(--warn,#c2410c)}
   .inboxbtn.phone{display:inline-flex;margin-left:auto;color:#fff;padding:8px}.inboxbtn.phone .inboxbtn-label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
   .inboxbtn.phone .inboxbadge{position:absolute;top:0;right:-2px;border:2px solid #152238}
 }
+/* Two-step sign-in */
+ol.steps{padding-left:20px;margin:0 0 12px}ol.steps>li{margin:0 0 12px}ol.steps label{max-width:240px}
+.qr{margin:10px 0}.qr img{display:block;border-radius:8px;background:#fff;padding:6px}
+ol.codes{display:grid;grid-template-columns:repeat(2,max-content);gap:6px 48px;padding-left:32px;margin:12px 0}ol.codes li{padding-left:4px}ol.codes code{font-size:15px;letter-spacing:.04em}

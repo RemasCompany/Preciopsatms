@@ -2,13 +2,14 @@ import { db } from '@/lib/db';
 import { requirePageContext, canEdit } from '@/lib/tenant';
 import { PLANS, planView } from '@/lib/plans';
 import Team from '@/components/Team';
+import { RequireTwoStep } from '@/components/TwoStep';
 import { OpenRecord } from '@/components/Records';
 
 export default async function TeamPage() {
   const ctx = await requirePageContext();
   const { org, tdb, user, role } = ctx;
   const [members, invites, branches] = await Promise.all([
-    db.membership.findMany({ where: { organizationId: org.id }, include: { user: { select: { name: true, email: true } } }, orderBy: { createdAt: 'asc' } }),
+    db.membership.findMany({ where: { organizationId: org.id }, include: { user: { select: { name: true, email: true, totpEnabledAt: true, _count: { select: { memberships: true } } } } }, orderBy: { createdAt: 'asc' } }),
     tdb.invite.findMany({ where: { acceptedAt: null }, orderBy: { expiresAt: 'desc' } }),
     tdb.branch.findMany({ orderBy: { name: 'asc' }, include: { _count: { select: { jobs: true, members: true } } } }),
   ]);
@@ -22,11 +23,12 @@ export default async function TeamPage() {
       <Team
         me={{ id: user.id, role }}
         admin={admin}
-        members={members.map((m) => ({ id: m.id, userId: m.userId, name: m.user.name, email: m.user.email, role: m.role, since: m.createdAt.toISOString(), branchId: m.branchId }))}
+        members={members.map((m) => ({ id: m.id, userId: m.userId, name: m.user.name, email: m.user.email, role: m.role, since: m.createdAt.toISOString(), branchId: m.branchId, twoStep: !!m.user.totpEnabledAt, otherCompanies: m.user._count.memberships > 1 }))}
         branches={branches.map((b) => ({ id: b.id, name: b.name }))}
         invites={invites.map((i) => ({ id: i.id, email: i.email, role: i.role, expired: i.expiresAt < new Date(), expiresAt: i.expiresAt.toISOString() }))}
         full={max !== null && members.length >= max}
       />
+      {(role === 'OWNER' || role === 'ADMIN') && <RequireTwoStep required={org.requireTwoStep} missing={members.filter((m) => !m.user.totpEnabledAt).length} canEdit={admin} meOn={!!user.totpEnabledAt} />}
       <section className="card" style={{ marginTop: 16 }}>
         <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
           <h2 style={{ margin: 0, fontSize: 18 }}>Branches</h2>

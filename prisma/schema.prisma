@@ -64,6 +64,7 @@ model Organization {
   payrollProvider         String? // adp | paychex | quickbooks | gusto | csv: default export format
   payrollCompanyCode      String? // company code some providers need in imports (e.g. ADP Co Code)
   payrollExportDeductions Boolean              @default(false) // put recurring deductions in export files (off when the provider already has them)
+  requireTwoStep          Boolean              @default(false) // every teammate must use two-step sign-in
   timezone                String               @default("America/New_York") // IANA zone for time clock days and workweeks
   geofenceMode            String               @default("flag") // off | flag | block: time clock punches outside a job site's geofence
   everifyEnabled          Boolean              @default(false)
@@ -168,6 +169,11 @@ model User {
   passwordHash      String
   emailVerifiedAt   DateTime?
   passwordChangedAt DateTime? // sessions issued before this are signed out
+  // Two-step sign-in: an authenticator-app secret (sealed), set while pending and confirmed by totpEnabledAt.
+  totpSecret        String?
+  totpEnabledAt     DateTime?
+  totpLastStep      Int? // the last 30-second step used, so a code can't be replayed
+  recoveryCodes     String[]     @default([]) // sha256 hashes; each works once
   createdAt         DateTime     @default(now())
   memberships       Membership[]
   authTokens        AuthToken[]

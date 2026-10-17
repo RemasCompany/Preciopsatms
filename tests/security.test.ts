@@ -56,7 +56,8 @@ describe('security page', () => {
     const html = renderToStaticMarkup(SecurityPage());
     expect(html).toContain('Passwords are stored only as bcrypt hashes');
     expect(html).toContain('Not in place yet');
-    expect(html).toContain('Single sign-on (SAML or OIDC) and two-step sign-in.');
+    expect(html).toContain('Single sign-on (SAML or OIDC).');
+    expect(html).toContain('Two-step sign-in with an authenticator app');
     expect(html).toContain('mailto:security@preciopsatms.com');
     const txt = await (await SECURITY_TXT()).text();
     expect(txt).toMatch(/^Contact: mailto:security@preciopsatms\.com\nExpires: \d{4}-\d{2}-\d{2}T/);

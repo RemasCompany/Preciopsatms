@@ -70,6 +70,13 @@ Requirements and rules:
 - A data migration that updates tenant rows runs with no company set, so it isn't filtered.
 - Policies check each row's own company, not the company of a record it links to. Routes still check that IDs they're given belong to the company.
 
+## Two-step sign-in
+Team accounts can add an authenticator-app code after the password (TOTP, `src/lib/totp.ts`; flows in `src/lib/two-step.ts`), set up under **My sign-in**.
+- The secret is sealed with `secret-box` (set `INTEGRATIONS_KEY` in production). Recovery codes are stored as SHA-256 hashes and shown once. Each app code works once.
+- At sign-in, `authorize()` throws `TWO_STEP_REQUIRED` after a right password and the login page asks for the code. Wrong codes count against the same per-email and per-IP limits as wrong passwords.
+- Admins can require it for the company (Team page). Until someone sets it up, the app layout shows only the setup screen and `requireApiContext` refuses everything except routes that pass `twoStepSetup: true`.
+- Admins can reset a teammate's two-step sign-in for a lost phone. They can't reset an owner unless they're an owner, and they can't reset anyone who also belongs to another company.
+
 ## What's built
 | Area | Where |
 |---|---|

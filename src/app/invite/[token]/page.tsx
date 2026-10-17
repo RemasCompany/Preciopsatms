@@ -20,6 +20,8 @@ export default function AcceptInvite({ params }: { params: { token: string } }) 
     const j = await res.json().catch(() => ({}));
     if (!res.ok) { setBusy(false); return setMsg(j.error ?? 'Something went wrong. Try again.'); }
     const r = await signIn('credentials', { email: j.email, password, orgId: j.orgId, redirect: false });
+    // Two-step sign-in on their account: the sign-in page asks for the code, then opens this company.
+    if (r?.error === 'TWO_STEP_REQUIRED') { window.location.href = `/login?org=${encodeURIComponent(j.orgId)}`; return; }
     if (r?.error) { setBusy(false); return setMsg('You joined the team. Sign in to continue.'); }
     window.location.href = '/app';
   }

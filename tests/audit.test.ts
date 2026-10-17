@@ -44,7 +44,7 @@ describe('helpers', () => {
     expect(describeChanges({ role: ['RECRUITER', 'ADMIN'], website: [null, 'https://x.test'] })).toBe('role: RECRUITER → ADMIN; website: (empty) → https://x.test');
   });
   it('builds filters and ignores junk', () => {
-    expect(auditWhere({ group: 'Team' })).toMatchObject({ action: { in: ['team.invite', 'team.invite_revoke', 'team.join', 'team.role_change', 'team.remove'] } });
+    expect(auditWhere({ group: 'Team' })).toMatchObject({ action: { in: ['team.invite', 'team.invite_revoke', 'team.join', 'team.role_change', 'team.remove', 'team.two_step_reset'] } });
     expect(auditWhere({ group: 'Nope', from: 'yesterday' })).toEqual({});
   });
 });

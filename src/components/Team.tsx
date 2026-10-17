@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import type { Role } from '@prisma/client';
 import { useRecords } from './Records';
 
-type Member = { id: string; userId: string; name: string | null; email: string; role: Role; since: string; branchId?: string | null };
+type Member = { id: string; userId: string; name: string | null; email: string; role: Role; since: string; branchId?: string | null; twoStep?: boolean; otherCompanies?: boolean };
 type Invite = { id: string; email: string; role: Role; expired: boolean; expiresAt: string };
 const ROLE_LABEL: Record<Role, string> = { OWNER: 'Owner', ADMIN: 'Admin', RECRUITER: 'Recruiter', VIEWER: 'Viewer' };
 const date = (iso: string) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -32,7 +32,7 @@ export default function Team({ me, admin, members, invites, full, branches = [] 
 
   return (
     <>
-      <div className="tablewrap"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th>{branches.length > 0 && <th>Home branch</th>}<th>Joined</th>{admin && <th><span className="sr">Actions</span></th>}</tr></thead><tbody>
+      <div className="tablewrap"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th>{branches.length > 0 && <th>Home branch</th>}<th>Two-step</th><th>Joined</th>{admin && <th><span className="sr">Actions</span></th>}</tr></thead><tbody>
         {members.map((m) => {
           const self = m.userId === me.id;
           const locked = !admin || self || (m.role === 'OWNER' && me.role !== 'OWNER');
@@ -49,6 +49,8 @@ export default function Team({ me, admin, members, invites, full, branches = [] 
                 <select aria-label={`Home branch for ${m.email}`} value={m.branchId ?? ''} onChange={(e) => call(`/api/team/members/${m.id}/branch`, 'PATCH', { branchId: e.target.value || null }, 'Home branch updated.')}>
                   <option value="">All branches</option>{branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
                 </select>) : branches.find((b) => b.id === m.branchId)?.name ?? 'All branches'}</td>}
+              <td>{m.twoStep ? <span className="pill g">On</span> : <span className="pill">Off</span>}
+                {admin && !locked && m.twoStep && !m.otherCompanies && <button className="btn ghost sm" style={{ marginLeft: 6 }} onClick={() => confirm(`Reset ${m.email}’s two-step sign-in? Do this only if they’ve lost their phone and recovery codes. They’ll sign in with just their password and set it up again.`) && call(`/api/team/members/${m.id}/two-step`, 'DELETE', undefined, 'Two-step sign-in reset.')}>Reset</button>}</td>
               <td>{date(m.since)}</td>
               {admin && <td>{!locked && <button className="btn ghost sm" onClick={() => confirm(`Remove ${m.email} from your team?`) && call(`/api/team/members/${m.id}`, 'DELETE', undefined, 'Removed.')}>Remove</button>}</td>}
             </tr>

@@ -102,11 +102,13 @@ export async function requirePageContext(minRole: Role = 'VIEWER') {
 }
 
 /** For route handlers: throws HttpError (use withApi()). */
-export async function requireApiContext(opts: { minRole?: Role; feature?: Feature; write?: boolean } = {}) {
+export async function requireApiContext(opts: { minRole?: Role; feature?: Feature; write?: boolean; twoStepSetup?: boolean } = {}) {
   const session = await getServerSession(authOptions);
   if (!session?.user) throw new HttpError(401, 'Sign in required');
   const ctx = await loadContext(session.user.id, session.user.orgId, session.user.issuedAt);
   if (!ctx) throw new HttpError(401, 'Sign in required');
+  // The company requires two-step sign-in and they haven't set it up: only the setup routes work until they do.
+  if (needsTwoStep(ctx) && !opts.twoStepSetup) throw new HttpError(403, 'Your company requires two-step sign-in. Set it up under My sign-in first.');
   if (RANK[ctx.role] < RANK[opts.minRole ?? 'VIEWER']) throw new HttpError(403, 'Your role does not allow this');
   if (opts.feature && !hasFeature(ctx.org, opts.feature)) {
     if (ctx.org.kind === 'EMPLOYER' && STAFFING_ONLY.includes(opts.feature)) throw new HttpError(403, 'That’s a staffing-agency feature. Your company is set up as an employer (Settings & data).');
@@ -117,6 +119,9 @@ export async function requireApiContext(opts: { minRole?: Role; feature?: Featur
   if (opts.write && !['trialing', 'active'].includes(ctx.org.subscriptionStatus)) throw new HttpError(402, 'Your subscription is inactive. Update billing to make changes.');
   return ctx;
 }
+
+/** The company requires two-step sign-in and this person hasn't turned it on yet. */
+export const needsTwoStep = (ctx: { org: { requireTwoStep: boolean }; user: { totpEnabledAt: Date | null } }) => ctx.org.requireTwoStep && !ctx.user.totpEnabledAt;
 
 async function loadContext(userId: string, orgId: string, issuedAt?: number) {
   const m = await db.membership.findUnique({ where: { userId_organizationId: { userId, organizationId: orgId } }, include: { organization: true, user: true } });

@@ -13,6 +13,7 @@ const SECTIONS: [string, string[]][] = [
   ['Signing in', [
     'Passwords are stored only as bcrypt hashes. Sessions end after 12 hours.',
     'Sign-in attempts are limited per email address and per network address, so passwords can’t be guessed at speed. Failed sign-ins to real accounts are recorded in the company’s audit log.',
+    'Two-step sign-in with an authenticator app (Google Authenticator, Microsoft Authenticator, 1Password, Authy and others). Each code works once. One-time recovery codes cover a lost phone. Admins can require it for their whole team.',
     'Email addresses are verified. Password reset links work once and expire after an hour.',
     'Each person has a role (owner, admin, recruiter or viewer). Payroll, invoices, EEO reports, sensitive documents and the audit log are limited to owners and admins.',
     'Workers and clients use private links instead of passwords. Links are stored only as hashes, expire, and can be revoked.',
@@ -42,7 +43,7 @@ const SECTIONS: [string, string[]][] = [
 const NOT_YET = [
   'A SOC 2 report or another independent audit.',
   'An outside penetration test.',
-  'Single sign-on (SAML or OIDC) and two-step sign-in.',
+  'Single sign-on (SAML or OIDC).',
   'A published uptime history.',
 ];
 
