@@ -203,7 +203,7 @@ export async function sendRun(tdb: TenantDb, org: Organization, user: Actor, run
  * there too. Check then takes them on every payroll, so they aren't also put on the payroll items.
  */
 export async function syncDeductions(tdb: TenantDb, employees: Map<string, string>) {
-  const rows = await tdb.payDeduction.findMany({ where: { candidateId: { in: [...employees.keys()] } } });
+  const rows = await tdb.payDeduction.findMany({ where: { candidateId: { in: [...employees.keys()] } }, orderBy: { createdAt: 'asc' } });
   for (const d of rows) {
     const t = DEDUCTION_TYPES[d.type as DeductionType] ?? DEDUCTION_TYPES.OTHER;
     const end = d.endDate ? ymd(d.endDate) : null;
