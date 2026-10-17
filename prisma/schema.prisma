@@ -147,6 +147,8 @@ model Organization {
   payrollConnections    PayrollConnection[]
   payrollWorkers        PayrollWorker[]
   vmsPrograms           VmsProgram[]
+  acaPolicies           AcaPolicy[]
+  acaOffers             AcaOffer[]
   everifyCases          EVerifyCase[]
   doNotReturns          DoNotReturn[]
   referrals             Referral[]
@@ -313,6 +315,7 @@ model Candidate {
   hiringDocuments  HiringDocument[]
   branchId         String?
   branch           Branch?              @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  acaOffers        AcaOffer[]
 
   @@index([organizationId, email])
   @@index([organizationId, phone])
@@ -786,6 +789,41 @@ model VmsProgram {
   jobs           Job[]
 
   @@index([organizationId, clientId])
+}
+
+/// The company's ACA look-back measurement settings (one per company).
+model AcaPolicy {
+  id                String       @id @default(cuid())
+  organizationId    String       @unique
+  measurementMonths Int          @default(12)
+  adminMonths       Int          @default(2)
+  stabilityMonths   Int          @default(12)
+  startMonth        Int          @default(11) // standard measurement periods start on the 1st of this month
+  updatedById       String?
+  updatedAt         DateTime     @updatedAt
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+/// An offer of health coverage to a worker for a stability period, and their answer (for ACA proof and Form 1095-C).
+model AcaOffer {
+  id             String       @id @default(cuid())
+  organizationId String
+  candidateId    String
+  offeredOn      DateTime     @db.Date
+  coverageStart  DateTime     @db.Date
+  coverageEnd    DateTime?    @db.Date
+  coverage       String // EMPLOYEE | EMPLOYEE_CHILDREN | EMPLOYEE_SPOUSE | FAMILY
+  minimumValue   Boolean      @default(true)
+  employeeCost   Decimal      @db.Decimal(10, 2) // employee's monthly cost for the lowest-cost self-only coverage
+  response       String       @default("PENDING") // PENDING | ACCEPTED | WAIVED
+  respondedOn    DateTime?    @db.Date
+  note           String?
+  createdById    String?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  candidate      Candidate    @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, candidateId])
 }
 
 /// Our record ↔ the accounting system's (customers, invoices, payments), so nothing is pushed twice.
