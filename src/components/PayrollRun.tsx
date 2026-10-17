@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useRecords } from './Records';
 import { ADJUSTMENTS, EXPORT_FORMATS, FREQUENCIES, totals as sumUp, type AdjustmentKind, type Check, type ExportFormat, type RunItem } from '@/lib/payroll-run';
@@ -77,8 +77,8 @@ export function PayrollSettings({ provider, companyCode }: { provider: string | 
 type RunInfo = { id: string; number: string; periodStart: string; periodEnd: string; payDate: string; status: 'DRAFT' | 'APPROVED' | 'PAID' | 'VOID'; frequency: string; approvedAt: string | null; paidAt: string | null };
 const STATUS = { DRAFT: ['a', 'Draft'], APPROVED: ['', 'Approved'], PAID: ['g', 'Paid'], VOID: ['r', 'Void'] } as const;
 
-export default function PayrollRunView({ run, workers, totals, checks, clients, provider, canEdit }: {
-  run: RunInfo; workers: RunItem[][]; totals: Totals; checks: Check[]; clients: [string, string][]; provider: string | null; canEdit: boolean;
+export default function PayrollRunView({ run, workers, totals, checks, clients, provider, canEdit, processing }: {
+  run: RunInfo; workers: RunItem[][]; totals: Totals; checks: Check[]; clients: [string, string][]; provider: string | null; canEdit: boolean; processing: ProviderInfo | null;
 }) {
   const router = useRouter();
   const { toast } = useRecords();
@@ -97,7 +97,7 @@ export default function PayrollRunView({ run, workers, totals, checks, clients, 
       const r = await api(`/api/payroll/runs/${run.id}`, 'PATCH', { action, acknowledge });
       if (r.needsAcknowledge) { setPending(r.warnings); return; }
       setPending(null);
-      toast({ refresh: `Refreshed: ${r.included} timesheet${r.included === 1 ? '' : 's'} in the run${r.dropped ? `, ${r.dropped} removed (reopened)` : ''}.`, approve: 'Run approved. Export it for your payroll provider.', unapprove: 'Run reopened.', pay: 'Run marked paid.', void: 'Run voided.' }[action]);
+      toast({ refresh: `Refreshed: ${r.included} timesheet${r.included === 1 ? '' : 's'} in the run${r.dropped ? `, ${r.dropped} removed (reopened)` : ''}.`, approve: processing ? 'Run approved. Send it to Check to preview taxes.' : 'Run approved. Export it for your payroll provider.', unapprove: 'Run reopened.', pay: 'Run marked paid.', void: 'Run voided.' }[action]);
       router.refresh();
     } catch (e) { toast((e as Error).message, true); } finally { setBusy(false); }
   }
@@ -117,7 +117,7 @@ export default function PayrollRunView({ run, workers, totals, checks, clients, 
             {draft && <button className="btn ghost" disabled={busy} onClick={() => act('refresh')}>Refresh from timesheets</button>}
             {draft && <button className="btn" disabled={busy || !workers.length} onClick={() => act('approve')}>Approve run</button>}
             {run.status === 'APPROVED' && <button className="btn ghost" disabled={busy} onClick={() => act('unapprove')}>Reopen</button>}
-            {run.status === 'APPROVED' && <button className="btn" disabled={busy} onClick={() => act('pay')}>Mark paid</button>}
+            {run.status === 'APPROVED' && !processing?.payrollId && <button className={processing ? 'btn ghost' : 'btn'} disabled={busy} onClick={() => act('pay')}>Mark paid</button>}
             {(draft || run.status === 'APPROVED') && <button className="btn danger" disabled={busy} onClick={() => act('void')}>Void</button>}
           </div>
         )}
@@ -146,16 +146,18 @@ export default function PayrollRunView({ run, workers, totals, checks, clients, 
         </div>
       )}
 
+      {processing && <ProviderPanel runId={run.id} runStatus={run.status} info={processing} ourGross={totals.gross} canEdit={canEdit} />}
+
       {exportable && (
         <div className="card">
-          <h2 style={{ marginTop: 0, fontSize: 18 }}>Send to payroll and bill clients</h2>
+          <h2 style={{ marginTop: 0, fontSize: 18 }}>{processing ? 'Exports and client invoices' : 'Send to payroll and bill clients'}</h2>
           <div className="row" style={{ marginTop: 0 }}>
             <select value={format} onChange={(e) => setFormat(e.target.value as ExportFormat)} aria-label="Export format">{Object.entries(EXPORT_FORMATS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
             <a className="btn" href={`/api/payroll/runs/${run.id}/export?format=${format}`}>Download export</a>
             <a className="btn ghost" href={`/api/payroll/runs/${run.id}/statements`}>Pay summaries (PDF)</a>
           </div>
           {clients.length > 0 && <div className="row">{clients.map(([id, name]) => <a key={id} className="btn ghost sm" href={`/api/payroll/runs/${run.id}/invoice?client=${id}`}>Invoice {name}</a>)}</div>}
-          <p className="muted" style={{ fontSize: 13 }}>Import the export into your provider, let it calculate taxes and pay, then come back and mark this run paid.</p>
+          {!processing && <p className="muted" style={{ fontSize: 13 }}>Import the export into your provider, let it calculate taxes and pay, then come back and mark this run paid.</p>}
         </div>
       )}
 
@@ -165,7 +167,7 @@ export default function PayrollRunView({ run, workers, totals, checks, clients, 
           return (
             <section key={w.candidateId} className="card payworker">
               <div className="payworkerhead">
-                <div><b>{w.workerName}</b><span className="muted">{w.payrollId ? `Employee ID ${w.payrollId}` : 'No payroll employee ID'}</span></div>
+                <div><b>{w.workerName}</b><span className="muted">{w.payrollId ? `Employee ID ${w.payrollId}` : 'No payroll employee ID'}</span>{processing && <SetupPill status={processing.workers[w.candidateId]?.status} />}</div>
                 <div className="paytotal"><b>{money(t.gross)}</b><span className="muted">gross{t.reimbursements ? ` · +${money(t.reimbursements)} reimb.` : ''}{t.deductions ? ` · −${money(t.deductions)} ded.` : ''}</span></div>
               </div>
               <div className="tablewrap scroll"><table className="paylines">
@@ -211,6 +213,158 @@ function AdjustmentForm({ runId, itemId, onDone, onCancel }: { runId: string; it
       </div>
       {error && <p className="error" role="alert">{error}</p>}
       <div className="row"><button className="btn sm" onClick={save} disabled={busy}>Add</button><button className="btn ghost sm" onClick={onCancel}>Cancel</button></div>
+    </div>
+  );
+}
+
+type ProviderTotals = { gross: number; employeeTaxes: number; deductions: number; reimbursements: number; net: number; employerTaxes: number; cashNeeded: number; approvalDeadline: string | null };
+export type ProviderInfo = {
+  connected: true; companyName: string | null; companyReady: boolean; live: boolean; payrollId: string | null; status: string | null; statusLabel: string | null;
+  totals: ProviderTotals | null; sentAt: string | null; error: string | null; workers: Record<string, { status: string; missing: string[] }>;
+};
+const SETUP = { completed: ['g', 'Pay setup done'], needs_attention: ['a', 'Pay setup: needs attention'], blocking: ['r', 'Pay setup not finished'] } as Record<string, readonly [string, string]>;
+export const SetupPill = ({ status }: { status?: string }) => (status ? <span className={`pill ${SETUP[status]?.[0] ?? 'a'}`}>{SETUP[status]?.[1] ?? status}</span> : null);
+
+/** Paying a run through Check: send (draft + tax preview), approve, then Check reports it paid. */
+export function ProviderPanel({ runId, runStatus, info, ourGross, canEdit }: { runId: string; runStatus: RunInfo['status']; info: ProviderInfo; ourGross: number; canEdit: boolean }) {
+  const router = useRouter();
+  const { toast } = useRecords();
+  const [busy, setBusy] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [notReady, setNotReady] = useState<{ candidateId: string; name: string; missing: string[] }[] | null>(null);
+  const [sentTo, setSentTo] = useState<Record<string, string>>({});
+  const t = info.totals, draft = info.status === 'draft', locked = !!info.status && !draft;
+  async function post(action: 'send' | 'approve' | 'refresh') {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/payroll/runs/${runId}/provider`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }) });
+      const j = await res.json().catch(() => ({}));
+      if (j.notReady) { setNotReady(j.notReady); return; }
+      if (!res.ok) throw new Error(j.error ?? 'Something went wrong. Try again.');
+      setNotReady(null); setConfirming(false);
+      toast({ send: j.grossMatches === false ? 'Sent to Check. Its gross differs from this run’s — compare before approving.' : 'Sent to Check. Review taxes and net pay, then approve.', approve: 'Approved in Check. Workers are paid on the pay date.', refresh: `Check status: ${j.status}.` }[action], action === 'send' && j.grossMatches === false);
+      router.refresh();
+    } catch (e) { toast((e as Error).message, true); } finally { setBusy(false); }
+  }
+  async function sendLink(candidateId: string, channel: 'email' | 'sms') {
+    try {
+      const r = await api(`/api/payroll/workers/${candidateId}/setup-link`, 'POST', { channels: [channel] });
+      setSentTo((s) => ({ ...s, [candidateId]: channel === 'sms' ? 'Text sent' : 'Email sent' }));
+      if (r.problems?.length) toast(r.problems.join(' '), true);
+    } catch (e) { toast((e as Error).message, true); }
+  }
+  if (runStatus !== 'APPROVED' && runStatus !== 'PAID') return null;
+  return (
+    <div className="card">
+      <h2 style={{ marginTop: 0, fontSize: 18 }}>Pay through Check {!info.live && <span className="pill a">Sandbox</span>}</h2>
+      <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>{info.statusLabel ?? `Check calculates and withholds taxes, pays workers by direct deposit or check, and files with the agencies${info.companyName ? ` for ${info.companyName}` : ''}.`}</p>
+      {!info.companyReady && <p className="error">Finish your company’s setup in Check (Payroll → Payroll processing) before sending a run.</p>}
+      {info.error && <p className="error" role="alert">{info.error}</p>}
+      {notReady && (
+        <div className="warnbox card" role="alert">
+          <b>{notReady.length} worker{notReady.length === 1 ? ' hasn’t' : 's haven’t'} finished their pay setup in Check</b>
+          <p className="muted" style={{ fontSize: 13 }}>They enter their own Social Security number, W-4 and bank details in Check. Send them their private link, then send the run again.</p>
+          <ul>{notReady.map((w) => (
+            <li key={w.candidateId}><b>{w.name}</b>{w.missing.length ? ` — still needed: ${w.missing.join(', ')}` : ''}{' '}
+              {sentTo[w.candidateId] ? <span className="pill g">{sentTo[w.candidateId]}</span> : <><button className="btn ghost sm" onClick={() => sendLink(w.candidateId, 'email')}>Email link</button> <button className="btn ghost sm" onClick={() => sendLink(w.candidateId, 'sms')}>Text link</button></>}</li>
+          ))}</ul>
+        </div>
+      )}
+      {t && (
+        <div className="kpis" style={{ margin: '12px 0' }}>
+          <div className="kpi"><b>{money(t.gross)}</b><span>Gross (Check)</span>{Math.abs(t.gross - ourGross) > 1 && <span className="sub error">Run shows {money(ourGross)}</span>}</div>
+          <div className="kpi"><b>{money(t.employeeTaxes)}</b><span>Withheld taxes</span></div>
+          <div className="kpi"><b>{money(t.net)}</b><span>Net pay to workers</span></div>
+          <div className="kpi"><b>{money(t.employerTaxes)}</b><span>Employer taxes</span></div>
+          <div className="kpi"><b>{money(t.cashNeeded)}</b><span>Debited from your account</span>{t.approvalDeadline && <span className="sub">approve by {fmt(t.approvalDeadline)}</span>}</div>
+        </div>
+      )}
+      {canEdit && (
+        <div className="row">
+          {!locked && runStatus === 'APPROVED' && <button className={draft ? 'btn ghost' : 'btn'} disabled={busy || !info.companyReady} onClick={() => post('send')}>{busy ? 'Working…' : draft ? 'Send again' : 'Send to Check'}</button>}
+          {draft && !confirming && <button className="btn" disabled={busy} onClick={() => setConfirming(true)}>Approve in Check</button>}
+          {info.payrollId && <button className="btn ghost" disabled={busy} onClick={() => post('refresh')}>Check status</button>}
+        </div>
+      )}
+      {confirming && t && (
+        <div className="card warnbox" role="alert">
+          <b>Approve this payroll?</b>
+          <p style={{ margin: '6px 0' }}>Check will debit {money(t.cashNeeded)} from your bank account and pay {money(t.net)} to workers on the pay date. After this it can only be changed in Check.</p>
+          <div className="row"><button className="btn ghost" onClick={() => setConfirming(false)}>Not yet</button><button className="btn" disabled={busy} onClick={() => post('approve')}>Approve payroll</button></div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+type Conn = { companyId: string; companyName: string | null; connectedAt: string; status: string; missing: string[]; error?: string };
+/** Payroll processing settings: connect the firm's company in Check, finish its setup, disconnect. */
+export function PayrollProcessing({ isOwner }: { isOwner: boolean }) {
+  const { toast } = useRecords();
+  const [state, setState] = useState<{ available: boolean; live: boolean; connection: Conn | null } | null>(null);
+  const [mode, setMode] = useState<'create' | 'link'>('create');
+  const [f, setF] = useState({ legalName: '', companyId: '', line1: '', city: '', state: '', postal_code: '' });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [confirmOff, setConfirmOff] = useState(false);
+  const load = () => fetch('/api/payroll/connection').then((r) => r.json()).then(setState).catch(() => setState({ available: false, live: false, connection: null }));
+  useEffect(() => { load(); }, []);
+  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
+  async function connect() {
+    setBusy(true); setError('');
+    const address = { line1: f.line1, city: f.city, state: f.state, postal_code: f.postal_code };
+    try {
+      await api('/api/payroll/connection', 'POST', mode === 'create' ? { mode, legalName: f.legalName, address } : { mode, companyId: f.companyId, ...(f.line1 ? { address } : {}) });
+      toast('Connected. Now finish your company’s setup in Check.'); await load();
+    } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+  }
+  async function openSetup() {
+    const tab = window.open('', '_blank');
+    try { const r = await api('/api/payroll/connection', 'POST', { action: 'setupUrl' }); if (tab) tab.location.href = r.url; else window.location.href = r.url; }
+    catch (e) { tab?.close(); toast((e as Error).message, true); }
+  }
+  async function off() {
+    setBusy(true);
+    try { await api('/api/payroll/connection', 'DELETE'); setConfirmOff(false); toast('Payroll processing disconnected.'); await load(); }
+    catch (e) { toast((e as Error).message, true); } finally { setBusy(false); }
+  }
+  if (!state) return null;
+  const c = state.connection;
+  return (
+    <div className="card" id="processing">
+      <h2 style={{ marginTop: 0, fontSize: 18 }}>Payroll processing {state.available && !state.live && <span className="pill a">Sandbox</span>}</h2>
+      {!state.available ? <p className="muted" style={{ fontSize: 13, margin: 0 }}>Running payroll here (taxes, direct deposit and filings through Check) isn’t switched on for this server yet. Exports below work with any provider.</p>
+      : c ? (
+        <>
+          <p style={{ margin: '0 0 6px' }}><b>{c.companyName ?? c.companyId}</b> <span className={`pill ${c.status === 'completed' ? 'g' : c.status === 'needs_attention' ? 'a' : 'r'}`}>{c.status === 'completed' ? 'Ready to run payroll' : c.status === 'needs_attention' ? 'Needs attention' : 'Setup not finished'}</span></p>
+          {c.missing.length > 0 && <p className="muted" style={{ fontSize: 13 }}>Still needed: {c.missing.join(', ')}.</p>}
+          {c.error && <p className="error">{c.error}</p>}
+          <p className="muted" style={{ fontSize: 13 }}>Approved runs can be sent to Check, which calculates taxes, pays workers and files. Your EIN, bank account and state tax accounts are entered in Check, not here.</p>
+          <div className="row">
+            <button className="btn" onClick={openSetup}>{c.status === 'completed' ? 'Company settings in Check' : 'Finish setup in Check'}</button>
+            {isOwner && !confirmOff && <button className="btn ghost" onClick={() => setConfirmOff(true)}>Disconnect</button>}
+          </div>
+          {confirmOff && <div className="row"><span>Disconnect Check? Runs already paid stay paid; you can reconnect the same company later.</span><button className="btn danger sm" disabled={busy} onClick={off}>Disconnect</button><button className="btn ghost sm" onClick={() => setConfirmOff(false)}>Cancel</button></div>}
+        </>
+      ) : (
+        <>
+          <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>Run payroll here instead of exporting: Check calculates and withholds federal, state and local taxes, pays workers by direct deposit or check, and files quarterly and year-end forms (941, W-2).</p>
+          <div className="row" role="radiogroup" aria-label="How to connect">
+            <label><input type="radio" checked={mode === 'create'} onChange={() => setMode('create')} /> Set up a new company in Check</label>
+            <label><input type="radio" checked={mode === 'link'} onChange={() => setMode('link')} /> I already have a Check company ID</label>
+          </div>
+          <div className="form payform">
+            {mode === 'create' ? <label className="full"><span>Legal company name</span><input value={f.legalName} onChange={set('legalName')} maxLength={120} /></label>
+              : <label className="full"><span>Check company ID</span><input value={f.companyId} onChange={set('companyId')} placeholder="com_…" /></label>}
+            <label className="full"><span>Work location street address{mode === 'link' ? ' (if it has none in Check)' : ''}</span><input value={f.line1} onChange={set('line1')} maxLength={120} /></label>
+            <label><span>City</span><input value={f.city} onChange={set('city')} maxLength={80} /></label>
+            <label><span>State</span><input value={f.state} onChange={set('state')} maxLength={2} placeholder="CA" /></label>
+            <label><span>ZIP</span><input value={f.postal_code} onChange={set('postal_code')} maxLength={10} inputMode="numeric" /></label>
+          </div>
+          {error && <p className="error" role="alert">{error}</p>}
+          <button className="btn" onClick={connect} disabled={busy}>{busy ? 'Connecting…' : 'Connect'}</button>
+        </>
+      )}
     </div>
   );
 }

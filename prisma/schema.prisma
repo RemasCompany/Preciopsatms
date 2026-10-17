@@ -144,6 +144,8 @@ model Organization {
   shiftOffers           ShiftOffer[]
   backgroundChecks      BackgroundCheck[]
   accountingConnections AccountingConnection[]
+  payrollConnections    PayrollConnection[]
+  payrollWorkers        PayrollWorker[]
   everifyCases          EVerifyCase[]
   doNotReturns          DoNotReturn[]
   referrals             Referral[]
@@ -719,6 +721,42 @@ model AccountingConnection {
   @@unique([organizationId, provider])
 }
 
+/// The org's company in the payroll provider (Check), which calculates taxes, pays workers and files.
+/// The platform holds the provider API key (CHECK_API_KEY); each staffing firm is its own company there.
+model PayrollConnection {
+  id             String       @id @default(cuid())
+  organizationId String
+  provider       String // check
+  companyId      String // the company in the provider
+  companyName    String?
+  workplaceId    String // the work location new employees are added to
+  onboardStatus  String       @default("blocking") // the company's own setup (EIN, bank, tax accounts): blocking | needs_attention | completed
+  connectedById  String?
+  connectedAt    DateTime     @default(now())
+  checkedAt      DateTime?
+  lastError      String?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, provider])
+  @@index([provider, companyId])
+}
+
+/// A worker as an employee in the payroll provider, with where their own tax and bank setup stands.
+model PayrollWorker {
+  id             String       @id @default(cuid())
+  organizationId String
+  provider       String
+  candidateId    String
+  externalId     String
+  onboardStatus  String       @default("blocking") // blocking | needs_attention | completed
+  missing        String[] // what the provider says is still missing (e.g. "ssn", "withholdings", "bank account")
+  checkedAt      DateTime     @default(now())
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, provider, candidateId])
+}
+
 /// Our record ↔ the accounting system's (customers, invoices, payments), so nothing is pushed twice.
 model ExternalRef {
   id             String       @id @default(cuid())
@@ -1096,6 +1134,11 @@ model PayrollRun {
   approvedAt     DateTime?
   paidAt         DateTime?
   voidedAt       DateTime?
+  providerPayrollId String? // the payroll in the connected payroll provider (Check), once sent
+  providerStatus    String? // draft | pending | processing | paid | partially_paid | failed (as the provider reports it)
+  providerTotals    Json? // preview from the provider: gross, employee taxes, net pay, employer taxes, cash needed (cents)
+  providerSentAt    DateTime?
+  providerError     String?
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
   organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)

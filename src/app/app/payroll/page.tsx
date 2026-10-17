@@ -3,7 +3,7 @@ import { requirePageContext, canEdit } from '@/lib/tenant';
 import { hasFeature } from '@/lib/plans';
 import { weekEnding, addWeeks } from '@/lib/weeks';
 import { totals, type RunItem } from '@/lib/payroll-run';
-import { NewPayrollRun, PayrollSettings } from '@/components/PayrollRun';
+import { NewPayrollRun, PayrollProcessing, PayrollSettings } from '@/components/PayrollRun';
 import Gate from '@/components/Gate';
 
 export const dynamic = 'force-dynamic';
@@ -23,7 +23,7 @@ export default async function Payroll() {
   return (
     <>
       <h1>Payroll runs</h1>
-      <p className="lede">Turn approved timesheets into a pay run: review hours, add bonuses, reimbursements and deductions, approve, and export the file your payroll provider imports. Taxes, direct deposit and filings stay with your provider.</p>
+      <p className="lede">Turn approved timesheets into a pay run: review hours, add bonuses, reimbursements and deductions, and approve. Then pay it through Check (taxes, direct deposit and filings) or export the file your payroll provider imports.</p>
       {canEdit(ctx) && <NewPayrollRun defaultEnd={lastEnd ? ymd(addWeeks(lastEnd, 1)) : lastWeek} />}
       {runs.length ? (
         <div className="tablewrap"><table>
@@ -42,6 +42,7 @@ export default async function Payroll() {
           })}</tbody>
         </table></div>
       ) : <div className="card empty"><b>No payroll runs yet</b>Approve timesheets on Timesheets & payroll, then start a run for the pay period above.</div>}
+      {canEdit(ctx) && <PayrollProcessing isOwner={ctx.role === 'OWNER'} />}
       {canEdit(ctx) && <PayrollSettings provider={ctx.org.payrollProvider} companyCode={ctx.org.payrollCompanyCode} />}
     </>
   );

@@ -3,6 +3,7 @@ import { requireApiContext, withApi, logActivity, HttpError } from '@/lib/tenant
 import { checksFor, loadRun, syncItems } from '@/lib/payroll-run-server';
 import { totals } from '@/lib/payroll-run';
 import { audit } from '@/lib/audit';
+import { releaseProviderPayroll } from '@/lib/payroll-provider';
 
 type Ctx = { params: { id: string } };
 const Body = z.object({ action: z.enum(['refresh', 'approve', 'unapprove', 'pay', 'void']), acknowledge: z.boolean().optional(), payDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() });
@@ -50,6 +51,7 @@ export const PATCH = withApi(async (req: Request, { params }: Ctx) => {
   }
   if (b.action === 'unapprove') {
     need('APPROVED');
+    await releaseProviderPayroll(tdb, run);
     await tdb.payrollRun.updateMany({ where: { id: run.id, status: 'APPROVED' }, data: { status: 'DRAFT', approvedAt: null, approvedById: null } });
     await logActivity(org.id, `Reopened payroll run ${run.number} for changes`, user.id);
     await audit(org.id, user, 'payroll.unapprove', `Reopened payroll run ${run.number} for changes`, target);
@@ -57,6 +59,7 @@ export const PATCH = withApi(async (req: Request, { params }: Ctx) => {
   }
   if (b.action === 'pay') {
     need('APPROVED');
+    if (run.providerPayrollId) throw new HttpError(409, 'This run was sent to Check, so it’s marked paid when Check pays it.');
     const now = new Date();
     await tdb.$transaction(async (tx) => {
       await tx.payrollRun.updateMany({ where: { id: run.id, status: 'APPROVED' }, data: { status: 'PAID', paidAt: now } });
@@ -67,6 +70,7 @@ export const PATCH = withApi(async (req: Request, { params }: Ctx) => {
     return Response.json({ ok: true });
   }
   need('DRAFT', 'APPROVED');
+  await releaseProviderPayroll(tdb, run);
   await tdb.$transaction(async (tx) => {
     await tx.payrollRun.updateMany({ where: { id: run.id }, data: { status: 'VOID', voidedAt: new Date() } });
     await tx.timesheet.updateMany({ where: { payrollRunId: run.id }, data: { payrollRunId: null } });

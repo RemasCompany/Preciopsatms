@@ -6,6 +6,7 @@ import { checksFor, loadRun } from '@/lib/payroll-run-server';
 import { byWorker, totals } from '@/lib/payroll-run';
 import PayrollRunView from '@/components/PayrollRun';
 import Gate from '@/components/Gate';
+import { providerView } from '@/lib/payroll-provider';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,6 +17,7 @@ export default async function PayrollRunPage({ params }: { params: { id: string 
   let loaded;
   try { loaded = await loadRun(ctx.tdb, params.id); } catch (e) { if (e instanceof HttpError) notFound(); throw e; }
   const checks = await checksFor(ctx.tdb, loaded);
+  const processing = await providerView(ctx.tdb, loaded.run, [...new Set(loaded.items.map((i) => i.candidateId))]);
   const clients = [...new Map(loaded.items.filter((i) => i.clientId).map((i) => [i.clientId!, i.clientName!])).entries()].sort((a, b) => a[1].localeCompare(b[1]));
   return (
     <>
@@ -23,7 +25,7 @@ export default async function PayrollRunPage({ params }: { params: { id: string 
       <PayrollRunView
         run={{ ...loaded.meta, id: loaded.run.id, status: loaded.run.status, frequency: loaded.run.frequency, approvedAt: loaded.run.approvedAt?.toISOString() ?? null, paidAt: loaded.run.paidAt?.toISOString() ?? null }}
         workers={byWorker(loaded.items)} totals={totals(loaded.items)} checks={checks} clients={clients}
-        provider={ctx.org.payrollProvider} canEdit={canEdit(ctx)}
+        provider={ctx.org.payrollProvider} canEdit={canEdit(ctx)} processing={processing}
       />
     </>
   );
