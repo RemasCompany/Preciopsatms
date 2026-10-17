@@ -23,3 +23,19 @@ export function configReport(env: Record<string, string | undefined> = process.e
   else if (!set('UPSTASH_REDIS_REST_URL') && env.NODE_ENV === 'production') warnings.push('Upstash is not configured: rate limits are counted per server instance, which is weaker when you run several.');
   return { errors, warnings };
 }
+
+/**
+ * Row-level security only holds for a database user that is subject to it. Superusers and BYPASSRLS roles skip every
+ * policy, and a missing policy means a tenant table isn't covered. Returns problems to log (empty when all is well).
+ */
+export async function rlsReport(query: (sql: string) => Promise<unknown[]>, tenantTables: string[]) {
+  const problems: string[] = [];
+  const [role] = (await query('SELECT rolname, rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user')) as { rolname: string; rolsuper: boolean; rolbypassrls: boolean }[];
+  if (role?.rolsuper || role?.rolbypassrls) problems.push(`The database user “${role.rolname}” is a ${role.rolsuper ? 'superuser' : 'BYPASSRLS role'}, so row-level security is skipped. Connect as an ordinary user that owns the tables.`);
+  const rows = (await query(`SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity, EXISTS (SELECT 1 FROM pg_policies p WHERE p.tablename = c.relname AND p.policyname = 'tenant_isolation') AS policy
+    FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = current_schema() AND c.relkind = 'r'`)) as { relname: string; relrowsecurity: boolean; relforcerowsecurity: boolean; policy: boolean }[];
+  const by = new Map(rows.map((r) => [r.relname, r]));
+  const missing = tenantTables.filter((t) => { const r = by.get(t); return !r || !r.relrowsecurity || !r.relforcerowsecurity || !r.policy; });
+  if (missing.length) problems.push(`Row-level security is missing on: ${missing.join(', ')}. Add a migration like 20…_row_level_security for each new table with organizationId.`);
+  return problems;
+}

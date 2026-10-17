@@ -50,7 +50,7 @@ createdb -O preci preciops_test                                              # o
 DATABASE_URL=postgresql://preci:preci@localhost:5432/preciops_test npx prisma migrate deploy
 npm test                                                                     # Vitest; override the DB with TEST_DATABASE_URL
 ```
-Covers tenant isolation and API gating (`tests/tenant.test.ts`, needs the test DB), plan feature gating, payroll/overtime math and the four-fifths rule.
+Covers tenant isolation and API gating (`tests/tenant.test.ts` and `tests/rls.test.ts`, which need the test DB), plan feature gating, payroll/overtime math and the four-fifths rule.
 
 End-to-end (a real browser against a running app): sign up → choose a plan → create a job → apply on the careers page → move to Placed → enter hours → approve → export payroll.
 ```bash
@@ -58,6 +58,17 @@ npx playwright install chromium   # once
 npm run e2e                       # reuses `npm run dev` if it's running, else starts it; uses the DATABASE_URL in .env
 ```
 With Stripe test keys set, the plan step also opens Stripe Checkout. The run deletes the company and user it created. CI runs it against a production build (`e2e` job).
+
+## Data isolation
+Two layers keep each company's data apart:
+1. **`tenantDb(orgId)`** (`src/lib/tenant.ts`) forces `organizationId` into every query's where clause or data and blocks unique-key operations.
+2. **Postgres row-level security.** Every table with `organizationId` (except `Membership`) has a `tenant_isolation` policy. `tenantDb` runs each query in a transaction that first sets `app.org_id`, so the database itself only shows or accepts that company's rows. This also covers related records pulled in with `include`, relation filters and raw SQL inside `tdb.$transaction`. Code that deliberately works across companies (sign-in, webhooks, private-link lookups) uses `db`, sets no company and isn't filtered.
+
+Requirements and rules:
+- The app's database user must own the tables and must **not** be a superuser or have `BYPASSRLS`; those skip every policy. The server logs a `[security]` error at startup if so, or if a tenant table has no policy.
+- A new model with `organizationId` goes in `TENANT_MODELS` and needs a migration that enables, forces and adds the policy (copy a block from `prisma/migrations/*_row_level_security`). `tests/rls.test.ts` fails until both are done.
+- A data migration that updates tenant rows runs with no company set, so it isn't filtered.
+- Policies check each row's own company, not the company of a record it links to. Routes still check that IDs they're given belong to the company.
 
 ## What's built
 | Area | Where |

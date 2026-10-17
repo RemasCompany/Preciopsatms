@@ -6,4 +6,6 @@ export async function register() {
   for (const e of errors) console.error(`[config] ${e}`);
   for (const w of warnings) console.warn(`[config] ${w}`);
   if (!errors.length && !warnings.length) console.log('[config] All integrations configured.');
+  // Checked inline so the edge build drops this import.
+  if (process.env.NEXT_RUNTIME === 'nodejs') await (await import('./instrumentation-node')).checkRls();
 }

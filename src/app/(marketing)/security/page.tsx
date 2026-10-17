@@ -7,6 +7,7 @@ export const metadata: Metadata = { title: 'Security · Preciops ATMS', descript
 const SECTIONS: [string, string[]][] = [
   ['Each company’s data is kept apart', [
     'Every read and write of business data is scoped to the signed-in company by one shared layer. The company is never taken from the browser, and automated tests check that one company can’t read or change another’s records.',
+    'The database enforces it too. Postgres row-level security checks every record a signed-in company reads or writes, including related records pulled in alongside the ones asked for.',
     'Public pages (careers, a worker’s private page, the client portal) find the company from the link itself and stay inside that company.',
   ]],
   ['Signing in', [
