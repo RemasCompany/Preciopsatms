@@ -2,6 +2,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import InboxButton from './InboxButton';
 
 export type NavGroup = [group: string, items: [href: string, label: string][]];
 
@@ -21,7 +22,7 @@ function Icon({ d }: { d: string }) {
 }
 
 /** Sidebar on desktop; top bar + full-screen menu + bottom tabs on phones. */
-export default function AppNav({ groups, company }: { groups: NavGroup[]; company: string }) {
+export default function AppNav({ groups, company, inboxUnread = null }: { groups: NavGroup[]; company: string; inboxUnread?: number | null }) {
   const path = usePathname();
   const [open, setOpen] = useState(false);
   useEffect(() => setOpen(false), [path]);
@@ -50,6 +51,7 @@ export default function AppNav({ groups, company }: { groups: NavGroup[]; compan
           <Icon d="M4 7h16M4 12h16M4 17h16" />
         </button>
         <span className="topbar-title"><b>{current}</b><small>{company}</small></span>
+        {inboxUnread !== null && <InboxButton unread={inboxUnread} className="phone" />}
       </header>
       {open && (
         <div id="mobile-menu" className="mobilemenu" role="dialog" aria-modal="true" aria-label="Menu">

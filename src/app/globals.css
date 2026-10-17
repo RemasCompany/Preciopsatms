@@ -433,3 +433,15 @@ input.missing{border-color:var(--warn,#c2410c)}
 @media (max-width:600px){.setupsteps li{grid-template-columns:24px 1fr}.setupsteps li .btn{grid-column:2;justify-self:start}}
 /* Security page */
 .secblock{margin-top:28px}.secblock h2{font-size:20px;margin-bottom:6px}.secblock ul{padding-left:20px;margin:0}.secblock li{margin:8px 0;line-height:1.55}
+/* Inbox, always at the top: right of the page header on desktop, in the top bar on phones */
+.mainbar{display:flex;justify-content:flex-end;align-items:center;gap:16px;margin:0 0 8px}.mainbar .branchsw{margin:0}
+.inboxbtn{position:relative;display:inline-flex;align-items:center;gap:6px;text-decoration:none;color:var(--ink);font-weight:600;font-size:14px}
+.inboxbtn.desk{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:6px 14px 6px 10px}
+.inboxbtn.desk:hover,.inboxbtn.desk[aria-current=page]{border-color:var(--accent)}
+.inboxbadge{min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:#C2362B;color:#fff;font-size:12px;font-weight:700;display:inline-grid;place-items:center;line-height:1}
+.inboxbtn.phone{display:none}
+@media (max-width:820px){
+  .inboxbtn.desk{display:none}.mainbar:not(:has(.branchsw)){display:none}
+  .inboxbtn.phone{display:inline-flex;margin-left:auto;color:#fff;padding:8px}.inboxbtn.phone .inboxbtn-label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+  .inboxbtn.phone .inboxbadge{position:absolute;top:0;right:-2px;border:2px solid #152238}
+}
