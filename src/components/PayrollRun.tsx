@@ -36,7 +36,7 @@ export function NewPayrollRun({ defaultEnd }: { defaultEnd: string }) {
     } catch (e) { setError((e as Error).message); setBusy(false); }
   }
   return (
-    <div className="card">
+    <div className="card" id="start">
       <h2 style={{ marginTop: 0, fontSize: 18 }}>Start a payroll run</h2>
       <div className="form payform">
         <label><span>Pay frequency</span><select value={frequency} onChange={(e) => setFrequency(e.target.value as keyof typeof FREQUENCIES)}>{Object.entries(FREQUENCIES).map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
@@ -62,7 +62,7 @@ export function PayrollSettings({ provider, companyCode }: { provider: string | 
     catch (e) { toast((e as Error).message, true); } finally { setBusy(false); }
   }
   return (
-    <div className="card">
+    <div className="card" id="provider">
       <h2 style={{ marginTop: 0, fontSize: 18 }}>Payroll provider</h2>
       <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>Exports default to this layout. Map the earning codes (REG, OT, BON, OTH, REIMB, DED) once in your provider’s import settings, and add each worker’s payroll employee ID on their candidate record.</p>
       <div className="form payform">

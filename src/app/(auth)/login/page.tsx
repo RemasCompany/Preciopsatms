@@ -8,7 +8,7 @@ export default function Login() {
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault(); const f = new FormData(e.currentTarget);
     const r = await signIn('credentials', { email: f.get('email'), password: f.get('password'), redirect: false });
-    if (r?.error) setErr('Email or password is incorrect.'); else window.location.href = '/app';
+    if (r?.error) setErr(r.error === 'TOO_MANY_ATTEMPTS' ? 'Too many sign-in attempts. Wait 15 minutes and try again, or reset your password.' : 'Email or password is incorrect.'); else window.location.href = '/app';
   }
   return (
     <main className="public" style={{ maxWidth: 420 }}>

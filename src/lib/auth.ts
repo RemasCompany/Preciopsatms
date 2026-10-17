@@ -3,6 +3,11 @@ import CredentialsProvider from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
 import { db } from './db';
 import { audit } from './audit';
+import { limited } from './rate-limit';
+
+/** Sign-in attempts allowed per email and per IP address in 15 minutes, so passwords can't be guessed at speed. */
+export const LOGIN_LIMITS = { email: 10, ip: 50, windowMs: 15 * 60e3 };
+export const TOO_MANY = 'TOO_MANY_ATTEMPTS';
 
 // next-auth hands authorize() a plain header object; the audit log wants a Request.
 const asRequest = (h?: Record<string, unknown>) => new Request('http://local', { headers: Object.entries(h ?? {}).flatMap(([k, v]) => (typeof v === 'string' ? [[k, v] as [string, string]] : [])) });
@@ -26,6 +31,8 @@ export const authOptions: NextAuthOptions = {
       async authorize(creds, req) {
         const email = creds?.email?.toLowerCase().trim();
         if (!email || !creds?.password) return null;
+        const ip = String(req?.headers?.['x-forwarded-for'] ?? '').split(',')[0].trim() || 'unknown';
+        if (await limited('login-ip', ip, LOGIN_LIMITS.ip, LOGIN_LIMITS.windowMs) || await limited('login-email', email, LOGIN_LIMITS.email, LOGIN_LIMITS.windowMs)) throw new Error(TOO_MANY);
         const user = await db.user.findUnique({ where: { email }, include: { memberships: { orderBy: { createdAt: 'asc' } } } });
         if (!user) return null;
         if (!(await bcrypt.compare(creds.password, user.passwordHash))) {

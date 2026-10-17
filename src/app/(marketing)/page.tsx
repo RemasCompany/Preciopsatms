@@ -31,6 +31,7 @@ export default function Home() {
           </div>
         </section>
       ))}
+      <p className="muted" style={{ marginTop: 40 }}><Link href="/security">Security</Link></p>
     </main>
   );
 }

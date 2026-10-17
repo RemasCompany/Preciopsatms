@@ -5,6 +5,9 @@ import { weekEnding, addWeeks } from '@/lib/weeks';
 import { totals, type RunItem } from '@/lib/payroll-run';
 import { NewPayrollRun, PayrollProcessing, PayrollSettings } from '@/components/PayrollRun';
 import Gate from '@/components/Gate';
+import SetupChecklist from '@/components/SetupChecklist';
+import { payrollFacts, payrollSteps } from '@/lib/setup-checklist';
+import { checkEnabled } from '@/lib/check-payroll';
 
 export const dynamic = 'force-dynamic';
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
@@ -18,15 +21,17 @@ export default async function Payroll() {
   if (!hasFeature(ctx.org, 'payrollRuns')) return <Gate title="Payroll runs" feature="Payroll runs (Enterprise)" />;
   if (ctx.role !== 'OWNER' && ctx.role !== 'ADMIN') return <div className="card empty"><b>Payroll is limited to admins</b>Ask an owner or admin on your team for access.</div>;
   const runs = await ctx.tdb.payrollRun.findMany({ include: { items: { include: { adjustments: true } } }, orderBy: [{ periodEnd: 'desc' }, { createdAt: 'desc' }], take: 100 });
+  const steps = payrollSteps(await payrollFacts(ctx.tdb, ctx.org, checkEnabled()));
   const lastWeek = ymd(addWeeks(weekEnding(), -1));
   const lastEnd = runs.find((r) => r.status !== 'VOID')?.periodEnd;
   return (
     <>
       <h1>Payroll runs</h1>
       <p className="lede">Turn approved timesheets into a pay run: review hours, add bonuses, reimbursements and deductions, and approve. Then pay it through Check (taxes, direct deposit and filings) or export the file your payroll provider imports.</p>
+      {canEdit(ctx) && <SetupChecklist id="payroll" title="Set up payroll" steps={steps} />}
       {canEdit(ctx) && <NewPayrollRun defaultEnd={lastEnd ? ymd(addWeeks(lastEnd, 1)) : lastWeek} />}
       {runs.length ? (
-        <div className="tablewrap"><table>
+        <div className="tablewrap" id="runs"><table>
           <thead><tr><th>Run</th><th>Pay period</th><th>Pay date</th><th>Workers</th><th>Hours</th><th>Gross pay</th><th>Status</th></tr></thead>
           <tbody>{runs.map((r) => {
             const items: RunItem[] = r.items.map((i) => ({ ...i, weekEnding: ymd(i.weekEnding), regularHours: Number(i.regularHours), overtimeHours: Number(i.overtimeHours), payRate: Number(i.payRate), billRate: Number(i.billRate), regularPay: Number(i.regularPay), overtimePay: Number(i.overtimePay), leaveHours: Number(i.leaveHours), leavePay: Number(i.leavePay), adjustments: i.adjustments.map((a) => ({ ...a, amount: Number(a.amount) })) }));

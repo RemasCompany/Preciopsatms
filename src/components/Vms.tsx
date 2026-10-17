@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useRecords } from './Records';
 import { REMIT_FIELDS, REQ_FIELDS, VMS, type VmsKind } from '@/lib/vms';
 
@@ -21,6 +22,8 @@ export default function VmsPrograms({ clients, canAdmin }: { clients: { id: stri
   const [programs, setPrograms] = useState<Program[] | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  // The setup checklist links to #add.
+  useEffect(() => { const on = () => { if (location.hash === '#add') setAdding(true); }; on(); addEventListener('hashchange', on); return () => removeEventListener('hashchange', on); }, []);
   const load = useCallback(() => api('/api/vms/programs', 'GET').then((r) => { setPrograms(r.programs); setOpen((o) => o ?? r.programs[0]?.id ?? null); }).catch(() => setPrograms([])), []);
   useEffect(() => { load(); }, [load]);
   if (!programs) return <p className="muted">Loading…</p>;
@@ -31,7 +34,7 @@ export default function VmsPrograms({ clients, canAdmin }: { clients: { id: stri
         {programs.map((p) => <button key={p.id} className={`btn ${p.id === open ? '' : 'ghost'}`} onClick={() => setOpen(p.id)}>{p.name}<span style={{ fontWeight: 400, opacity: 0.85 }}> · {p.vmsLabel}</span></button>)}
         {canAdmin && <button className="btn ghost" onClick={() => setAdding(true)}>+ Add a program</button>}
       </div>
-      {adding && <NewProgram clients={clients} onDone={(id) => { setAdding(false); setOpen(id); load(); }} onCancel={() => setAdding(false)} />}
+      {adding && canAdmin && <NewProgram clients={clients} onDone={(id) => { setAdding(false); setOpen(id); load(); }} onCancel={() => setAdding(false)} />}
       {!programs.length && !adding && (
         <div className="card empty"><b>No VMS programs yet</b>Add one for each client that runs its contingent workforce through SAP Fieldglass, Beeline, Workday VNDLY or another VMS. You’ll import their requisitions, send approved time in their upload format, and match their remittances to your invoices.</div>
       )}
@@ -41,12 +44,13 @@ export default function VmsPrograms({ clients, canAdmin }: { clients: { id: stri
 }
 
 function NewProgram({ clients, onDone, onCancel }: { clients: { id: string; name: string }[]; onDone: (id: string) => void; onCancel: () => void }) {
+  const router = useRouter();
   const [f, setF] = useState({ clientId: '', vms: 'fieldglass' as VmsKind, name: '', supplierCode: '', feePct: '' });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   async function save() {
     setBusy(true); setError('');
-    try { const r = await api('/api/vms/programs', 'POST', { ...f, feePct: f.feePct || 0, name: f.name || `${clients.find((c) => c.id === f.clientId)?.name ?? 'Client'} ${VMS[f.vms].label}` }); onDone(r.id); }
+    try { const r = await api('/api/vms/programs', 'POST', { ...f, feePct: f.feePct || 0, name: f.name || `${clients.find((c) => c.id === f.clientId)?.name ?? 'Client'} ${VMS[f.vms].label}` }); onDone(r.id); router.refresh(); }
     catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
   return (
@@ -70,8 +74,13 @@ const TABS = { reqs: 'Requisitions', placements: 'Placements', time: 'Approved t
 
 function ProgramPanel({ p, canAdmin, onChanged, onDeleted }: { p: Program; canAdmin: boolean; onChanged: () => void; onDeleted: () => void }) {
   const [tab, setTab] = useState<keyof typeof TABS>('reqs');
+  // The setup checklist links to #tab-<name>.
+  useEffect(() => {
+    const on = () => { const t = location.hash.slice(5) as keyof typeof TABS; if (location.hash.startsWith('#tab-') && t in TABS) { setTab(t); document.getElementById('program')?.scrollIntoView({ behavior: 'smooth' }); } };
+    on(); addEventListener('hashchange', on); return () => removeEventListener('hashchange', on);
+  }, []);
   return (
-    <section className="card">
+    <section className="card" id="program">
       <h2 style={{ marginTop: 0, fontSize: 18 }}>{p.name} <span className="pill">{p.vmsLabel}</span></h2>
       <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>{p.clientName}{p.supplierCode ? ` · supplier ID ${p.supplierCode}` : ''}{p.feePct ? ` · ${p.feePct}% VMS fee` : ''} · {p.jobs} job{p.jobs === 1 ? '' : 's'}{p.lastImportAt ? ` · last import ${new Date(p.lastImportAt).toLocaleDateString()}` : ''}</p>
       <div className="tabs" role="tablist">{(Object.keys(TABS) as (keyof typeof TABS)[]).filter((t) => canAdmin || (t !== 'settings' && t !== 'reqs' && t !== 'remit')).map((t) => <button key={t} role="tab" aria-selected={tab === t} className={`btn sm ${tab === t ? '' : 'ghost'}`} onClick={() => setTab(t)}>{TABS[t]}</button>)}</div>
@@ -109,6 +118,7 @@ const ACT = { new: ['g', 'New job'], update: ['', 'Update'], same: ['', 'No chan
 type Plan = { headers: string[]; columns: Record<string, string | null>; missing: string[]; truncated: boolean; counts: Record<string, number>; rows: { line: number; reqId: string; title: string; location: string | null; openings: number | null; billRate: number | null; status: string | null; action: keyof typeof ACT; changes: string[]; problems: string[] }[] };
 
 function Requisitions({ p, onDone }: { p: Program; onDone: () => void }) {
+  const router = useRouter();
   const { toast } = useRecords();
   const [text, setText] = useState(''), [name, setName] = useState('');
   const [mapping, setMapping] = useState<Record<string, string> | undefined>(undefined);
@@ -122,7 +132,7 @@ function Requisitions({ p, onDone }: { p: Program; onDone: () => void }) {
     setBusy(true);
     try {
       const r = await api(`/api/vms/programs/${p.id}/requisitions`, 'POST', { text, mapping: mapping ?? (plan ? Object.fromEntries(Object.entries(plan.columns).map(([k, v]) => [k, v ?? ''])) : undefined), commit: true });
-      toast(`Imported: ${r.new} new job${r.new === 1 ? '' : 's'}, ${r.update} updated.`); setPlan(null); setText(''); onDone();
+      toast(`Imported: ${r.new} new job${r.new === 1 ? '' : 's'}, ${r.update} updated.`); setPlan(null); setText(''); onDone(); router.refresh();
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
   const pick = (f: string, col: string) => { const m = { ...Object.fromEntries(Object.entries(plan!.columns).map(([k, v]) => [k, v ?? ''])), ...mapping, [f]: col }; setMapping(m); preview(text, m); };
@@ -151,12 +161,13 @@ function Requisitions({ p, onDone }: { p: Program; onDone: () => void }) {
 }
 
 function Placements({ p }: { p: Program }) {
+  const router = useRouter();
   const { toast } = useRecords();
   const [rows, setRows] = useState<{ id: string; worker: string; job: string; reqId: string | null; workOrderId: string | null; workerId: string | null }[] | null>(null);
   useEffect(() => { api(`/api/vms/programs/${p.id}/placements`, 'GET').then((r) => setRows(r.placements)).catch(() => setRows([])); }, [p.id]);
   async function save(applicationId: string, field: 'workOrderId' | 'workerId', value: string, was: string | null) {
     if ((value || null) === was) return;
-    try { await api(`/api/vms/programs/${p.id}/placements`, 'PATCH', { applicationId, [field]: value }); setRows((rs) => rs!.map((r) => (r.id === applicationId ? { ...r, [field]: value || null } : r))); toast('Saved.'); }
+    try { await api(`/api/vms/programs/${p.id}/placements`, 'PATCH', { applicationId, [field]: value }); setRows((rs) => rs!.map((r) => (r.id === applicationId ? { ...r, [field]: value || null } : r))); toast('Saved.'); router.refresh(); }
     catch (e) { toast((e as Error).message, true); }
   }
   if (!rows) return <p className="muted">Loading…</p>;
@@ -177,6 +188,7 @@ function Placements({ p }: { p: Program }) {
 }
 
 function Time({ p }: { p: Program }) {
+  const router = useRouter();
   const [week, setWeek] = useState(lastSunday());
   const [all, setAll] = useState(false);
   const [data, setData] = useState<{ rows: { timesheetId: string; worker: string; workOrderId: string | null; regularHours: number; overtimeHours: number; billRate: number; exportedAt: string | null }[]; pending: number } | null>(null);
@@ -200,7 +212,7 @@ function Time({ p }: { p: Program }) {
           {missing.length > 0 && <p className="error">{missing.length} timesheet{missing.length === 1 ? '' : 's'} will be left out until you add the {p.idLabel} on Placements.</p>}
           {data.pending > 0 && <p className="muted">{data.pending} timesheet{data.pending === 1 ? ' is' : 's are'} still a draft this week and not included.</p>}
           {use.length - missing.length > 0
-            ? <a className="btn" href={`/api/vms/programs/${p.id}/time?week=${week}&download=1${all ? '&all=1' : ''}`} onClick={() => setTimeout(load, 1500)}>Download time file ({use.length - missing.length} timesheet{use.length - missing.length === 1 ? '' : 's'}, {money(amount)})</a>
+            ? <a className="btn" href={`/api/vms/programs/${p.id}/time?week=${week}&download=1${all ? '&all=1' : ''}`} onClick={() => setTimeout(() => { load(); router.refresh(); }, 1500)}>Download time file ({use.length - missing.length} timesheet{use.length - missing.length === 1 ? '' : 's'}, {money(amount)})</a>
             : <p className="muted">Everything approved this week was already sent.</p>}
         </>
       ) : <p className="muted">No approved hours for this program’s jobs that week.</p>)}
@@ -212,6 +224,7 @@ const RACT = { pay: ['g', 'Record payment'], paid: ['', 'Already paid'], duplica
 type RPlan = { headers: string[]; columns: Record<string, string | null>; missing: string[]; counts: Record<string, number>; totalCents: number; feeCents: number; rows: { line: number; invoice: string; paidOn: string | null; reference: string | null; action: keyof typeof RACT; balance: number | null; paidCents: number; feeCents: number; problems: string[] }[] };
 
 function Remittance({ p }: { p: Program }) {
+  const router = useRouter();
   const { toast } = useRecords();
   const [text, setText] = useState(''), [mapping, setMapping] = useState<Record<string, string> | undefined>(undefined);
   const [plan, setPlan] = useState<RPlan | null>(null);
@@ -224,7 +237,7 @@ function Remittance({ p }: { p: Program }) {
     setBusy(true);
     try {
       const r = await api(`/api/vms/programs/${p.id}/remittance`, 'POST', { text, mapping: mapping ?? Object.fromEntries(Object.entries(plan!.columns).map(([k, v]) => [k, v ?? ''])), commit: true });
-      toast(`Recorded ${r.recorded} payment${r.recorded === 1 ? '' : 's'} (${money(r.totalCents)}${r.feeCents ? ` plus ${money(r.feeCents)} VMS fees` : ''}).`); setPlan(null); setText('');
+      toast(`Recorded ${r.recorded} payment${r.recorded === 1 ? '' : 's'} (${money(r.totalCents)}${r.feeCents ? ` plus ${money(r.feeCents)} VMS fees` : ''}).`); setPlan(null); setText(''); router.refresh();
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
   const pick = (f: string, col: string) => { const m = { ...Object.fromEntries(Object.entries(plan!.columns).map(([k, v]) => [k, v ?? ''])), ...mapping, [f]: col }; setMapping(m); preview(text, m); };
