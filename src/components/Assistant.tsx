@@ -6,6 +6,9 @@ type Turn = { q: string; a: string };
 type Mode = 'business' | 'coach';
 const SUGGESTIONS = ['What needs my attention today?', 'Which open jobs have been open longest, and how is their pipeline?', 'How many people did we place last month, and from which sources?'];
 const ADMIN_SUGGESTIONS = ['Which client had the best margin last month?', 'How much do clients owe us, and how much is past due?'];
+// Employers have no clients or placements: questions about their own hiring and hours instead.
+const EMPLOYER_SUGGESTIONS = ['What needs my attention today?', 'Which open jobs have been open longest, and how is their pipeline?', 'How many people did we hire last month, and from which sources?'];
+const EMPLOYER_ADMIN = ['How many timesheets are waiting for approval?', 'How many overtime hours did we approve last month?'];
 const COACH_SUGGESTIONS = [
   'Two people on my team keep clashing over shift handoffs. How do I mediate?',
   'How do I coach someone who is often 10–15 minutes late?',
@@ -15,7 +18,7 @@ const COACH_SUGGESTIONS = [
 ];
 const PLACEHOLDER = { business: 'e.g. How many timesheets are waiting for approval?', coach: 'Describe the situation: what happened, who’s involved, how long it’s been going on, and what you’ve tried.' };
 
-export default function Assistant({ admin, credits: initial }: { admin: boolean; credits: number }) {
+export default function Assistant({ admin, credits: initial, employer = false }: { admin: boolean; credits: number; employer?: boolean }) {
   const [mode, setMode] = useState<Mode>('business');
   const [turns, setTurns] = useState<Record<Mode, Turn[]>>({ business: [], coach: [] });
   const [q, setQ] = useState('');
@@ -35,7 +38,8 @@ export default function Assistant({ admin, credits: initial }: { admin: boolean;
     } catch { setError('Couldn’t reach the server. Check your connection and try again.'); }
     finally { setBusy(false); }
   }
-  const suggestions = mode === 'coach' ? COACH_SUGGESTIONS : [...SUGGESTIONS, ...(admin ? ADMIN_SUGGESTIONS : [])];
+  const suggestions = mode === 'coach' ? (employer ? COACH_SUGGESTIONS.slice(0, 4).concat('An employee says their manager is singling them out. How do I look into it fairly?') : COACH_SUGGESTIONS)
+    : employer ? [...EMPLOYER_SUGGESTIONS, ...(admin ? EMPLOYER_ADMIN : [])] : [...SUGGESTIONS, ...(admin ? ADMIN_SUGGESTIONS : [])];
 
   return (
     <section className="card">

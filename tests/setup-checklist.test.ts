@@ -31,6 +31,10 @@ describe('payroll setup steps', () => {
     expect(state(s)).toEqual(['✓ hours', '✓ provider', '· ids', '· run']);
     expect(s[2].hint).toBe('1 of 4 workers on assignment have none, so the import can’t match them. Add it on their candidate record.');
     expect(progress(payrollSteps({ ...base, approvedTimesheets: 3, exportProvider: 'adp', workersOnAssignment: 4, approvedRuns: 1 })).next).toBeNull();
+    // Employers: their own hourly employees, on employee records.
+    expect(payrollSteps({ ...base, exportProvider: 'adp', workersOnAssignment: 4, workersWithoutPayrollId: 1 }, 'EMPLOYER')[2]).toMatchObject({
+      hint: '1 of 4 hourly employees have none, so the import can’t match them. Add it on their employee record.', href: '/app/employees', action: 'Open employees',
+    });
   });
 
   it('follows the Check path: company, workers, first paid run', () => {

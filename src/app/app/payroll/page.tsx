@@ -24,7 +24,7 @@ export default async function Payroll() {
   if (!hasFeature(ctx.org, 'payrollRuns')) return <Gate title="Payroll runs" feature="Payroll runs (Enterprise)" />;
   if (ctx.role !== 'OWNER' && ctx.role !== 'ADMIN') return <div className="card empty"><b>Payroll is limited to admins</b>Ask an owner or admin on your team for access.</div>;
   const runs = await ctx.tdb.payrollRun.findMany({ include: { items: { include: { adjustments: true } } }, orderBy: [{ periodEnd: 'desc' }, { createdAt: 'desc' }], take: 100 });
-  const steps = payrollSteps(await payrollFacts(ctx.tdb, ctx.org, checkEnabled()));
+  const steps = payrollSteps(await payrollFacts(ctx.tdb, ctx.org, checkEnabled()), ctx.org.kind);
   const [deductions, onAssignment, employees] = await Promise.all([
     listDeductions(ctx.tdb),
     ctx.tdb.application.findMany({ where: hourlyWhere, select: { candidate: { select: { id: true, name: true } } } }),

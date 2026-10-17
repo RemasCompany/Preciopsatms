@@ -11,7 +11,8 @@ export type PayrollFacts = {
 };
 
 /** Two paths: pay through Check, or export a file for another provider. Choosing is itself a step. */
-export function payrollSteps(f: PayrollFacts): Step[] {
+export function payrollSteps(f: PayrollFacts, kind: 'STAFFING' | 'EMPLOYER' = 'STAFFING'): Step[] {
+  const who = kind === 'EMPLOYER' ? 'hourly employees' : 'workers on assignment', person = kind === 'EMPLOYER' ? 'employee' : 'candidate';
   const viaCheck = f.check !== 'none';
   const steps: Step[] = [
     { key: 'hours', label: 'Approve a week of hours', hint: 'Payroll runs are built from approved timesheets.', done: f.approvedTimesheets > 0, href: '/app/timesheets', action: 'Open timesheets' },
@@ -34,8 +35,8 @@ export function payrollSteps(f: PayrollFacts): Step[] {
   } else {
     steps.push(
       {
-        key: 'ids', label: 'Add payroll employee IDs', hint: f.workersWithoutPayrollId ? `${f.workersWithoutPayrollId} of ${f.workersOnAssignment} workers on assignment have none, so the import can’t match them. Add it on their candidate record.` : 'Every worker on assignment has one.',
-        done: f.workersOnAssignment > 0 && f.workersWithoutPayrollId === 0, href: '/app/candidates', action: 'Open candidates',
+        key: 'ids', label: 'Add payroll employee IDs', hint: f.workersWithoutPayrollId ? `${f.workersWithoutPayrollId} of ${f.workersOnAssignment} ${who} have none, so the import can’t match them. Add it on their ${person} record.` : `Every one of your ${who} has one.`,
+        done: f.workersOnAssignment > 0 && f.workersWithoutPayrollId === 0, href: kind === 'EMPLOYER' ? '/app/employees' : '/app/candidates', action: kind === 'EMPLOYER' ? 'Open employees' : 'Open candidates',
       },
       { key: 'run', label: 'Approve and export your first run', hint: 'Then mark it paid once your provider has paid it.', done: f.approvedRuns + f.paidRuns > 0, href: '#start', action: 'Start a run' },
     );
