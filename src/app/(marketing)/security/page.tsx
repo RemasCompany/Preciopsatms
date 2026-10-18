@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { Logo } from '@/components/Logo';
 import type { Metadata } from 'next';
 import { securityContact } from '@/lib/security-contact';
 
@@ -51,7 +52,7 @@ export default function SecurityPage() {
   const contact = securityContact();
   return (
     <main className="public" style={{ maxWidth: 820 }}>
-      <p className="muted" style={{ margin: 0 }}><Link href="/">← Preciops ATMS</Link></p>
+      <p className="muted" style={{ margin: 0 }}><Link href="/" aria-label="Preciops-ATMS home" style={{ textDecoration: 'none' }}><Logo size={28} /></Link></p>
       <h1>Security</h1>
       <p className="lede">Staffing firms hold sensitive information about thousands of workers. This page sets out how Preciops protects it, and what isn’t in place yet, so you can judge for yourself.</p>
       {SECTIONS.map(([title, items]) => (

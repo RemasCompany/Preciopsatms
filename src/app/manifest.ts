@@ -3,8 +3,8 @@ import type { MetadataRoute } from 'next';
 /** Lets people add Preciops to their phone's home screen and open it full screen like an app. */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Preciops ATMS', short_name: 'Preciops', description: 'Recruiting, CRM, timesheets and e-signatures for staffing firms.',
-    start_url: '/app', scope: '/', display: 'standalone', orientation: 'any', background_color: '#152238', theme_color: '#152238',
+    name: 'Preciops-ATMS', short_name: 'Preciops', description: 'Recruiting, CRM, timesheets and e-signatures for staffing firms.',
+    start_url: '/app', scope: '/', display: 'standalone', orientation: 'any', background_color: '#0B1F3A', theme_color: '#0B1F3A',
     icons: [
       { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
       { src: '/icon-512.png', sizes: '512x512', type: 'image/png' },

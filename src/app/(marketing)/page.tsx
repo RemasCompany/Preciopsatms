@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { Logo } from '@/components/Logo';
 import { PLANS, planView, type PlanId } from '@/lib/plans';
 
 const FEATURES = [
@@ -14,8 +15,7 @@ const FEATURES = [
 export default function Home() {
   return (
     <main className="public" style={{ maxWidth: 1100 }}>
-      <h1>Preciops ATMS</h1>
-      <p className="muted" style={{ fontWeight: 700, fontSize: 18, marginTop: 0 }}>Advanced Talent Management System</p>
+      <h1 style={{ margin: '0 0 20px' }}><Logo size={64} tagline /></h1>
       <p className="lede">One workforce platform to recruit, schedule, pay and stay compliant — for staffing agencies placing workers with clients, and for companies managing their own employees.</p>
       <p><Link className="btn" href="/signup">Start your {process.env.TRIAL_DAYS ?? 14}-day free trial</Link> <Link className="btn ghost" href="/login">Sign in</Link></p>
       <div className="plans" style={{ marginTop: 36 }}>{FEATURES.map(([t, d]) => <div className="plan" key={t}><b>{t}</b><p className="muted">{d}</p></div>)}</div>

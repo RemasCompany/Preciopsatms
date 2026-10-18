@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import InboxButton from './InboxButton';
+import { Logo } from './Logo';
 
 export type NavGroup = [group: string, items: [href: string, label: string][]];
 
@@ -43,7 +44,7 @@ export default function AppNav({ groups, company, inboxUnread = null }: { groups
   return (
     <>
       <nav className="side" aria-label="Main">
-        <b>Preciops ATMS<small>{company}</small></b>
+        <Link href="/app" aria-label="Preciops-ATMS home" style={{ padding: 0 }}><Logo size={30} light /></Link><span className="brandco">{company}</span>
         {links}
       </nav>
       <header className="topbar">
@@ -55,7 +56,7 @@ export default function AppNav({ groups, company, inboxUnread = null }: { groups
       </header>
       {open && (
         <div id="mobile-menu" className="mobilemenu" role="dialog" aria-modal="true" aria-label="Menu">
-          <div className="mobilemenu-head"><b>Preciops ATMS<small>{company}</small></b>
+          <div className="mobilemenu-head"><span><Logo size={28} light /><small>{company}</small></span>
             <button className="iconbtn" onClick={() => setOpen(false)} aria-label="Close menu"><Icon d="M6 6l12 12M18 6L6 18" /></button></div>
           {links}
         </div>
