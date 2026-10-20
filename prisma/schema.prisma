@@ -145,6 +145,7 @@ model Organization {
   openShifts            OpenShift[]
   shiftOffers           ShiftOffer[]
   backgroundChecks      BackgroundCheck[]
+  checkrConnection      CheckrConnection?
   accountingConnections AccountingConnection[]
   payrollConnections    PayrollConnection[]
   payrollWorkers        PayrollWorker[]
@@ -992,6 +993,21 @@ model BackgroundCheck {
 
   @@index([organizationId, candidateId])
   @@index([externalInvitationId])
+}
+
+/// A company's own Checkr account, connected through Checkr's partner sign-in. Each company orders checks under its
+/// own account (Checkr credentials every employer for FCRA permissible purpose); the token is sealed at rest.
+model CheckrConnection {
+  id             String       @id @default(cuid())
+  organizationId String       @unique
+  accountId      String       @unique // checkr_account_id; webhooks name it, so one Checkr account belongs to one company here
+  accountName    String?
+  accessTokenEnc String
+  tokenHash      String       @unique // sha256 of the token, to match Checkr's token.deauthorized webhook
+  credentialedAt DateTime? // Checkr approved the account to run checks
+  connectedById  String?
+  connectedAt    DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 }
 
 /// A shift nobody is on yet, offered to the job's worker pool; the first to accept gets it.

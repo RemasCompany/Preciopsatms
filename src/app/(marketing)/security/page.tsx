@@ -29,7 +29,8 @@ const SECTIONS: [string, string[]][] = [
   ['Files and connections', [
     'Uploaded files are kept in private storage. They can be opened only through short-lived signed links handed out after checking the person may see them.',
     'Every page is served over HTTPS, and browsers are told to use HTTPS only. Signed-in and private pages can’t be framed by other sites.',
-    'Webhooks from Checkr and Check are verified by signature. A Check webhook only prompts us to re-read the payroll or worker from Check, so its contents can’t change anything by themselves.',
+    'Webhooks from Checkr and Check are verified by signature. A webhook only prompts us to re-read the record from Checkr or Check with that company’s own access, so its contents can’t change anything by themselves.',
+    'Each company orders background checks under its own Checkr account, which Checkr approves for that employer. Reports stay in that account, and one company’s checks are never visible to another.',
   ]],
   ['Audit log and messages', [
     'Sign-ins, team and role changes, settings, payroll approvals, payments, data exports and document views are recorded with who, when and from where. Entries can’t be edited or deleted, even by owners.',

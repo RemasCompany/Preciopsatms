@@ -40,6 +40,7 @@ export const AUDIT_ACTIONS = {
   'training.override': { group: 'Workers', label: 'Overrode a missing certification' },
   'training.course': { group: 'Workers', label: 'Changed a training course' },
   'screening.order': { group: 'Data', label: 'Ordered a background check' },
+  'settings.screening': { group: 'Settings', label: 'Checkr connection' },
   'eeo.report_view': { group: 'EEO', label: 'Viewed the EEO report' },
   'eeo.export': { group: 'EEO', label: 'Exported the applicant flow log' },
   'payroll.approve': { group: 'Payroll', label: 'Approved a payroll run' },

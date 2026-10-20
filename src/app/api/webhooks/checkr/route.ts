@@ -1,7 +1,7 @@
 import { applyEvent, verifySignature } from '@/lib/checkr';
 import { captureError } from '@/lib/monitoring';
 
-/** Checkr webhook (set https://<your-app>/api/webhooks/checkr in the Checkr dashboard). Signed with the API key. */
+/** Checkr partner webhook (the webhook_url registered with Checkr: https://<your-app>/api/webhooks/checkr). */
 export async function POST(req: Request) {
   const raw = await req.text();
   if (!verifySignature(raw, req.headers.get('x-checkr-signature'))) return Response.json({ error: 'Bad signature' }, { status: 401 });

@@ -8,8 +8,10 @@ import { hasFeature, planIncludes } from '@/lib/plans';
 import { OnboardingSettings } from '@/components/Onboarding';
 import { AccountingCard } from '@/components/Accounting';
 import { PROVIDERS, providerEnabled, type Provider } from '@/lib/accounting';
+import ScreeningCard from '@/components/Screening';
+import { screeningStatus } from '@/lib/checkr';
 
-export default async function Settings({ searchParams }: { searchParams: { accounting?: string; accounting_error?: string } }) {
+export default async function Settings({ searchParams }: { searchParams: { accounting?: string; accounting_error?: string; screening?: string; screening_error?: string } }) {
   const ctx = await requirePageContext();
   const { org, tdb, role } = ctx;
   const showBooks = hasFeature(org, 'invoicing') && (role === 'OWNER' || role === 'ADMIN');
@@ -50,6 +52,10 @@ export default async function Settings({ searchParams }: { searchParams: { accou
             const c = conns.find((x) => x.provider === p);
             return { provider: p, name: PROVIDERS[p].name, enabled: providerEnabled(p), connected: c ? { tenantName: c.tenantName, connectedAt: c.connectedAt.toISOString(), lastSyncAt: c.lastSyncAt?.toISOString() ?? null, lastError: c.lastError } : null };
           })} />
+      )}
+      {hasFeature(org, 'credentials') && (role === 'OWNER' || role === 'ADMIN') && (
+        <ScreeningCard status={await screeningStatus(tdb)} canEdit={admin} error={searchParams.screening_error?.slice(0, 300)}
+          notice={searchParams.screening === 'ready' ? 'Connected. You can order background checks now.' : searchParams.screening === 'pending' ? 'Connected. Checkr will email you to finish approving your company.' : undefined} />
       )}
       {planIncludes(org, 'onboarding') && <OnboardingSettings enabled={org.onboardingEnabled} enforcement={org.onboardingEnforcement} readOnly={!admin} />}
       <DataTools canImport={canEdit(ctx) && role !== 'VIEWER'} owner={role === 'OWNER'} />

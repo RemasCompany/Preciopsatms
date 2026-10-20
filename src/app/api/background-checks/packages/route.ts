@@ -1,11 +1,11 @@
 import { requireApiContext, withApi } from '@/lib/tenant';
-import { checkrEnabled, packages } from '@/lib/checkr';
+import { packages, screeningStatus } from '@/lib/checkr';
 
 export const dynamic = 'force-dynamic';
 
-/** Checkr packages this account can order, or { enabled: false } when Checkr isn't configured. */
+/** Whether this company can order checks yet (off / not_connected / pending / ready), and its packages once it can. */
 export const GET = withApi(async () => {
-  await requireApiContext({ minRole: 'RECRUITER', feature: 'credentials' });
-  if (!checkrEnabled()) return Response.json({ enabled: false, packages: [] });
-  return Response.json({ enabled: true, packages: await packages() });
+  const { tdb, role } = await requireApiContext({ minRole: 'RECRUITER', feature: 'credentials' });
+  const s = await screeningStatus(tdb);
+  return Response.json({ ...s, enabled: s.state === 'ready', admin: role === 'OWNER' || role === 'ADMIN', packages: s.state === 'ready' ? await packages(tdb) : [] });
 });
