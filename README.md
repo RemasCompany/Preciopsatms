@@ -96,7 +96,7 @@ Team accounts can add an authenticator-app code after the password (TOTP, `src/l
 
 See **PLAN.md** for the roadmap and launch checklist, and **CLAUDE.md** for the remaining build work.
 
-> Status: written but not yet installed, compiled or tested — run `npm install && npm run typecheck` first and fix anything it flags.
+> Status (October 2026, commit `c06dc1d`): installs, typechecks, lints and builds for production with no errors; all 47 migrations apply cleanly to PostgreSQL 16; the database-free test files pass. The database-backed Vitest suites and the Playwright end-to-end run still need to be run in an environment that can download Prisma's engines (`npm test`, `npm run e2e`).
 
 ## Domains (production)
 | Host | Purpose |
