@@ -96,7 +96,7 @@ Team accounts can add an authenticator-app code after the password (TOTP, `src/l
 
 See **PLAN.md** for the roadmap and launch checklist, and **CLAUDE.md** for the remaining build work.
 
-> Status: written but not yet installed, compiled or tested — run `npm install && npm run typecheck` first and fix anything it flags.
+> Status (October 2026, commit `c06dc1d`): installs, typechecks, lints and builds for production with no errors, and all 47 migrations apply cleanly to PostgreSQL 16. In CI the test suite runs against Postgres and only `tests/accounting.test.ts` and `tests/checkr.test.ts` fail; the accounting failures come from the CI test step not setting `INTEGRATIONS_KEY` (or `NEXTAUTH_SECRET`). Because that job fails, the e2e and Docker jobs are skipped.
 
 ## Domains (production)
 | Host | Purpose |
