@@ -126,11 +126,12 @@ describe('building the schedule', () => {
     expect((await add({ applicationId: directHire, dates: ['2026-10-05'] })).status).toBe(404);
   });
 
-  it('is read-only for viewers, needs the plan, and stays inside the company', async () => {
+  it('is read-only for viewers, on every plan, and stays inside the company', async () => {
     as(viewer);
     expect((await add({ applicationId: ben.app, dates: ['2026-10-05'] })).status).toBe(403);
+    // Every plan includes scheduling now, so a Starter company gets past the plan check and stops at the company line.
     as(liteUser, lite);
-    expect((await add({ applicationId: ben.app, dates: ['2026-10-05'] })).status).toBe(402);
+    expect((await add({ applicationId: ben.app, dates: ['2026-10-05'] })).status).toBe(404);
     as(outsider, other);
     expect((await add({ applicationId: ben.app, dates: ['2026-10-05'] })).status).toBe(404);
     const s = (await db.shift.findFirst({ where: { applicationId: maria.app } }))!;

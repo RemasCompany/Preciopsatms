@@ -14,9 +14,9 @@ export const PLANS: Record<PlanId, {
 }> = {
   starter: {
     name: 'Starter', priceEnv: 'STRIPE_PRICE_STARTER', perSeat: false, maxSeats: 3, monthlyAiCredits: 200,
-    features: ['ats', 'crm', 'leads', 'careers', 'messaging', 'people'],
-    blurb: 'Applicant tracking, CRM, lead tracking and a careers page for small agencies.', displayPrice: '$99/mo · up to 3 users',
-    employer: { name: 'Starter', priceEnv: 'STRIPE_PRICE_STARTER_EMPLOYER', displayPrice: '$4/employee/mo · up to 3 admins', blurb: 'Hiring, a careers page and an employee directory with departments, an org chart and pay history.' },
+    features: ['ats', 'crm', 'leads', 'careers', 'messaging', 'people', 'scheduling'],
+    blurb: 'Applicant tracking, CRM, lead tracking, shift scheduling and a careers page for small agencies.', displayPrice: '$99/mo · up to 3 users',
+    employer: { name: 'Starter', priceEnv: 'STRIPE_PRICE_STARTER_EMPLOYER', displayPrice: '$4/employee/mo · up to 3 admins', blurb: 'Hiring, a careers page, shift scheduling and an employee directory with departments, an org chart and pay history.' },
   },
   growth: {
     name: 'Growth', priceEnv: 'STRIPE_PRICE_GROWTH', perSeat: true, maxSeats: null, monthlyAiCredits: 2000,
