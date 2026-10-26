@@ -9,10 +9,10 @@ jobs:
     services:
       postgres:
         image: postgres:16
-        env: { POSTGRES_USER: preci, POSTGRES_PASSWORD: preci, POSTGRES_DB: preciops_test }
+        env: { POSTGRES_USER: postgres, POSTGRES_PASSWORD: postgres, POSTGRES_DB: postgres }
         ports: ['5432:5432']
         options: >-
-          --health-cmd "pg_isready -U preci" --health-interval 5s --health-timeout 5s --health-retries 10
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       DATABASE_URL: postgresql://preci:preci@localhost:5432/preciops_test
       TEST_DATABASE_URL: postgresql://preci:preci@localhost:5432/preciops_test
@@ -22,6 +22,8 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci
+      # The app's database user owns its tables but isn't a superuser (superusers skip row-level security), as in production.
+      - run: psql postgresql://postgres:postgres@localhost:5432/postgres -c "CREATE ROLE preci LOGIN PASSWORD 'preci'" -c "CREATE DATABASE preciops_test OWNER preci"
       - run: npx prisma migrate deploy
       - run: npm run typecheck
       - run: npm run lint
@@ -35,10 +37,10 @@ jobs:
     services:
       postgres:
         image: postgres:16
-        env: { POSTGRES_USER: preci, POSTGRES_PASSWORD: preci, POSTGRES_DB: preciops_e2e }
+        env: { POSTGRES_USER: postgres, POSTGRES_PASSWORD: postgres, POSTGRES_DB: postgres }
         ports: ['5432:5432']
         options: >-
-          --health-cmd "pg_isready -U preci" --health-interval 5s --health-timeout 5s --health-retries 10
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       DATABASE_URL: postgresql://preci:preci@localhost:5432/preciops_e2e
       NEXTAUTH_SECRET: ci-only-secret-not-used-in-production-000
@@ -50,6 +52,8 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci
+      # The app's database user owns its tables but isn't a superuser (superusers skip row-level security), as in production.
+      - run: psql postgresql://postgres:postgres@localhost:5432/postgres -c "CREATE ROLE preci LOGIN PASSWORD 'preci'" -c "CREATE DATABASE preciops_e2e OWNER preci"
       - run: npx prisma migrate deploy
       - run: npm run build
       - run: npx playwright install --with-deps chromium
