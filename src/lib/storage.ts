@@ -1,7 +1,7 @@
-import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { randomUUID } from 'crypto';
-import { mkdir, readFile, writeFile } from 'fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'fs/promises';
 import path from 'path';
 import { db } from './db';
 
@@ -42,4 +42,10 @@ export async function getFile(key: string): Promise<Buffer> {
   if (LOCAL) return readFile(localPath(key));
   const res = await s3.send(new GetObjectCommand({ Bucket: process.env.S3_BUCKET, Key: key }));
   return Buffer.from(await res.Body!.transformToByteArray());
+}
+
+/** Removes a file's bytes from storage (the StoredFile row is the caller's to delete). Missing files are fine. */
+export async function removeFile(key: string) {
+  if (LOCAL) { await rm(localPath(key), { force: true }); return; }
+  await s3.send(new DeleteObjectCommand({ Bucket: process.env.S3_BUCKET, Key: key }));
 }

@@ -12,9 +12,10 @@ const FEATURES = [
   ['People & HR for employers', 'Employee directory, departments, an org chart, pay history, scheduling and a mobile time clock for your own team.'],
 ];
 
-export default function Home() {
+export default function Home({ searchParams }: { searchParams?: { deleted?: string } }) {
   return (
     <main className="public" style={{ maxWidth: 1100 }}>
+      {searchParams?.deleted && <p className="card banner" role="status">Your company and its data have been deleted. Thank you for using Preciops.</p>}
       <h1 style={{ margin: '0 0 20px' }}><Logo size={64} tagline /></h1>
       <p className="lede">One workforce platform to recruit, schedule, pay and stay compliant — for staffing agencies placing workers with clients, and for companies managing their own employees.</p>
       <p><Link className="btn" href="/signup">Start your {process.env.TRIAL_DAYS ?? 14}-day free trial</Link> <Link className="btn ghost" href="/login">Sign in</Link></p>

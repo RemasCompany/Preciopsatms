@@ -39,7 +39,7 @@ const SECTIONS: [string, string[]][] = [
   ]],
   ['Your data, your control', [
     'Owners can download all of their company’s data at any time from Settings & data, for their own records or to answer an access or portability request under GDPR or CCPA.',
-    'To delete your company’s data, or to answer a deletion request from a worker or candidate, contact us at the address below.',
+    'Owners can delete their company from Settings & data. That cancels billing, removes uploaded files and permanently deletes every record, and logins that belong to no other company. To answer a deletion request from a worker or candidate, delete their record, or contact us at the address below.',
   ]],
 ];
 

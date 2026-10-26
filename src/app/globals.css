@@ -461,3 +461,6 @@ ol.codes{display:grid;grid-template-columns:repeat(2,max-content);gap:6px 48px;p
 .mobilemenu-head .logo{--logo:28px}
 .brandbar{display:flex;justify-content:center;padding:36px 20px 0}.brandbar a{text-decoration:none}.brandbar+.public{padding-top:20px}
 .public h1 .logo{vertical-align:middle}
+/* Destructive actions */
+.card.danger{border-color:rgba(179,38,30,.35)}.card.danger h2{color:var(--red)}
+.btn.destroy{background:var(--red);color:#fff}.btn.destroy:disabled{opacity:.5;cursor:not-allowed}

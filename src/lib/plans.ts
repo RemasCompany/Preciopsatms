@@ -8,24 +8,26 @@ export type Feature =
 
 export const PLANS: Record<PlanId, {
   name: string; priceEnv: string; perSeat: boolean; maxSeats: number | null;
+  /** Per-seat plans bill at least this many users, however few are on the team. */
+  minSeats: number;
   monthlyAiCredits: number; features: Feature[]; blurb: string; displayPrice: string;
   /** Employers pay per active employee on every tier (a separate Stripe price). */
   employer: { name: string; priceEnv: string; blurb: string; displayPrice: string };
 }> = {
   starter: {
-    name: 'Starter', priceEnv: 'STRIPE_PRICE_STARTER', perSeat: false, maxSeats: 3, monthlyAiCredits: 200,
+    name: 'Starter', priceEnv: 'STRIPE_PRICE_STARTER', perSeat: false, maxSeats: 3, minSeats: 1, monthlyAiCredits: 200,
     features: ['ats', 'crm', 'leads', 'careers', 'messaging', 'people', 'scheduling'],
     blurb: 'Applicant tracking, CRM, lead tracking, shift scheduling and a careers page for small agencies.', displayPrice: '$99/mo · up to 3 users',
     employer: { name: 'Starter', priceEnv: 'STRIPE_PRICE_STARTER_EMPLOYER', displayPrice: '$4/employee/mo · up to 3 admins', blurb: 'Hiring, a careers page, shift scheduling and an employee directory with departments, an org chart and pay history.' },
   },
   growth: {
-    name: 'Growth', priceEnv: 'STRIPE_PRICE_GROWTH', perSeat: true, maxSeats: null, monthlyAiCredits: 2000,
+    name: 'Growth', priceEnv: 'STRIPE_PRICE_GROWTH', perSeat: true, maxSeats: null, minSeats: 2, monthlyAiCredits: 2000,
     features: ['ats', 'crm', 'leads', 'careers', 'messaging', 'vendors', 'timesheets', 'invoicing', 'esign', 'ai', 'credentials', 'scheduling', 'timeclock', 'onboarding', 'engagement', 'clientPortal', 'people', 'timeoff', 'reviews', 'aca'],
-    blurb: 'Everything to run a staffing desk: timesheets, payroll export, invoicing, e-signatures, credential tracking, shift scheduling, a mobile time clock, new-hire onboarding, vendors and AI.', displayPrice: '$79/user/mo',
+    blurb: 'Everything to run a staffing desk: timesheets, payroll export, invoicing, e-signatures, credential tracking, shift scheduling, a mobile time clock, new-hire onboarding, vendors and AI.', displayPrice: '$79/user/mo · 2-user minimum',
     employer: { name: 'Growth', priceEnv: 'STRIPE_PRICE_GROWTH_EMPLOYER', displayPrice: '$8/employee/mo', blurb: 'Everything to run your workforce: time off and balances, performance reviews and goals, scheduling, a mobile time clock, timesheets and payroll export, onboarding, e-signatures, credentials, engagement and AI.' },
   },
   enterprise: {
-    name: 'Enterprise / MSP', priceEnv: 'STRIPE_PRICE_ENTERPRISE', perSeat: true, maxSeats: null, monthlyAiCredits: 10000,
+    name: 'Enterprise / MSP', priceEnv: 'STRIPE_PRICE_ENTERPRISE', perSeat: true, maxSeats: null, minSeats: 1, monthlyAiCredits: 10000,
     features: ['ats', 'crm', 'leads', 'careers', 'messaging', 'vendors', 'timesheets', 'invoicing', 'esign', 'ai', 'credentials', 'scheduling', 'timeclock', 'onboarding', 'engagement', 'clientPortal', 'payrollRuns', 'eeo', 'api', 'sso', 'whitelabel', 'training', 'people', 'timeoff', 'reviews', 'vms', 'aca'],
     blurb: 'Payroll runs with provider exports, equipment operator training and certification, EEO/OFCCP reporting, API, SSO, white-label and dedicated onboarding.', displayPrice: 'Custom',
     employer: { name: 'Enterprise', priceEnv: 'STRIPE_PRICE_ENTERPRISE_EMPLOYER', displayPrice: 'Custom', blurb: 'Payroll runs with provider exports, equipment operator training and certification, EEO reporting, API, SSO and dedicated onboarding.' },

@@ -62,7 +62,7 @@ describe('company type', () => {
   });
   it('prices employers per employee and renames their stages and job fields', () => {
     expect(planView('growth', 'EMPLOYER').displayPrice).toMatch(/employee/);
-    expect(planView('growth', 'STAFFING').displayPrice).toBe('$79/user/mo');
+    expect(planView('growth', 'STAFFING').displayPrice).toBe('$79/user/mo · 2-user minimum');
     process.env.STRIPE_PRICE_GROWTH_EMPLOYER = 'price_emp_growth';
     expect(priceIdFor('growth', 'EMPLOYER')).toBe('price_emp_growth');
     expect([stageLabel('PLACED', 'EMPLOYER'), stageLabel('SUBMITTED', 'EMPLOYER'), stageLabel('PLACED')]).toEqual(['Hired', 'Hiring manager', 'Placed']);

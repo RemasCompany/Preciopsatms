@@ -2,6 +2,7 @@ import { requirePageContext, canEdit } from '@/lib/tenant';
 import SettingsForm from '@/components/SettingsForm';
 import CompanyType from '@/components/CompanyType';
 import DataTools from '@/components/DataTools';
+import DeleteCompany from '@/components/DeleteCompany';
 import JobBoards from '@/components/JobBoards';
 import { boardStats, feedWarnings } from '@/lib/job-boards';
 import { hasFeature, planIncludes } from '@/lib/plans';
@@ -65,6 +66,7 @@ export default async function Settings({ searchParams }: { searchParams: { accou
       )}
       {planIncludes(org, 'onboarding') && <OnboardingSettings enabled={org.onboardingEnabled} enforcement={org.onboardingEnforcement} readOnly={!admin} />}
       <DataTools canImport={canEdit(ctx) && role !== 'VIEWER'} owner={role === 'OWNER'} />
+      {role === 'OWNER' && <DeleteCompany company={org.name} twoStep={!!ctx.user.totpEnabledAt} subscribed={!!org.stripeSubscriptionId} />}
     </>
   );
 }
