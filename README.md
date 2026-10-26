@@ -77,6 +77,12 @@ Team accounts can add an authenticator-app code after the password (TOTP, `src/l
 - Admins can require it for the company (Team page). Until someone sets it up, the app layout shows only the setup screen and `requireApiContext` refuses everything except routes that pass `twoStepSetup: true`.
 - Admins can reset a teammate's two-step sign-in for a lost phone. They can't reset an owner unless they're an owner, and they can't reset anyone who also belongs to another company.
 
+## Single sign-on (Enterprise)
+Companies sign in through their own identity provider (Microsoft Entra ID, Google Workspace, Okta, any SAML or OIDC provider) via WorkOS (`src/lib/sso.ts`). Set `WORKOS_API_KEY` and `WORKOS_CLIENT_ID`, and register `https://<your-app>/api/auth/sso/callback` as a redirect URI in WorkOS.
+- An admin adds the company's email domains in Settings & data (each must be used by a current member, no webmail domains, not claimed by another company). That creates a WorkOS organization. The admin, or their IT team from a copied link, then connects the identity provider in WorkOS's setup portal.
+- "Sign in with SSO" finds the company by email domain. The callback exchanges the code for the profile, checks it came from that company's WorkOS organization and one of its domains, and only signs in people who are already members. It hands the browser a two-minute, one-time ticket for the `sso` credentials provider.
+- Admins can require SSO. Passwords then stop working for everyone except owners, who keep one as a way back in. If the connection stops being active, the requirement switches off by itself. An SSO session satisfies the company's two-step requirement, since the identity provider runs its own second step.
+
 ## What's built
 | Area | Where |
 |---|---|

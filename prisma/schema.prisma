@@ -65,6 +65,7 @@ model Organization {
   payrollCompanyCode      String? // company code some providers need in imports (e.g. ADP Co Code)
   payrollExportDeductions Boolean              @default(false) // put recurring deductions in export files (off when the provider already has them)
   requireTwoStep          Boolean              @default(false) // every teammate must use two-step sign-in
+  ssoRequired             Boolean              @default(false) // members sign in through the company's identity provider (owners keep a password as a backup)
   timezone                String               @default("America/New_York") // IANA zone for time clock days and workweeks
   geofenceMode            String               @default("flag") // off | flag | block: time clock punches outside a job site's geofence
   everifyEnabled          Boolean              @default(false)
@@ -146,6 +147,7 @@ model Organization {
   shiftOffers           ShiftOffer[]
   backgroundChecks      BackgroundCheck[]
   checkrConnection      CheckrConnection?
+  ssoConnection         SsoConnection?
   accountingConnections AccountingConnection[]
   payrollConnections    PayrollConnection[]
   payrollWorkers        PayrollWorker[]
@@ -993,6 +995,21 @@ model BackgroundCheck {
 
   @@index([organizationId, candidateId])
   @@index([externalInvitationId])
+}
+
+/// Single sign-on (Enterprise) through WorkOS: one WorkOS organization per company, connected to the company's identity
+/// provider (Microsoft Entra, Google Workspace, Okta…). Its email domains route "Sign in with SSO" to the right company.
+model SsoConnection {
+  id             String       @id @default(cuid())
+  organizationId String       @unique
+  workosOrgId    String       @unique
+  domains        String[]
+  state          String       @default("draft") // WorkOS connection state: draft until IT finishes, then active
+  connectionType String? // e.g. OktaSAML, AzureSAML, GoogleOAuth
+  createdById    String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 }
 
 /// A company's own Checkr account, connected through Checkr's partner sign-in. Each company orders checks under its

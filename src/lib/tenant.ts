@@ -10,7 +10,7 @@ import { captureError, cleanPath } from './monitoring';
 // Each of these tables also has a Postgres row-level security policy (see ORG_SETTING below); tests check the two lists match.
 export const TENANT_MODELS = new Set<string>([
   'Job', 'Candidate', 'Application', 'EeoSelfId', 'Client', 'Contact', 'Deal', 'Lead', 'Vendor', 'Task',
-  'Timesheet', 'SignDocument', 'Message', 'Activity', 'StoredFile', 'Invite', 'SalesTarget', 'Credential', 'Shift', 'WorkerLink', 'PayrollRun', 'PayrollItem', 'PayrollAdjustment', 'TimeEntry', 'OnboardingPackage', 'Onboarding', 'OnboardingStep', 'Feedback', 'FeedbackRequest', 'Recognition', 'AuditLog', 'BackgroundTask', 'Invoice', 'InvoiceLine', 'Payment', 'ClientPortalLink', 'OpenShift', 'ShiftOffer', 'BackgroundCheck', 'CheckrConnection', 'AccountingConnection', 'ExternalRef', 'EVerifyCase', 'DoNotReturn', 'Referral', 'Branch', 'ReportSchedule', 'TrainingCourse', 'TrainingEnrollment', 'TaskComment', 'HiringDocument', 'Interview', 'Scorecard', 'PayrollConnection', 'PayrollWorker', 'VmsProgram', 'AcaPolicy', 'AcaOffer', 'PayDeduction',
+  'Timesheet', 'SignDocument', 'Message', 'Activity', 'StoredFile', 'Invite', 'SalesTarget', 'Credential', 'Shift', 'WorkerLink', 'PayrollRun', 'PayrollItem', 'PayrollAdjustment', 'TimeEntry', 'OnboardingPackage', 'Onboarding', 'OnboardingStep', 'Feedback', 'FeedbackRequest', 'Recognition', 'AuditLog', 'BackgroundTask', 'Invoice', 'InvoiceLine', 'Payment', 'ClientPortalLink', 'OpenShift', 'ShiftOffer', 'BackgroundCheck', 'CheckrConnection', 'SsoConnection', 'AccountingConnection', 'ExternalRef', 'EVerifyCase', 'DoNotReturn', 'Referral', 'Branch', 'ReportSchedule', 'TrainingCourse', 'TrainingEnrollment', 'TaskComment', 'HiringDocument', 'Interview', 'Scorecard', 'PayrollConnection', 'PayrollWorker', 'VmsProgram', 'AcaPolicy', 'AcaOffer', 'PayDeduction',
   'Department', 'Employee', 'CompensationChange', 'LeavePolicy', 'LeaveRequest', 'LeaveEntry', 'ReviewCycle', 'Review', 'Goal', 'OffboardingTask',
 ]);
 // Written once, never changed: the audit log is evidence.
@@ -95,7 +95,7 @@ export { HttpError };
 export async function requirePageContext(minRole: Role = 'VIEWER') {
   const session = await getServerSession(authOptions);
   if (!session?.user) redirect('/login');
-  const ctx = await loadContext(session.user.id, session.user.orgId, session.user.issuedAt);
+  const ctx = await loadContext(session.user.id, session.user.orgId, session.user.issuedAt, session.user.via);
   if (!ctx) redirect('/login');
   if (RANK[ctx.role] < RANK[minRole]) redirect('/app');
   return ctx;
@@ -105,7 +105,7 @@ export async function requirePageContext(minRole: Role = 'VIEWER') {
 export async function requireApiContext(opts: { minRole?: Role; feature?: Feature; write?: boolean; twoStepSetup?: boolean } = {}) {
   const session = await getServerSession(authOptions);
   if (!session?.user) throw new HttpError(401, 'Sign in required');
-  const ctx = await loadContext(session.user.id, session.user.orgId, session.user.issuedAt);
+  const ctx = await loadContext(session.user.id, session.user.orgId, session.user.issuedAt, session.user.via);
   if (!ctx) throw new HttpError(401, 'Sign in required');
   // The company requires two-step sign-in and they haven't set it up: only the setup routes work until they do.
   if (needsTwoStep(ctx) && !opts.twoStepSetup) throw new HttpError(403, 'Your company requires two-step sign-in. Set it up under My sign-in first.');
@@ -120,15 +120,18 @@ export async function requireApiContext(opts: { minRole?: Role; feature?: Featur
   return ctx;
 }
 
-/** The company requires two-step sign-in and this person hasn't turned it on yet. */
-export const needsTwoStep = (ctx: { org: { requireTwoStep: boolean }; user: { totpEnabledAt: Date | null } }) => ctx.org.requireTwoStep && !ctx.user.totpEnabledAt;
+/**
+ * The company requires two-step sign-in and this person hasn't turned it on yet. Single sign-on counts: the company's
+ * identity provider runs its own second step.
+ */
+export const needsTwoStep = (ctx: { org: { requireTwoStep: boolean }; user: { totpEnabledAt: Date | null }; via?: 'sso' }) => ctx.org.requireTwoStep && !ctx.user.totpEnabledAt && ctx.via !== 'sso';
 
-async function loadContext(userId: string, orgId: string, issuedAt?: number) {
+async function loadContext(userId: string, orgId: string, issuedAt?: number, via?: 'sso') {
   const m = await db.membership.findUnique({ where: { userId_organizationId: { userId, organizationId: orgId } }, include: { organization: true, user: true } });
   if (!m) return null;
   // A password reset signs out every session issued before it (issuedAt is the JWT's iat, in seconds).
   if (m.user.passwordChangedAt && (!issuedAt || issuedAt * 1000 < m.user.passwordChangedAt.getTime() - 1000)) return null;
-  return { user: m.user, org: m.organization, role: m.role, tdb: tenantDb(orgId) };
+  return { user: m.user, org: m.organization, role: m.role, tdb: tenantDb(orgId), via };
 }
 
 export function withApi<T extends unknown[]>(fn: (...args: T) => Promise<Response>) {

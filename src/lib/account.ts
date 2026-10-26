@@ -4,7 +4,7 @@ import { newToken, sha256 } from './tokens';
 import { sendEmail } from './email';
 
 const appUrl = () => process.env.APP_URL ?? 'http://localhost:3000';
-const TTL = { reset: 60 * 60e3, verify: 7 * 864e5 } as const;
+const TTL = { reset: 60 * 60e3, verify: 7 * 864e5, sso: 2 * 60e3 } as const; // sso: the hand-off from the SSO callback to the session
 export type TokenKind = keyof typeof TTL;
 
 /** A fresh one-time link for a user; earlier unused links of the same kind stop working. */

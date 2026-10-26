@@ -9,9 +9,11 @@ import { OnboardingSettings } from '@/components/Onboarding';
 import { AccountingCard } from '@/components/Accounting';
 import { PROVIDERS, providerEnabled, type Provider } from '@/lib/accounting';
 import ScreeningCard from '@/components/Screening';
+import SsoCard from '@/components/Sso';
+import { domainOf, ssoStatus } from '@/lib/sso';
 import { screeningStatus } from '@/lib/checkr';
 
-export default async function Settings({ searchParams }: { searchParams: { accounting?: string; accounting_error?: string; screening?: string; screening_error?: string } }) {
+export default async function Settings({ searchParams }: { searchParams: { accounting?: string; accounting_error?: string; screening?: string; screening_error?: string; sso?: string } }) {
   const ctx = await requirePageContext();
   const { org, tdb, role } = ctx;
   const showBooks = hasFeature(org, 'invoicing') && (role === 'OWNER' || role === 'ADMIN');
@@ -56,6 +58,10 @@ export default async function Settings({ searchParams }: { searchParams: { accou
       {hasFeature(org, 'credentials') && (role === 'OWNER' || role === 'ADMIN') && (
         <ScreeningCard status={await screeningStatus(tdb)} canEdit={admin} error={searchParams.screening_error?.slice(0, 300)}
           notice={searchParams.screening === 'ready' ? 'Connected. You can order background checks now.' : searchParams.screening === 'pending' ? 'Connected. Checkr will email you to finish approving your company.' : undefined} />
+      )}
+      {(role === 'OWNER' || role === 'ADMIN') && (
+        <SsoCard status={hasFeature(org, 'sso') ? await ssoStatus(tdb, org) : { state: 'upgrade' }} canEdit={admin} myDomain={domainOf(ctx.user.email)}
+          notice={searchParams.sso === 'back' ? 'Welcome back. If IT finished the setup, press “Check status”.' : undefined} />
       )}
       {planIncludes(org, 'onboarding') && <OnboardingSettings enabled={org.onboardingEnabled} enforcement={org.onboardingEnforcement} readOnly={!admin} />}
       <DataTools canImport={canEdit(ctx) && role !== 'VIEWER'} owner={role === 'OWNER'} />

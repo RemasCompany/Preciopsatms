@@ -56,7 +56,7 @@ describe('security page', () => {
     const html = renderToStaticMarkup(SecurityPage());
     expect(html).toContain('Passwords are stored only as bcrypt hashes');
     expect(html).toContain('Not in place yet');
-    expect(html).toContain('Single sign-on (SAML or OIDC).');
+    expect(html).toContain('Single sign-on (Enterprise): your team signs in with their work account');
     expect(html).toContain('Two-step sign-in with an authenticator app');
     expect(html).toContain('mailto:security@preciopsatms.com');
     const txt = await (await SECURITY_TXT()).text();
