@@ -7,7 +7,8 @@ export default defineConfig({
   test: {
     include: ['tests/**/*.test.ts'],
     // DB-backed tests run against a separate database; see README "Tests".
-    env: { DATABASE_URL: process.env.TEST_DATABASE_URL ?? 'postgresql://preci:preci@localhost:5432/preciops_test' },
+    // Tests that store tokens, sign links or seal secrets need a key; a fixed test-only one keeps them self-contained.
+    env: { DATABASE_URL: process.env.TEST_DATABASE_URL ?? 'postgresql://preci:preci@localhost:5432/preciops_test', NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET || 'test-only-secret-never-used-in-production' },
     fileParallelism: false,
   },
 });
