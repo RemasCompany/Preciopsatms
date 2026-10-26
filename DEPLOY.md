@@ -81,7 +81,25 @@ On other hosts, call these yourself: `curl -H "Authorization: Bearer $CRON_SECRE
 
 ## Background checks (Checkr, optional)
 
-Set `CHECKR_API_KEY` (and `CHECKR_ENV=production` when you go live; anything else uses Checkr's staging sandbox). In the Checkr dashboard, add the webhook URL `https://<your-app>/api/webhooks/checkr`. Recruiters then order checks from the candidate drawer: Checkr emails the candidate to consent and enter SSN and date of birth on Checkr's site (that information never passes through Preciops), status updates arrive by webhook, and a clear report is saved as a verified background-check credential for a year. “Consider” results are flagged for review with a reminder to follow the FCRA adverse-action process.
+Each company orders checks under its own Checkr account, which Checkr approves for that employer (FCRA). Preciops connects to them as a Checkr partner:
+
+1. Email clients@checkr.com to register Preciops as a partner. Give them the redirect URI `https://<your-app>/api/screening/checkr/callback` and the webhook URL `https://<your-app>/api/webhooks/checkr`.
+2. Set `CHECKR_CLIENT_ID` and `CHECKR_CLIENT_SECRET` from Checkr (start with the test pair), and `CHECKR_ENV=production` when you go live.
+3. An owner or admin connects (or creates) their company's Checkr account in Settings & data → Background checks. Checks can be ordered once Checkr approves the account, usually within a business day.
+
+Recruiters then order checks from the candidate drawer. Checkr emails the candidate to consent and enter their SSN and date of birth on Checkr's site, so that information never passes through Preciops. Status is read back from Checkr with the company's own token whenever a webhook arrives. A clear report is saved as a verified background-check credential for a year, and "consider" results are flagged for review with the FCRA adverse-action steps.
+
+## Payroll processing (Check, optional)
+
+Set `CHECK_API_KEY` (your Check partner key), `CHECK_ENV=production` for live payroll (anything else is the sandbox) and `CHECK_WEBHOOK_SECRET`. In Check, add the webhook URL `https://<your-app>/api/webhooks/check`. Companies on Enterprise then connect under Payroll runs → Payroll processing, finish their company setup on Check's pages, and send each worker their setup link.
+
+## Single sign-on (WorkOS, Enterprise)
+
+1. Create an account at workos.com. Under **Redirects**, add `https://<your-app>/api/auth/sso/callback`.
+2. From **API Keys**, set `WORKOS_API_KEY` (secret) and `WORKOS_CLIENT_ID`. Use the Staging pair to test, then the Production pair for real customers.
+3. An Enterprise company's owner or admin adds their email domain in Settings & data → Single sign-on, then they (or their IT team, from a copied link) connect Microsoft Entra ID, Google Workspace, Okta or another provider in WorkOS's setup portal.
+
+WorkOS bills per connected company.
 
 ## Accounting: QuickBooks Online and Xero (optional)
 
