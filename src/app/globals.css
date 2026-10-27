@@ -464,3 +464,11 @@ ol.codes{display:grid;grid-template-columns:repeat(2,max-content);gap:6px 48px;p
 /* Destructive actions */
 .card.danger{border-color:rgba(179,38,30,.35)}.card.danger h2{color:var(--red)}
 .btn.destroy{background:var(--red);color:#fff}.btn.destroy:disabled{opacity:.5;cursor:not-allowed}
+/* HR audit */
+.audit-list{display:flex;flex-direction:column;gap:8px}
+.audit-row{border:1px solid var(--line);border-radius:10px;background:var(--card)}.audit-row.pass{opacity:.85}
+.audit-head{display:flex;justify-content:space-between;align-items:center;gap:12px;width:100%;padding:12px 14px;background:none;border:0;font:inherit;color:inherit;text-align:left;cursor:pointer}
+.audit-head:disabled{cursor:default}.audit-head .x{display:flex;flex-direction:column;min-width:0}.audit-head .muted{font-size:13px}
+.audit-body{padding:0 14px 14px;border-top:1px solid var(--line)}.audit-body p{margin:10px 0}
+ol.audit-checklist{padding-left:22px;margin:0}ol.audit-checklist>li{padding:12px 0;border-bottom:1px solid var(--line)}ol.audit-checklist>li:last-child{border-bottom:0}
+a.li{text-decoration:none}a.li[aria-current]{border-color:var(--accent)}

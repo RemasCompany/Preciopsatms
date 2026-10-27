@@ -148,6 +148,7 @@ model Organization {
   backgroundChecks      BackgroundCheck[]
   checkrConnection      CheckrConnection?
   ssoConnection         SsoConnection?
+  hrAudits              HrAudit[]
   accountingConnections AccountingConnection[]
   payrollConnections    PayrollConnection[]
   payrollWorkers        PayrollWorker[]
@@ -995,6 +996,28 @@ model BackgroundCheck {
 
   @@index([organizationId, candidateId])
   @@index([externalInvitationId])
+}
+
+/// An HR internal audit: automatic checks of the company's own records plus a checklist of practices, worked through
+/// and then completed. While open, findings refresh from live data; completing it freezes the findings and the score.
+model HrAudit {
+  id             String       @id @default(cuid())
+  organizationId String
+  title          String
+  status         String       @default("OPEN") // OPEN | COMPLETED
+  findings       Json         @default("[]") // the automatic checks' results (frozen on completion)
+  answers        Json         @default("{}") // checklist: { [key]: { answer: 'yes' | 'no' | 'na', note? } }
+  reviews        Json         @default("{}") // automatic checks reviewed: { [key]: { note, by, at } }
+  notes          String?
+  score          Int? // set on completion
+  startedById    String?
+  completedById  String?
+  startedAt      DateTime     @default(now())
+  completedAt    DateTime?
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, startedAt])
 }
 
 /// Single sign-on (Enterprise) through WorkOS: one WorkOS organization per company, connected to the company's identity

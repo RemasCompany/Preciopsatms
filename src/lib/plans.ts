@@ -4,7 +4,7 @@ export type OrgKind = 'STAFFING' | 'EMPLOYER';
 export type Feature =
   | 'ats' | 'crm' | 'leads' | 'careers' | 'vendors' | 'messaging'
   | 'timesheets' | 'esign' | 'ai' | 'eeo' | 'api' | 'sso' | 'whitelabel' | 'credentials' | 'scheduling' | 'payrollRuns' | 'timeclock' | 'onboarding' | 'engagement' | 'clientPortal' | 'training'
-  | 'people' | 'invoicing' | 'timeoff' | 'reviews' | 'vms' | 'aca';
+  | 'people' | 'invoicing' | 'timeoff' | 'reviews' | 'vms' | 'aca' | 'hrAudit';
 
 export const PLANS: Record<PlanId, {
   name: string; priceEnv: string; perSeat: boolean; maxSeats: number | null;
@@ -22,13 +22,13 @@ export const PLANS: Record<PlanId, {
   },
   growth: {
     name: 'Growth', priceEnv: 'STRIPE_PRICE_GROWTH', perSeat: true, maxSeats: null, minSeats: 2, monthlyAiCredits: 2000,
-    features: ['ats', 'crm', 'leads', 'careers', 'messaging', 'vendors', 'timesheets', 'invoicing', 'esign', 'ai', 'credentials', 'scheduling', 'timeclock', 'onboarding', 'engagement', 'clientPortal', 'people', 'timeoff', 'reviews', 'aca'],
-    blurb: 'Everything to run a staffing desk: timesheets, payroll export, invoicing, e-signatures, credential tracking, shift scheduling, a mobile time clock, new-hire onboarding, vendors and AI.', displayPrice: '$79/user/mo · 2-user minimum',
-    employer: { name: 'Growth', priceEnv: 'STRIPE_PRICE_GROWTH_EMPLOYER', displayPrice: '$8/employee/mo', blurb: 'Everything to run your workforce: time off and balances, performance reviews and goals, scheduling, a mobile time clock, timesheets and payroll export, onboarding, e-signatures, credentials, engagement and AI.' },
+    features: ['ats', 'crm', 'leads', 'careers', 'messaging', 'vendors', 'timesheets', 'invoicing', 'esign', 'ai', 'credentials', 'scheduling', 'timeclock', 'onboarding', 'engagement', 'clientPortal', 'people', 'timeoff', 'reviews', 'aca', 'hrAudit'],
+    blurb: 'Everything to run a staffing desk: timesheets, payroll export, invoicing, e-signatures, credential tracking, shift scheduling, a mobile time clock, new-hire onboarding, HR audits, vendors and AI.', displayPrice: '$79/user/mo · 2-user minimum',
+    employer: { name: 'Growth', priceEnv: 'STRIPE_PRICE_GROWTH_EMPLOYER', displayPrice: '$8/employee/mo', blurb: 'Everything to run your workforce: time off and balances, performance reviews and goals, scheduling, a mobile time clock, timesheets and payroll export, onboarding, e-signatures, credentials, HR audits, engagement and AI.' },
   },
   enterprise: {
     name: 'Enterprise / MSP', priceEnv: 'STRIPE_PRICE_ENTERPRISE', perSeat: true, maxSeats: null, minSeats: 1, monthlyAiCredits: 10000,
-    features: ['ats', 'crm', 'leads', 'careers', 'messaging', 'vendors', 'timesheets', 'invoicing', 'esign', 'ai', 'credentials', 'scheduling', 'timeclock', 'onboarding', 'engagement', 'clientPortal', 'payrollRuns', 'eeo', 'api', 'sso', 'whitelabel', 'training', 'people', 'timeoff', 'reviews', 'vms', 'aca'],
+    features: ['ats', 'crm', 'leads', 'careers', 'messaging', 'vendors', 'timesheets', 'invoicing', 'esign', 'ai', 'credentials', 'scheduling', 'timeclock', 'onboarding', 'engagement', 'clientPortal', 'payrollRuns', 'eeo', 'api', 'sso', 'whitelabel', 'training', 'people', 'timeoff', 'reviews', 'vms', 'aca', 'hrAudit'],
     blurb: 'Payroll runs with provider exports, equipment operator training and certification, EEO/OFCCP reporting, API, SSO, white-label and dedicated onboarding.', displayPrice: 'Custom',
     employer: { name: 'Enterprise', priceEnv: 'STRIPE_PRICE_ENTERPRISE_EMPLOYER', displayPrice: 'Custom', blurb: 'Payroll runs with provider exports, equipment operator training and certification, EEO reporting, API, SSO and dedicated onboarding.' },
   },
