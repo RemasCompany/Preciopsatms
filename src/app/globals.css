@@ -472,3 +472,5 @@ ol.codes{display:grid;grid-template-columns:repeat(2,max-content);gap:6px 48px;p
 .audit-body{padding:0 14px 14px;border-top:1px solid var(--line)}.audit-body p{margin:10px 0}
 ol.audit-checklist{padding-left:22px;margin:0}ol.audit-checklist>li{padding:12px 0;border-bottom:1px solid var(--line)}ol.audit-checklist>li:last-child{border-bottom:0}
 a.li{text-decoration:none}a.li[aria-current]{border-color:var(--accent)}
+/* Printable pages (skills checklists): just the document. */
+@media print{body{background:#fff;color:#000}.noprint,nav,aside,header,.sidebar,.topbar{display:none!important}.printable{max-width:none;margin:0}.printable table{width:100%;border-collapse:collapse}.printable td{border-bottom:1px solid #ccc;padding:3px 6px}}

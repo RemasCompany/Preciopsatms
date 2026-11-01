@@ -3,6 +3,7 @@ import { hasFeature } from '@/lib/plans';
 import { ALERT_WINDOWS, CREDENTIAL_TYPE_NAMES, credentialLabel, credentialStatus, type CredentialState } from '@/lib/credentials';
 import { OpenRecord } from '@/components/Records';
 import Gate from '@/components/Gate';
+import CredentialTabs from '@/components/CredentialTabs';
 
 const SHOW = {
   attention: 'Needs attention', expired: 'Expired', expiring: 'Expiring in 30 days', next60: 'Expiring in 60 days', unverified: 'Not verified', incomplete: 'Missing details', all: 'All credentials',
@@ -46,6 +47,7 @@ export default async function CredentialsPage({ searchParams }: { searchParams: 
   return (
     <>
       <h1>Credentials</h1>
+      <CredentialTabs at="/app/credentials" />
       <p className="lede">Licenses, certifications, health records and screenings for your candidates. Recruiters get an email when one is {ALERT_WINDOWS.join(', ').replace(/, (\d+)$/, ' and $1')} days from expiring and again when it expires.</p>
       <div className="kpis" style={{ margin: '16px 0' }}>
         <a className="kpi" href="?show=expired"><b className={count('expired') ? 'warnnum' : undefined}>{count('expired')}</b><span>Expired</span></a>

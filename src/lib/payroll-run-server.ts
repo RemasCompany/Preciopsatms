@@ -3,6 +3,11 @@ import { Prisma } from '@prisma/client';
 import { HttpError, type TenantDb } from './tenant';
 import { wages, cents, dollars, runChecks, type Frequency, type RunItem } from './payroll-run';
 import { applyDeductions } from './deductions-server';
+import { sheetPremiums } from './differentials-server';
+
+type PremiumLines = NonNullable<RunItem['premiums']>;
+/** The premium lines snapshotted on a run item (JSON in the DB). */
+export const premiumLines = (j: Prisma.JsonValue | null): PremiumLines => (Array.isArray(j) ? (j as PremiumLines) : []);
 
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
 const day = (s: string) => new Date(`${s}T00:00:00Z`);
@@ -20,7 +25,7 @@ export async function syncItems(tx: Tx, run: { id: string; periodEnd: Date; payD
   const weeks = weeksIn(ymd(run.periodEnd), run.frequency as Frequency);
   const sheets = await tx.timesheet.findMany({
     where: { status: 'APPROVED', weekEnding: { in: weeks }, OR: [{ payrollRunId: null }, { payrollRunId: run.id }] },
-    include: { application: { include: { candidate: { select: { id: true, name: true, payrollId: true } }, job: { select: { title: true, client: { select: { id: true, name: true } } } } } } },
+    include: { premiums: true, application: { include: { candidate: { select: { id: true, name: true, payrollId: true } }, job: { select: { title: true, client: { select: { id: true, name: true } } } } } } },
   });
   const existing = await tx.payrollItem.findMany({ where: { runId: run.id }, select: { id: true, timesheetId: true } });
   const keep = new Set(sheets.map((s) => s.id));
@@ -31,12 +36,18 @@ export async function syncItems(tx: Tx, run: { id: string; periodEnd: Date; payD
   for (const t of sheets) {
     const reg = Number(t.regularHours), ot = Number(t.overtimeHours), pay = Number(t.payRate);
     const w = wages(reg, ot, pay);
+    const prem = sheetPremiums(t);
+    const premiums: PremiumLines = [
+      ...prem.lines.map((l) => ({ label: l.label, hours: l.hours, rate: l.payPerHour, amount: dollars(cents(l.hours * l.payPerHour)) })),
+      ...(prem.overtime ? [{ label: 'Overtime on differentials (regular rate)', hours: null, rate: null, amount: prem.overtime }] : []),
+    ];
     const data = {
       applicationId: t.applicationId, candidateId: t.application.candidate.id, workerName: t.application.candidate.name, payrollId: t.application.candidate.payrollId,
       position: t.application.job.title, clientId: t.application.job.client?.id ?? null, clientName: t.application.job.client?.name ?? null, weekEnding: t.weekEnding,
       regularHours: t.regularHours, overtimeHours: t.overtimeHours, payRate: t.payRate, billRate: t.billRate,
       regularPay: new Prisma.Decimal(dollars(w.regular)), overtimePay: new Prisma.Decimal(dollars(w.overtime)),
       leaveHours: t.leaveHours, leavePay: new Prisma.Decimal(dollars(cents(Number(t.leaveHours) * pay))),
+      premiumPay: new Prisma.Decimal(prem.pay), premiumBill: new Prisma.Decimal(prem.bill), premiums: premiums.length ? premiums : Prisma.DbNull,
     };
     const had = existing.find((e) => e.timesheetId === t.id);
     if (had) await tx.payrollItem.updateMany({ where: { id: had.id }, data });
@@ -56,6 +67,7 @@ export async function loadRun(tdb: TenantDb, id: string) {
     id: i.id, candidateId: i.candidateId, workerName: i.workerName, payrollId: i.payrollId, position: i.position, clientId: i.clientId, clientName: i.clientName,
     weekEnding: ymd(i.weekEnding), regularHours: Number(i.regularHours), overtimeHours: Number(i.overtimeHours), payRate: Number(i.payRate), billRate: Number(i.billRate),
     regularPay: Number(i.regularPay), overtimePay: Number(i.overtimePay), leaveHours: Number(i.leaveHours), leavePay: Number(i.leavePay),
+    premiumPay: Number(i.premiumPay), premiumBill: Number(i.premiumBill), premiums: premiumLines(i.premiums),
     adjustments: i.adjustments.map((a) => ({ id: a.id, kind: a.kind, description: a.description, amount: Number(a.amount), deductionId: a.deductionId, code: a.code })),
   }));
   const meta = { number: run.number, periodStart: ymd(run.periodStart), periodEnd: ymd(run.periodEnd), payDate: ymd(run.payDate) };

@@ -69,6 +69,9 @@ export const PAYMENT_METHODS = { ach: 'ACH / bank transfer', check: 'Check', car
 export type PaymentMethod = keyof typeof PAYMENT_METHODS;
 
 /** Lines added by hand on top of the hours: reimbursed expenses, fees, and discounts or credits. */
+/** Lines that are labor: the hours, and the premiums (night, weekend, on-call…) billed with them. They come from timesheets, not by hand. */
+export const LABOR_KINDS = ['hours', 'premium'];
+export const isLabor = (kind: string | null | undefined) => LABOR_KINDS.includes(kind ?? 'hours');
 export const ITEM_KINDS = { expense: 'Expense / reimbursement', fee: 'Fee or charge', discount: 'Discount or credit' } as const;
 export type ItemKind = keyof typeof ITEM_KINDS;
 /** Quantity × rate to the cent; discounts always come off the total. */

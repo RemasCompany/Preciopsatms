@@ -1,4 +1,5 @@
 import type { TenantDb } from './tenant';
+import { sheetPremiums } from './differentials-server';
 import { lineCents } from './invoicing';
 import { STAGE_ORDER } from './eeo';
 
@@ -19,7 +20,7 @@ const label = (s: string) => s[0] + s.slice(1).toLowerCase().replace('_', ' ');
 async function timesheets({ tdb, range, branchId }: Ctx) {
   return tdb.timesheet.findMany({
     where: { status: { in: ['APPROVED', 'PAID'] }, weekEnding: { gte: day(range.from), lte: day(range.to) }, application: { job: jobBranch(branchId) } },
-    select: { regularHours: true, overtimeHours: true, payRate: true, billRate: true, application: { select: { candidate: { select: { id: true, name: true } }, job: { select: { title: true, client: { select: { id: true, name: true } } } } } } },
+    select: { regularHours: true, overtimeHours: true, payRate: true, billRate: true, premiums: { select: { hours: true, payPerHour: true, billPerHour: true, inRegularRate: true, label: true } }, application: { select: { candidate: { select: { id: true, name: true } }, job: { select: { title: true, client: { select: { id: true, name: true } } } } } } },
   });
 }
 
@@ -47,7 +48,7 @@ export const REPORTS = {
       for (const t of await timesheets(c)) {
         const reg = Number(t.regularHours), ot = Number(t.overtimeHours), cl = t.application.job.client;
         const k = cl?.id ?? 'none', r = by.get(k) ?? { client: cl?.name ?? 'No client', hours: 0, ot: 0, billed: 0, paid: 0 };
-        r.hours += reg + ot; r.ot += ot; r.billed += lineCents(reg, ot, Number(t.billRate)); r.paid += lineCents(reg, ot, Number(t.payRate));
+        r.hours += reg + ot; r.ot += ot; const p = sheetPremiums(t); r.billed += lineCents(reg, ot, Number(t.billRate)) + Math.round(p.bill * 100); r.paid += lineCents(reg, ot, Number(t.payRate)) + Math.round(p.pay * 100);
         by.set(k, r);
       }
       const rows = [...by.values()].sort((a, b) => b.billed - a.billed).map((r) => ({ client: r.client, hours: r2(r.hours), ot: r2(r.ot), billed: r.billed / 100, paid: r.paid / 100, margin: (r.billed - r.paid) / 100, marginPct: pct(r.billed - r.paid, r.billed) }));
@@ -64,7 +65,7 @@ export const REPORTS = {
       for (const t of await timesheets(c)) {
         const w = t.application.candidate, reg = Number(t.regularHours), ot = Number(t.overtimeHours);
         const r = by.get(w.id) ?? { worker: w.name, reg: 0, ot: 0, gross: 0 };
-        r.reg += reg; r.ot += ot; r.gross += lineCents(reg, ot, Number(t.payRate)); by.set(w.id, r);
+        r.reg += reg; r.ot += ot; r.gross += lineCents(reg, ot, Number(t.payRate)) + Math.round(sheetPremiums(t).pay * 100); by.set(w.id, r);
       }
       const rows = [...by.values()].sort((a, b) => a.worker.localeCompare(b.worker)).map((r) => ({ worker: r.worker, reg: r2(r.reg), ot: r2(r.ot), total: r2(r.reg + r.ot), gross: r.gross / 100, otShare: pct(r.ot, r.reg + r.ot) }));
       return { columns: [{ key: 'worker', label: 'Worker' }, { key: 'reg', label: 'Regular', num: true }, { key: 'ot', label: 'Overtime', num: true }, { key: 'total', label: 'Total', num: true }, { key: 'gross', label: 'Gross pay', money: true }, { key: 'otShare', label: 'OT share', pct: true }],

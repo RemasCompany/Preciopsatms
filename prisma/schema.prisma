@@ -65,6 +65,9 @@ model Organization {
   payrollCompanyCode      String? // company code some providers need in imports (e.g. ADP Co Code)
   payrollExportDeductions Boolean              @default(false) // put recurring deductions in export files (off when the provider already has them)
   requireTwoStep          Boolean              @default(false) // every teammate must use two-step sign-in
+  exclusionScreening      Boolean              @default(false) // screen workers against the OIG exclusion list every month
+  exclusionScreenedAt     DateTime?
+  exclusionListDate       String? // the OIG list's own update date, as last downloaded
   ssoRequired             Boolean              @default(false) // members sign in through the company's identity provider (owners keep a password as a backup)
   timezone                String               @default("America/New_York") // IANA zone for time clock days and workweeks
   geofenceMode            String               @default("flag") // off | flag | block: time clock punches outside a job site's geofence
@@ -149,6 +152,10 @@ model Organization {
   checkrConnection      CheckrConnection?
   ssoConnection         SsoConnection?
   hrAudits              HrAudit[]
+  exclusionMatches      ExclusionMatch[]
+  skillsChecklists      SkillsChecklist[]
+  payRules              PayRule[]
+  timesheetPremiums     TimesheetPremium[]
   accountingConnections AccountingConnection[]
   payrollConnections    PayrollConnection[]
   payrollWorkers        PayrollWorker[]
@@ -271,6 +278,7 @@ model Job {
   client         Client?        @relation(fields: [clientId], references: [id], onDelete: SetNull)
   applications   Application[]
   openShifts     OpenShift[]
+  payRules       PayRule[]
   siteLat        Float? // job site, for time clock geofencing
   siteLng        Float?
   geofenceMeters Int?
@@ -329,6 +337,8 @@ model Candidate {
   branch           Branch?              @relation(fields: [branchId], references: [id], onDelete: SetNull)
   acaOffers        AcaOffer[]
   payDeductions    PayDeduction[]
+  exclusionMatches ExclusionMatch[]
+  skillsChecklists SkillsChecklist[]
 
   @@index([organizationId, email])
   @@index([organizationId, phone])
@@ -419,6 +429,7 @@ model Client {
   deals               Deal[]
   invoices            Invoice[]
   vmsPrograms         VmsProgram[]
+  payRules            PayRule[]
 }
 
 model Contact {
@@ -549,16 +560,16 @@ enum TimesheetStatus {
 }
 
 model Timesheet {
-  id                String          @id @default(cuid())
+  id                String             @id @default(cuid())
   organizationId    String
   applicationId     String
-  weekEnding        DateTime        @db.Date
-  regularHours      Decimal         @default(0) @db.Decimal(6, 2)
-  overtimeHours     Decimal         @default(0) @db.Decimal(6, 2)
-  leaveHours        Decimal         @default(0) @db.Decimal(6, 2) // approved paid time off, at the regular rate (not worked, so never overtime)
-  payRate           Decimal         @db.Decimal(10, 2) // snapshot at entry
-  billRate          Decimal         @db.Decimal(10, 2) // snapshot at entry
-  status            TimesheetStatus @default(DRAFT)
+  weekEnding        DateTime           @db.Date
+  regularHours      Decimal            @default(0) @db.Decimal(6, 2)
+  overtimeHours     Decimal            @default(0) @db.Decimal(6, 2)
+  leaveHours        Decimal            @default(0) @db.Decimal(6, 2) // approved paid time off, at the regular rate (not worked, so never overtime)
+  payRate           Decimal            @db.Decimal(10, 2) // snapshot at entry
+  billRate          Decimal            @db.Decimal(10, 2) // snapshot at entry
+  status            TimesheetStatus    @default(DRAFT)
   payrollRunId      String? // the non-void payroll run that includes these hours
   clientApprovedAt  DateTime? // the client signed off on these hours in the client portal
   clientApprovedBy  String? // contact name, as they appeared then
@@ -568,10 +579,11 @@ model Timesheet {
   approvedAt        DateTime?
   approvedById      String?
   paidAt            DateTime?
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
-  organization      Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  application       Application     @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  organization      Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  application       Application        @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  premiums          TimesheetPremium[]
 
   @@unique([applicationId, weekEnding])
   @@index([organizationId, weekEnding])
@@ -1331,6 +1343,9 @@ model PayrollItem {
   overtimePay    Decimal             @db.Decimal(12, 2)
   leaveHours     Decimal             @default(0) @db.Decimal(6, 2)
   leavePay       Decimal             @default(0) @db.Decimal(12, 2)
+  premiumPay     Decimal             @default(0) @db.Decimal(12, 2) // differentials and premiums, with the overtime they add
+  premiumBill    Decimal             @default(0) @db.Decimal(12, 2)
+  premiums       Json? // [{ label, hours, rate, amount }] snapshotted from the timesheet
   createdAt      DateTime            @default(now())
   run            PayrollRun          @relation(fields: [runId], references: [id], onDelete: Cascade)
   adjustments    PayrollAdjustment[]
@@ -1915,4 +1930,96 @@ model Scorecard {
   interview      Interview    @relation(fields: [interviewId], references: [id], onDelete: Cascade)
 
   @@unique([interviewId, userId])
+}
+
+/// A worker who may be on the OIG List of Excluded Individuals/Entities, found by the monthly screening. A person reviews
+/// each one: cleared (a different person) or confirmed (excluded: they go on the company-wide do-not-return list).
+model ExclusionMatch {
+  id             String       @id @default(cuid())
+  organizationId String
+  candidateId    String
+  source         String       @default("OIG")
+  listKey        String // the listed record, so a cleared match isn't raised again next month
+  listedName     String
+  listedNpi      String?
+  listedDob      String? // as published, YYYYMMDD
+  listedPlace    String? // city and state on the list
+  specialty      String?
+  exclType       String? // e.g. 1128a1
+  exclDate       String? // YYYYMMDD
+  matchedOn      String // npi | name
+  status         String       @default("OPEN") // OPEN | CLEARED | CONFIRMED
+  reviewedById   String?
+  reviewedAt     DateTime?
+  reviewNote     String?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  candidate      Candidate    @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, candidateId, listKey])
+  @@index([organizationId, status])
+}
+
+/// A clinician's self-rated skills for a specialty (Med-Surg, ICU, ER…), sent to their private link and kept with their file.
+model SkillsChecklist {
+  id             String       @id @default(cuid())
+  organizationId String
+  candidateId    String
+  specialty      String // key in SKILLS_CHECKLISTS
+  status         String       @default("SENT") // SENT | COMPLETED | CANCELLED
+  answers        Json? // { "<section>.<item>": 1-4 }
+  signedName     String?
+  completedAt    DateTime?
+  expiresAt      DateTime?    @db.Date // a year after completion, when clients expect a fresh one
+  sentById       String?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  candidate      Candidate    @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, candidateId])
+}
+
+/// A pay differential or premium: night, weekend, holiday, on-call, call-back, charge, crisis. Company-wide, or for one client or job.
+model PayRule {
+  id             String       @id @default(cuid())
+  organizationId String
+  name           String
+  kind           String // NIGHT | WEEKEND | HOLIDAY | ON_CALL | CALL_BACK | CHARGE | CRISIS | OTHER
+  mode           String // ADD (+$/hr) | MULTIPLY (× the rate) | FLAT ($/hr for hours not otherwise paid, e.g. on call)
+  pay            Decimal      @db.Decimal(10, 4)
+  bill           Decimal      @db.Decimal(10, 4)
+  clientId       String?
+  jobId          String?
+  startTime      String? // night window, "HH:MM" local
+  endTime        String?
+  holidays       String[]     @default([]) // YYYY-MM-DD
+  active         Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client         Client?      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  job            Job?         @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+}
+
+/// Premium hours on a timesheet, with the extra pay and bill per hour snapshotted when entered (like the timesheet's rates).
+model TimesheetPremium {
+  id             String       @id @default(cuid())
+  organizationId String
+  timesheetId    String
+  ruleId         String?
+  label          String
+  kind           String
+  mode           String
+  hours          Decimal      @db.Decimal(6, 2)
+  payPerHour     Decimal      @db.Decimal(10, 2)
+  billPerHour    Decimal      @db.Decimal(10, 2)
+  inRegularRate  Boolean      @default(true) // counts toward the regular rate for overtime (FLSA); false for 1.5× weekend/holiday premiums
+  auto           Boolean      @default(false) // worked out from time clock punches (replaced when recalculated)
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  timesheet      Timesheet    @relation(fields: [timesheetId], references: [id], onDelete: Cascade)
+
+  @@index([timesheetId])
+  @@index([organizationId])
 }

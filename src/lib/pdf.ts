@@ -71,7 +71,7 @@ const hex = (c: string | null | undefined) => {
   return rgb(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255);
 };
 const money = (n: number) => `${n < 0 ? '-' : ''}$${Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const KIND_LABEL: Record<string, string> = { expense: 'Expense', fee: 'Fee', discount: 'Discount' };
+const KIND_LABEL: Record<string, string> = { expense: 'Expense', fee: 'Fee', discount: 'Discount', premium: 'Premium' };
 
 /**
  * A client invoice: letterhead, bill-to, PO and dates, hours by worker and week (with the client's sign-off), added

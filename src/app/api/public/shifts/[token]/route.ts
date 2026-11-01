@@ -13,6 +13,7 @@ import { workerTraining } from '@/lib/training-server';
 import { employeeHub } from '@/lib/self-service';
 import { workerDocs } from '@/lib/hiring-docs-server';
 import { workerInterviews } from '@/lib/interviews-server';
+import { workerChecklists } from '@/lib/checklists-server';
 import { HttpError } from '@/lib/tenant';
 
 type Ctx = { params: { token: string } };
@@ -38,6 +39,7 @@ export async function GET(_req: Request, { params }: Ctx) {
     referrals: hasFeature(o, 'engagement') ? await workerReferrals(o, link.candidateId) : null,
     offers: hasFeature(o, 'scheduling') ? await workerOffers(link.organizationId, link.candidateId) : [],
     engagement: hasFeature(o, 'engagement') ? await workerEngagement(link.organizationId, link.candidateId) : null,
+    checklists: hasFeature(o, 'credentials') ? await workerChecklists(link.organizationId, link.candidateId) : [],
     training: hasFeature(o, 'training') ? await workerTraining(link.organizationId, link.candidateId) : [],
     onboarding: hasFeature(o, 'onboarding') ? await workerOnboarding(link.organizationId, link.candidateId) : [],
     clock: hasFeature(o, 'timeclock') ? await clockState(link.organizationId, link.candidateId, o.timezone) : null,

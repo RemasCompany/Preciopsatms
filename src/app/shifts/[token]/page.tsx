@@ -6,6 +6,7 @@ import WorkerOnboarding, { type WorkerOb } from '@/components/WorkerOnboarding';
 import WorkerEngagement, { type WorkerEng } from '@/components/WorkerEngagement';
 import WorkerReferrals, { type WorkerRef } from '@/components/WorkerReferrals';
 import WorkerTraining, { type WorkerCourse } from '@/components/WorkerTraining';
+import WorkerChecklists, { type WorkerChecklist } from '@/components/WorkerChecklists';
 import WorkerSelfService, { type WorkerMe } from '@/components/WorkerSelfService';
 import { WorkerDocs, type WorkerDoc } from '@/components/HiringDocs';
 import { WorkerInterviews, type WorkerInterview } from '@/components/Interviews';
@@ -15,7 +16,7 @@ type Shift = {
   job: string; client: string | null; location: string | null; state: 'pending' | 'confirmed' | 'declined' | 'cancelled' | 'updating'; past: boolean;
 };
 type Offer = { id: string; status: 'open' | 'taken'; date: string; start: string; end: string; breakMinutes: number; unit: string | null; notes: string | null; job: string; client: string | null; location: string | null };
-type Data = { interviews?: WorkerInterview[]; documents?: WorkerDoc[]; me?: WorkerMe | null; training?: WorkerCourse[]; referrals?: WorkerRef | null; offers?: Offer[]; company: string; brandColor: string; contactEmail: string | null; logoUrl: string | null; firstName: string; shifts: Shift[]; clock: ClockData | null; onboarding?: WorkerOb[]; engagement?: WorkerEng | null };
+type Data = { checklists?: WorkerChecklist[]; interviews?: WorkerInterview[]; documents?: WorkerDoc[]; me?: WorkerMe | null; training?: WorkerCourse[]; referrals?: WorkerRef | null; offers?: Offer[]; company: string; brandColor: string; contactEmail: string | null; logoUrl: string | null; firstName: string; shifts: Shift[]; clock: ClockData | null; onboarding?: WorkerOb[]; engagement?: WorkerEng | null };
 
 const STATE: Record<Shift['state'], { text: string; cls: string }> = {
   pending: { text: 'Please confirm', cls: 'a' }, confirmed: { text: 'Confirmed', cls: 'g' }, declined: { text: 'You can’t make it', cls: 'r' },
@@ -77,11 +78,12 @@ export default function MyShifts({ params }: { params: { token: string } }) {
       {offline && <p className="card banner" role="status">You’re offline. This is your page as of {offline}. Clocking in and other changes need a signal.</p>}
       {install && !offline && <div className="installbar"><span>{install.ios ? 'Add this page to your home screen: tap Share, then “Add to Home Screen”.' : 'Add this page to your phone like an app.'}</span>
         {!install.ios && <button className="btn sm" onClick={install.prompt}>Add to home screen</button>}<button className="btn ghost sm" onClick={install.dismiss} aria-label="Not now">Not now</button></div>}
-      <h1>Hi {data.firstName}{data.me || data.clock || data.onboarding?.length || data.training?.length || data.documents?.length || data.interviews?.length ? '' : ', here’s your schedule'}</h1>
+      <h1>Hi {data.firstName}{data.me || data.clock || data.onboarding?.length || data.training?.length || data.checklists?.length || data.documents?.length || data.interviews?.length ? '' : ', here’s your schedule'}</h1>
       {!!data.interviews?.length && <WorkerInterviews token={params.token} items={data.interviews} onChange={load} />}
       {!!data.documents?.length && <WorkerDocs token={params.token} docs={data.documents} onChange={load} />}
       {data.me && <WorkerSelfService token={params.token} me={data.me} onChange={load} />}
       {!!data.onboarding?.length && <WorkerOnboarding token={params.token} items={data.onboarding} onChange={load} />}
+      {!!data.checklists?.length && <WorkerChecklists token={params.token} items={data.checklists} onChange={load} />}
       {!!data.training?.length && <WorkerTraining token={params.token} items={data.training} onChange={load} />}
       {data.clock && <TimeClock token={params.token} data={data.clock} onChange={load} />}
       {data.engagement && <WorkerEngagement token={params.token} data={data.engagement} onChange={load} />}
@@ -100,7 +102,7 @@ export default function MyShifts({ params }: { params: { token: string } }) {
           ))}</ul>
         </section>
       )}
-      {(data.clock || !!data.onboarding?.length || !!data.offers?.length || !!data.training?.length || !!data.documents?.length || !!data.interviews?.length) && <h2 style={{ marginBottom: 4 }}>Your schedule</h2>}
+      {(data.clock || !!data.onboarding?.length || !!data.offers?.length || !!data.training?.length || !!data.checklists?.length || !!data.documents?.length || !!data.interviews?.length) && <h2 style={{ marginBottom: 4 }}>Your schedule</h2>}
       <p className="lede">{toConfirm ? `${toConfirm} shift${toConfirm === 1 ? '' : 's'} waiting for you to confirm.` : upcoming.length ? 'You’re all set.' : 'You have no upcoming shifts.'}</p>
       {note && <p className="card banner" role="status">{note}</p>}
       <ul className="shiftlist">

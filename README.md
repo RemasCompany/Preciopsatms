@@ -83,6 +83,18 @@ Companies sign in through their own identity provider (Microsoft Entra ID, Googl
 - "Sign in with SSO" finds the company by email domain. The callback exchanges the code for the profile, checks it came from that company's WorkOS organization and one of its domains, and only signs in people who are already members. It hands the browser a two-minute, one-time ticket for the `sso` credentials provider.
 - Admins can require SSO. Passwords then stop working for everyone except owners, who keep one as a way back in. If the connection stops being active, the requirement switches off by itself. An SSO session satisfies the company's two-step requirement, since the identity provider runs its own second step.
 
+## Healthcare compliance and pay (Growth and up)
+- **Job requirements** (Credentials → Job requirements). Any credential type can be required on a job. Offering, placing or scheduling someone, and offering them an open shift, is stopped unless each requirement is verified and current through the shift's date (`certGaps` in `src/lib/training-server.ts`). A state license has to be from the job's state, read from its "City, ST" location. A multistate nursing license counts for RN and LPN jobs in compact states (`NLC_STATES` in `src/lib/requirements.ts`, kept to states that have fully implemented the compact). Owners and admins can override with a reason, which goes in the audit log.
+- **OIG exclusion screening** (Credentials → Exclusion screening). Once a company turns it on, `/api/cron/exclusions` (daily at 11:20 UTC) checks everyone on assignment and every current employee against OIG's LEIE file (`OIG_LEIE_URL` overrides the source). It runs monthly, or sooner when there's someone new, and downloads the file only when a company is due.
+  - A clean check becomes a verified "OIG exclusion screening (monthly)" credential, good for 45 days, so jobs can require it.
+  - A name or NPI match is only a possible match. An admin confirms it on OIG's own search, then marks it cleared, which renews the credential, or confirmed, which adds the person to the company-wide do-not-return list.
+  - Names stay in our database; the list is downloaded and matched locally. SAM.gov isn't automated (its API needs a key), so it stays a manual link on the credential.
+- **Skills checklists** (Credentials → Skills checklists, and on the candidate record). There are eight specialty checklists in `src/lib/skills-checklists.ts`. One is sent to the worker's private page, where they rate each skill from 1 to 4 and sign. It's good for a year, and the printable copy goes with a facility submittal.
+- **Pay differentials** (Timesheets → Pay differentials). These are night, weekend, holiday, on-call, call-back, charge and crisis premiums, either company-wide or for one client or job (the most specific wins).
+  - Premium hours go on each week's timesheet, entered by hand or worked out from time clock punches. The extra pay and bill per hour are snapshotted when entered.
+  - Premiums that count toward the regular rate add their share of overtime: ½ × counted premium ÷ hours worked × overtime hours (FLSA 29 CFR 778.207). A 1.5× weekend or holiday premium doesn't count (778.203).
+  - They flow into gross pay, payroll runs and provider exports (code `DIFF`), pay statements, Check, invoices (as `premium` lines), the client portal, reports and planning. VMS time files still carry only regular and overtime.
+
 ## What's built
 | Area | Where |
 |---|---|

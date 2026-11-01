@@ -23,6 +23,7 @@ export async function statementsPdf(org: Organization, tdb: TenantDb, runId: str
           ...(i.regularHours ? [{ label: `Regular (wk ending ${short(i.weekEnding)}) - ${i.position}`, hours: i.regularHours, rate: i.payRate, amount: i.regularPay }] : []),
           ...(i.overtimeHours ? [{ label: `Overtime 1.5x (wk ending ${short(i.weekEnding)}) - ${i.position}`, hours: i.overtimeHours, rate: i.payRate * 1.5, amount: i.overtimePay }] : []),
           ...(i.leaveHours ? [{ label: `Paid time off (wk ending ${short(i.weekEnding)})`, hours: i.leaveHours, rate: i.payRate, amount: i.leavePay ?? 0 }] : []),
+          ...(i.premiums ?? []).map((p) => ({ label: `${p.label} (wk ending ${short(i.weekEnding)}) - ${i.position}`, hours: p.hours, rate: p.rate, amount: p.amount })),
         ]),
         adjustments: g.flatMap((i) => i.adjustments.map((a) => ({ label: `${ADJUSTMENTS[a.kind].label}: ${a.description}`, amount: dollars(cents(a.amount)), kind: a.kind === 'REIMBURSEMENT' ? 'reimbursement' as const : a.kind === 'DEDUCTION' || a.kind === 'PRETAX_DEDUCTION' ? 'deduction' as const : 'earning' as const }))),
         gross: dollars(t.gross), reimbursements: dollars(t.reimbursements), deductions: dollars(t.deductions + t.pretax),

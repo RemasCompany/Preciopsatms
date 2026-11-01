@@ -77,7 +77,8 @@ Each recruiter, admin and owner gets one email listing credentials that reached 
 `/api/cron/reports` runs every day at 12:00 UTC and emails scheduled reports: weekly ones on Mondays (last week) and monthly ones on the 1st (last month), in each company's time zone.
 `/api/cron/people` runs every day at 06:15 UTC: pay changes and last days entered with a future date take effect (raises and promotions apply; employees whose last day has passed come off the schedule and out of billing).
 `/api/cron/tasks` works through the background queue. Large sends (more than 25 people from “Message this list”) are queued; the browser that queued them starts them right away and shows progress, so the scheduled run only finishes work whose browser went away and retries failures (1, 4 and 16 minutes apart, then it gives up and reports the error). Vercel's Hobby plan allows one run a day (`30 3 * * *` in `vercel.json`); on Pro, change it to `*/5 * * * *` so leftovers finish within minutes.
-On other hosts, call these yourself: `curl -H "Authorization: Bearer $CRON_SECRET" https://app.preciopsatms.com/api/cron/credential-alerts` daily (and the same for `/api/cron/shift-reminders`, `/api/cron/engagement` and `/api/cron/reports`), and `/api/cron/tasks` every 5 minutes.
+`/api/cron/exclusions` runs every day at 11:20 UTC. For each company that turned on exclusion screening and is due (a month since the last run, or someone never screened), it downloads OIG's exclusion file once and screens their workers. The server needs outbound access to `oig.hhs.gov`.
+On other hosts, call these yourself: `curl -H "Authorization: Bearer $CRON_SECRET" https://app.preciopsatms.com/api/cron/credential-alerts` daily (and the same for `/api/cron/shift-reminders`, `/api/cron/engagement`, `/api/cron/reports` and `/api/cron/exclusions`), and `/api/cron/tasks` every 5 minutes.
 
 ## Background checks (Checkr, optional)
 

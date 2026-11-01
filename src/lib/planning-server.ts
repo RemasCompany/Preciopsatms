@@ -4,6 +4,7 @@ import { localDate } from './timeclock';
 import { shiftHours } from './schedule';
 import { cents } from './invoicing';
 import { OT_MULTIPLIER } from './weeks';
+import { sheetPremiums } from './differentials-server';
 import { addDays, capacity, forecast, hiringPlan, monthly, weekOf, weekly, yearToDate, type WeekRow } from './planning';
 
 /** How the planning page slices the workforce. Departments are for companies' own employees; clients for staffing firms. */
@@ -31,7 +32,7 @@ export async function loadPlanning(tdb: TenantDb, org: Organization, opts: { yea
 
   const [timesheets, departments, shifts, placed, jobs] = await Promise.all([
     tdb.timesheet.findMany({ where: { status: { in: ['APPROVED', 'PAID'] }, weekEnding: { gte: new Date(`${addDays(from, -7)}T00:00:00Z`), lte: new Date(`${to}T00:00:00Z`) }, application: { job: inBranch } },
-      select: { weekEnding: true, regularHours: true, overtimeHours: true, leaveHours: true, payRate: true, billRate: true, applicationId: true, application: { select: { candidateId: true, job: { select: jobSel } } } } }),
+      select: { weekEnding: true, regularHours: true, overtimeHours: true, leaveHours: true, payRate: true, billRate: true, premiums: { select: { hours: true, payPerHour: true, billPerHour: true, inRegularRate: true, label: true } }, applicationId: true, application: { select: { candidateId: true, job: { select: jobSel } } } } }),
     group === 'department' ? tdb.employee.findMany({ select: { applicationId: true, candidateId: true, department: { select: { name: true } } } }) : [],
     tdb.shift.findMany({ where: { cancelled: false, response: { not: 'DECLINED' }, date: { gt: new Date(`${lastWeek}T00:00:00Z`), lte: new Date(`${addDays(lastWeek, 7 * 13)}T00:00:00Z`) }, application: { job: inBranch } },
       select: { date: true, start: true, end: true, breakMinutes: true, applicationId: true, application: { select: { candidateId: true, job: { select: jobSel } } } } }),
@@ -50,10 +51,10 @@ export async function loadPlanning(tdb: TenantDb, org: Organization, opts: { yea
           : group === 'position' ? job.title : 'Everyone';
 
   const rows: WeekRow[] = timesheets.map((t) => {
-    const reg = Number(t.regularHours), ot = Number(t.overtimeHours), leave = Number(t.leaveHours), pay = Number(t.payRate), bill = Number(t.billRate);
+    const reg = Number(t.regularHours), ot = Number(t.overtimeHours), leave = Number(t.leaveHours), pay = Number(t.payRate), bill = Number(t.billRate), prem = sheetPremiums(t);
     return {
       week: ymd(t.weekEnding), segment: segmentOf(t.application.job, t.applicationId, t.application.candidateId), worker: t.application.candidateId,
-      hours: reg + ot, overtime: ot, costCents: cents(reg * pay) + cents(ot * pay * OT_MULTIPLIER) + cents(leave * pay), billCents: cents(reg * bill) + cents(ot * bill * OT_MULTIPLIER),
+      hours: reg + ot, overtime: ot, costCents: cents(reg * pay) + cents(ot * pay * OT_MULTIPLIER) + cents(leave * pay) + cents(prem.pay), billCents: cents(reg * bill) + cents(ot * bill * OT_MULTIPLIER) + cents(prem.bill),
     };
   });
   const scheduled = new Map<string, Map<string, number>>();

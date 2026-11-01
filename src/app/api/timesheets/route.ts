@@ -27,6 +27,10 @@ export const PUT = withApi(async (req: Request) => {
   const existing = await tdb.timesheet.findFirst({ where: { applicationId: app.id, weekEnding: week } });
   if (existing && existing.status !== 'DRAFT') throw new HttpError(409, 'This timesheet is already approved. Reopen it before editing.');
   const hours = { regularHours: b.regularHours, overtimeHours: b.overtimeHours };
+  if (existing) {
+    const premium = (await tdb.timesheetPremium.findMany({ where: { timesheetId: existing.id, mode: { not: 'FLAT' } }, select: { hours: true } })).reduce((n, p) => n + Number(p.hours), 0);
+    if (premium > b.regularHours + b.overtimeHours + 1e-9) throw new HttpError(409, `This week has ${+premium.toFixed(2)} premium hours (night, weekend…). Lower or remove them under Premiums before cutting the hours below that.`);
+  }
   // Changed hours need the client's sign-off again.
   const changed = existing && (Number(existing.regularHours) !== b.regularHours || Number(existing.overtimeHours) !== b.overtimeHours);
   if (existing) await tdb.timesheet.updateMany({ where: { id: existing.id }, data: changed ? { ...hours, clientApprovedAt: null, clientApprovedBy: null } : hours });

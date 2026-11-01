@@ -46,6 +46,7 @@ export const CREDENTIAL_TYPES: Record<string, TypeSpec> = {
   'Drug screen': { group: 'Screening', expires: true },
   'Background check': { group: 'Screening', expires: true },
   'OIG / SAM exclusion check': { group: 'Screening', expires: true },
+  'OIG exclusion screening (monthly)': { group: 'Screening', expires: true },
   Other: { group: 'Other' },
 };
 export const CREDENTIAL_TYPE_NAMES = Object.keys(CREDENTIAL_TYPES);
@@ -62,7 +63,7 @@ export function lookupLinks(type: string): { label: string; url: string }[] {
   if (/RN|LPN|APRN|Compact|CNA/.test(type)) out.push({ label: 'Nursys QuickConfirm', url: 'https://www.nursys.com/LQC/LQCTerms.aspx' });
   if (type === 'NPI') out.push({ label: 'NPPES NPI registry', url: 'https://npiregistry.cms.hhs.gov/search' });
   if (['BLS', 'ACLS', 'PALS'].includes(type)) out.push({ label: 'AHA eCard lookup', url: 'https://ecards.heart.org/student/myecards' });
-  if (type === 'OIG / SAM exclusion check') out.push({ label: 'OIG exclusions', url: 'https://exclusions.oig.hhs.gov/' }, { label: 'SAM.gov', url: 'https://sam.gov/search/?index=ex' });
+  if (type === 'OIG / SAM exclusion check' || type === 'OIG exclusion screening (monthly)') out.push({ label: 'OIG exclusions', url: 'https://exclusions.oig.hhs.gov/' }, { label: 'SAM.gov', url: 'https://sam.gov/search/?index=ex' });
   return out;
 }
 

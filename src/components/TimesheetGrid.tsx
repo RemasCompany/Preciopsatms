@@ -1,9 +1,11 @@
 'use client';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useRecords } from './Records';
 import { hoursAmount, leaveAmount } from '@/lib/payroll';
+import { premiumTotals } from '@/lib/differentials';
+import PremiumPanel from './Premiums';
 import type { TimesheetRow } from '@/lib/timesheets';
 
 const money = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
@@ -12,9 +14,14 @@ const LABEL = { NOT_ENTERED: 'Not entered', DRAFT: 'Draft', APPROVED: 'Approved'
 const PILL = { NOT_ENTERED: '', DRAFT: ' a', APPROVED: ' g', PAID: ' g' } as const;
 
 type Draft = { reg: string; ot: string };
+/** Gross and billable for some hours, with the row's premiums (whose overtime share moves with the hours). */
+const amounts = (r: TimesheetRow, reg: number, ot: number) => {
+  const p = premiumTotals(r.premiums, reg, ot);
+  return { gross: hoursAmount(reg, ot, r.pay) + leaveAmount(r.leave, r.pay) + p.totalPay / 100, billable: hoursAmount(reg, ot, r.bill) + p.bill / 100, premiumPay: p.totalPay / 100 };
+};
 
-export default function TimesheetGrid({ week, prev, next, rows: initial, canEdit, admin, schedule, invoiced = {} }: {
-  week: string; prev: string; next: string; rows: TimesheetRow[]; canEdit: boolean; admin: boolean; schedule?: boolean;
+export default function TimesheetGrid({ week, prev, next, rows: initial, canEdit, admin, schedule, clock, invoiced = {} }: {
+  week: string; prev: string; next: string; rows: TimesheetRow[]; canEdit: boolean; admin: boolean; schedule?: boolean; clock?: boolean;
   invoiced?: Record<string, { id: string; number: string }>; // client id → this week's invoice
 }) {
   const router = useRouter();
@@ -22,6 +29,7 @@ export default function TimesheetGrid({ week, prev, next, rows: initial, canEdit
   const [rows, setRows] = useState(initial);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [busy, setBusy] = useState('');
+  const [premiumsFor, setPremiumsFor] = useState<string | null>(null);
   const queue = useRef(new Map<string, Promise<void>>()); // one save at a time per row
   const pending = useRef(0); // saves in flight
   const saved = useRef(rows); saved.current = rows; // last saved values, read when a queued save actually runs
@@ -32,7 +40,7 @@ export default function TimesheetGrid({ week, prev, next, rows: initial, canEdit
     const d = drafts[r.applicationId];
     if (!d) return r;
     const reg = Number(d.reg) || 0, ot = Number(d.ot) || 0;
-    return { ...r, reg, ot, gross: hoursAmount(reg, ot, r.pay) + leaveAmount(r.leave, r.pay), billable: hoursAmount(reg, ot, r.bill) };
+    return { ...r, reg, ot, ...amounts(r, reg, ot) };
   }), [rows, drafts]);
   const sum = (k: 'reg' | 'ot' | 'gross' | 'billable') => live.reduce((s, r) => s + r[k], 0);
   const invoiceClients = useMemo(() => {
@@ -70,7 +78,7 @@ export default function TimesheetGrid({ week, prev, next, rows: initial, canEdit
     if (base.status !== 'NOT_ENTERED' && reg === base.reg && ot === base.ot) { clear(); return; }
     const res = await fetch('/api/timesheets', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ applicationId: r.applicationId, week, regularHours: reg, overtimeHours: ot }) });
     if (!res.ok) { toast((await res.json().catch(() => ({}))).error ?? 'Could not save hours.', true); return; }
-    const apply = (xs: TimesheetRow[]) => xs.map((x) => (x.applicationId === r.applicationId ? { ...x, reg, ot, status: 'DRAFT' as const, gross: hoursAmount(reg, ot, x.pay) + leaveAmount(x.leave, x.pay), billable: hoursAmount(reg, ot, x.bill) } : x));
+    const apply = (xs: TimesheetRow[]) => xs.map((x) => (x.applicationId === r.applicationId ? { ...x, reg, ot, status: 'DRAFT' as const, ...amounts(x, reg, ot) } : x));
     saved.current = apply(saved.current); // before React re-renders, so the next queued save sees it
     setRows(apply);
     clear();
@@ -120,6 +128,7 @@ export default function TimesheetGrid({ week, prev, next, rows: initial, canEdit
           <button className="btn ghost" disabled={!!busy || Object.keys(drafts).length > 0} onClick={() => act('approve', withHours)}>Approve all with hours</button>
           <button className="btn ghost" disabled={!!busy || !hasApproved} onClick={() => act('markPaid')}>Mark approved as paid</button>
           <a className="btn ghost" href={`/api/payroll/export?week=${week}`}>Export payroll</a>
+          <Link className="btn ghost" href="/app/timesheets/differentials">Pay differentials</Link>
         </>}
       </div>
       <div className="kpis">
@@ -136,7 +145,8 @@ export default function TimesheetGrid({ week, prev, next, rows: initial, canEdit
             const locked = !canEdit || r.status === 'APPROVED' || r.status === 'PAID';
             const val = (k: keyof Draft) => d?.[k] ?? (r.status === 'NOT_ENTERED' ? '' : String(r[k]));
             return (
-              <tr key={r.applicationId}>
+              <Fragment key={r.applicationId}>
+              <tr>
                 <td><b>{r.worker}</b><div className="muted">{r.email}</div></td>
                 <td>{r.job}<div className="muted">{r.client?.name}</div></td>
                 <td>{money(r.pay)} / {money(r.bill)}</td>
@@ -145,7 +155,9 @@ export default function TimesheetGrid({ week, prev, next, rows: initial, canEdit
                     aria-label={`${k === 'reg' ? 'Regular' : 'Overtime'} hours for ${r.worker}`}
                     onChange={(e) => edit(r.applicationId, k, e.target.value)} onBlur={() => save(r)} onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} /></td>
                 ))}
-                <td>{money(r.gross)}{r.leave > 0 && <div className="muted" title="Approved paid time off, at the regular rate">incl. {+r.leave.toFixed(2)}h time off</div>}</td>
+                <td>{money(r.gross)}{r.leave > 0 && <div className="muted" title="Approved paid time off, at the regular rate">incl. {+r.leave.toFixed(2)}h time off</div>}
+                  {r.premiumPay > 0 && <div className="muted" title="Night, weekend, holiday and other premiums, with the overtime they add">incl. {money(r.premiumPay)} premiums</div>}
+                  <button className="link" style={{ fontSize: 13 }} onClick={() => setPremiumsFor(premiumsFor === r.applicationId ? null : r.applicationId)} aria-expanded={premiumsFor === r.applicationId}>{r.premiums.length ? `Premiums (${r.premiums.length})` : '+ Premium'}</button></td>
                 <td>{money(r.billable)}</td>
                 <td>
                   <span className={`pill${PILL[r.status]}`}>{LABEL[r.status]}</span>
@@ -156,6 +168,8 @@ export default function TimesheetGrid({ week, prev, next, rows: initial, canEdit
                   {admin && r.status === 'APPROVED' && <button className="btn ghost sm" style={{ marginLeft: 6 }} onClick={() => act('reopen', [r.applicationId])}>Reopen</button>}
                 </td>
               </tr>
+              {premiumsFor === r.applicationId && <tr><td colSpan={8}><PremiumPanel applicationId={r.applicationId} week={week} worker={r.worker} canEdit={!locked} clock={!!clock} admin={admin} onChange={() => router.refresh()} /></td></tr>}
+              </Fragment>
             );
           })}
         </tbody></table></div>

@@ -93,7 +93,7 @@ export async function applyDeductions(tx: Tx, run: { id: string; payDate: Date; 
     const mine = items.filter((i) => i.candidateId === person);
     let gross = 0, manualDed = 0;
     for (const i of mine) {
-      gross += cents(Number(i.regularPay)) + cents(Number(i.overtimePay)) + cents(Number(i.leavePay));
+      gross += cents(Number(i.regularPay)) + cents(Number(i.overtimePay)) + cents(Number(i.leavePay)) + cents(Number(i.premiumPay));
       for (const a of i.adjustments) { const c = cents(Number(a.amount)); if (a.kind === 'BONUS' || a.kind === 'OTHER_EARNING') gross += c; else if (a.kind === 'DEDUCTION' && !a.deductionId) manualDed += c; }
     }
     let available = gross - manualDed;

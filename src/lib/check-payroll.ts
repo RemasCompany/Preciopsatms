@@ -122,6 +122,8 @@ export function payrollItems(items: RunItem[], employeeIds: Map<string, string>,
       const what = `${i.position} · week ending ${i.weekEnding}`;
       if (i.regularHours) earnings.push({ type: 'hourly', hours: i.regularHours.toFixed(2), amount: amt(cents(i.regularPay)), description: what, workplace: workplaceId });
       if (i.overtimeHours) earnings.push({ type: 'overtime', hours: i.overtimeHours.toFixed(2), amount: amt(cents(i.overtimePay)), description: what, workplace: workplaceId });
+      // Differentials and the overtime they add, as already worked out (Check doesn't need their hours: they're already in regular and overtime).
+      for (const p of i.premiums ?? []) earnings.push({ type: 'taxable_other', amount: amt(cents(p.amount)), description: `${p.label} · ${what}`, workplace: workplaceId });
       if (i.leaveHours) earnings.push({ type: 'pto', hours: i.leaveHours.toFixed(2), amount: amt(cents(i.leavePay ?? 0)), description: `Paid time off · week ending ${i.weekEnding}`, workplace: workplaceId });
       for (const a of i.adjustments) {
         if (a.deductionId) continue; // recurring deductions are set up on the employee in Check, which applies them itself

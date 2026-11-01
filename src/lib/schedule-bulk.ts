@@ -8,7 +8,8 @@ import { shiftRuleWarnings, NOTICE_DAYS } from './state-rules';
 import { localDate } from './timeclock';
 import { onboardingGaps } from './onboarding-server';
 import { barredFrom } from './dnr';
-import { certGaps, enforceCerts } from './training-server';
+import { certGaps, certsEnforced, enforceCerts } from './training-server';
+import { workState } from './requirements';
 import { onLeave } from './leave-check';
 
 /**
@@ -93,7 +94,7 @@ export async function planShifts(ctx: Ctx, body: unknown) {
       if (hit) blocked = `Already working ${hit.label}.`;
       else if (planned.some((p, i) => planned.some((q, j) => i < j && overlaps(p, q)))) blocked = 'Two of these shifts overlap (an overnight shift runs into the next one).';
     }
-    const gaps = !blocked && hasFeature(org, 'training') && a.job.requiredCerts.length ? await certGaps(tdb, a.candidateId, a.job.requiredCerts, dates[dates.length - 1], today) : [];
+    const gaps = !blocked && certsEnforced(org) && a.job.requiredCerts.length ? await certGaps(tdb, a.candidateId, a.job.requiredCerts, dates[dates.length - 1], today, workState(a.job.location)) : [];
     const ot = overtimeWarnings(existing, a.candidateId, [...planned, ...(plannedBy.get(a.candidateId) ?? [])]);
     const other = blocked ? [] : (await shiftWarnings(tdb, features, a.candidateId, dates)).filter((w) => !w.includes('overtime (1.5×)'));
     const rules = dates.flatMap((date) => shiftRuleWarnings(a.job, { date, hours: shiftHours(b), breakMinutes: b.breakMinutes }, today));
@@ -116,8 +117,8 @@ export async function createPlanned(ctx: Ctx, body: unknown) {
   const gaps = items.filter((i) => i.certGaps.length);
   if (gaps.length) {
     const can = ctx.role === 'OWNER' || ctx.role === 'ADMIN';
-    if (!b.override?.trim()) throw new HttpError(409, `Not certified for the job — ${gaps.map((i) => `${i.worker}: ${i.certGaps.join('; ')}`).join(' ')}. ${can ? 'Give a reason to continue anyway.' : 'Assign training on the Training page, or ask an owner or admin to override.'}`, { certOverride: true, canOverride: can });
-    const apps = await ctx.tdb.application.findMany({ where: { id: { in: gaps.map((g) => g.applicationId) } }, include: { candidate: { select: { id: true, name: true } }, job: { select: { id: true, title: true, requiredCerts: true } } } });
+    if (!b.override?.trim()) throw new HttpError(409, `Not cleared for the job — ${gaps.map((i) => `${i.worker}: ${i.certGaps.join('; ')}`).join(' ')}. ${can ? 'Give a reason to continue anyway.' : 'Add or verify the missing credentials (or assign training), or ask an owner or admin to override.'}`, { certOverride: true, canOverride: can });
+    const apps = await ctx.tdb.application.findMany({ where: { id: { in: gaps.map((g) => g.applicationId) } }, include: { candidate: { select: { id: true, name: true } }, job: { select: { id: true, title: true, requiredCerts: true, location: true } } } });
     for (const a of apps) await enforceCerts(ctx, a.candidate, a.job, 'schedule', items[0].dates[items[0].dates.length - 1], b.override);
   }
   const apps = await ctx.tdb.application.findMany({ where: { id: { in: items.map((i) => i.applicationId) } }, select: { id: true } });
@@ -203,12 +204,12 @@ export async function bulkUpdate(ctx: Ctx, body: unknown) {
   await logActivity(org.id, `Changed ${next.length} shift${next.length === 1 ? '' : 's'} (${what})`, ctx.user.id);
   const features = { credentials: hasFeature(org, 'credentials'), onboarding: hasFeature(org, 'onboarding') };
   const warnings: string[] = [];
-  if ((c.date || c.moveDays) && hasFeature(org, 'training')) {
+  if ((c.date || c.moveDays) && certsEnforced(org)) {
     // Moving later can run past a certification's expiry: warn, as editing one shift does.
     for (const app of [...new Map(next.filter((n) => !n.moved).map((n) => [n.app.id, n.app])).values()]) {
       if (!app.job.requiredCerts.length) continue;
-      const gaps = await certGaps(tdb, app.candidateId, app.job.requiredCerts, next.filter((n) => n.app.id === app.id).map((n) => n.t.date).sort().pop()!, today);
-      warnings.push(...gaps.map((g) => `${app.candidate.name}: Not certified for this job — ${g}.`));
+      const gaps = await certGaps(tdb, app.candidateId, app.job.requiredCerts, next.filter((n) => n.app.id === app.id).map((n) => n.t.date).sort().pop()!, today, workState(app.job.location));
+      warnings.push(...gaps.map((g) => `${app.candidate.name}: Not cleared for this job — ${g}.`));
     }
   }
   for (const app of [...new Map(next.map((n) => [n.app.id, n.app])).values()]) {
