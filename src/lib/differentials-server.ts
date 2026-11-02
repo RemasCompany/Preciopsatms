@@ -4,7 +4,7 @@ import { HttpError, logActivity, type TenantDb } from './tenant';
 import { audit } from './audit';
 import { parseWeek } from './weeks';
 import { localDate, weekEndingOf } from './timeclock';
-import { MODES, RULE_KINDS, TIMED_KINDS, applicableRules, inRegularRate, perHour, premiumTotals, timedHours, validTime, type RuleKind } from './differentials';
+import { MODES, RULE_KINDS, TIMED_KINDS, applicableRules, inRegularRate, majorHolidays, perHour, premiumTotals, timedHours, validTime, type RuleKind } from './differentials';
 
 type Ctx = { tdb: TenantDb; org: Organization; user: User };
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
@@ -183,4 +183,22 @@ export function sheetPremiums(t: { regularHours: Prisma.Decimal | number; overti
   const lines = (t.premiums ?? []).map((p) => ({ label: p.label, hours: num(p.hours), payPerHour: num(p.payPerHour), billPerHour: num(p.billPerHour), inRegularRate: p.inRegularRate }));
   const tot = premiumTotals(lines, num(t.regularHours), num(t.overtimeHours));
   return { lines, pay: tot.totalPay / 100, bill: tot.bill / 100, overtime: tot.overtime / 100 };
+}
+
+/**
+ * The usual hospital set, as a starting point: nights +$3 (7 pm–7 am), weekends +$2, the six major holidays at 1.5×
+ * and on call at $4/hr. Kinds the company already has are skipped. Employers don't bill, so their bill side is 0.
+ */
+export async function addStandardRules(ctx: Ctx) {
+  const staffing = ctx.org.kind !== 'EMPLOYER', y = new Date().getUTCFullYear();
+  const have = new Set((await ctx.tdb.payRule.findMany({ where: { jobId: null, clientId: null }, select: { kind: true } })).map((r) => r.kind));
+  const set: z.infer<typeof RuleBody>[] = [
+    { name: 'Night shift', kind: 'NIGHT', mode: 'ADD', pay: 3, bill: staffing ? 4.5 : 0, startTime: '19:00', endTime: '07:00' },
+    { name: 'Weekend', kind: 'WEEKEND', mode: 'ADD', pay: 2, bill: staffing ? 3 : 0 },
+    { name: 'Holiday', kind: 'HOLIDAY', mode: 'MULTIPLY', pay: 1.5, bill: staffing ? 1.5 : 0, holidays: [...majorHolidays(y), ...majorHolidays(y + 1)] },
+    { name: 'On call', kind: 'ON_CALL', mode: 'FLAT', pay: 4, bill: staffing ? 6 : 0 },
+  ];
+  const added: string[] = [];
+  for (const r of set.filter((x) => !have.has(x.kind))) { await saveRule(ctx, r); added.push(r.name); }
+  return { added };
 }

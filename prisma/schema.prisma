@@ -65,6 +65,7 @@ model Organization {
   payrollCompanyCode      String? // company code some providers need in imports (e.g. ADP Co Code)
   payrollExportDeductions Boolean              @default(false) // put recurring deductions in export files (off when the provider already has them)
   requireTwoStep          Boolean              @default(false) // every teammate must use two-step sign-in
+  industry                String               @default("GENERAL") // GENERAL | HEALTHCARE: healthcare puts credentials, screening and differentials up front
   exclusionScreening      Boolean              @default(false) // screen workers against the OIG exclusion list every month
   exclusionScreenedAt     DateTime?
   exclusionListDate       String? // the OIG list's own update date, as last downloaded

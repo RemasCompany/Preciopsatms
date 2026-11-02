@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { Organization, User } from '@prisma/client';
 import { db } from './db';
+import { suggestRequirements } from './requirements';
 import { HttpError, logActivity, tenantDb, type TenantDb } from './tenant';
 import { hasFeature } from './plans';
 import { newToken, sha256 } from './tokens';
@@ -136,6 +137,7 @@ export async function portalAct(p: Portal, body: unknown) {
   }
   if (b.startDate < localDate(new Date(), org.timezone)) throw new HttpError(400, 'The start date is in the past.');
   const job = await tdb.job.create({ data: { clientId: client.id, title: b.title, openings: b.openings, startDate: new Date(`${b.startDate}T00:00:00Z`), location: b.location || null, status: 'ON_HOLD', publish: false,
+    ...(org.industry === 'HEALTHCARE' && hasFeature(org, 'credentials') ? { requiredCerts: suggestRequirements(b.title) } : {}),
     description: [`Requested by ${contact.name} in the client portal.`, b.shift ? `Shift: ${b.shift}` : '', b.notes ?? ''].filter(Boolean).join('\n\n') } as never });
   await tdb.task.create({ data: { title: `New job order from ${who}: ${b.openings} × ${b.title}, starting ${b.startDate}. Review and open it.`.slice(0, 300), dueAt: new Date(Date.now() + 864e5), priority: 'High', related: client.name } as never });
   await logActivity(org.id, `${who} requested ${b.openings} × ${b.title} starting ${b.startDate} in the client portal`);

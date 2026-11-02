@@ -2,6 +2,8 @@ import { requireApiContext, withApi, logActivity, HttpError } from '@/lib/tenant
 import { RECORDS, OWNED_KINDS, isRecordKind, type RecordKind } from '@/lib/records';
 import { delegate, parseRecord } from '@/lib/records-server';
 import { notifyTask } from '@/lib/employee-hub';
+import { hasFeature } from '@/lib/plans';
+import { suggestRequirements } from '@/lib/requirements';
 
 function kindOf(k: string): RecordKind {
   if (!isRecordKind(k)) throw new HttpError(404, 'Not found');
@@ -31,6 +33,11 @@ export const POST = withApi(async (req: Request, { params }: { params: { kind: s
     data.clientId = client.id;
   }
   if (kind === 'tasks' && data.done === true) data.doneAt = new Date();
+  // Healthcare companies start nursing jobs with the usual requirements (license, BLS, TB test, screenings).
+  if (kind === 'jobs' && org.industry === 'HEALTHCARE' && hasFeature(org, 'credentials') && !(Array.isArray(data.requiredCerts) && data.requiredCerts.length)) {
+    const req = suggestRequirements(String(data.title ?? ''));
+    if (req.length) data.requiredCerts = req;
+  }
   const row = await delegate(tdb, kind).create({ data });
   await logActivity(org.id, `Added ${RECORDS[kind].one} ${row[RECORDS[kind].titleKey]}`, user.id);
   // A task for an employee: let them know, with a link to their page.

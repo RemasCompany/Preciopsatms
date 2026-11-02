@@ -19,7 +19,7 @@ const money = (n: number) => `$${n.toFixed(2)}`;
 const amount = (mode: string, n: number, side: 'pay' | 'bill') => (mode === 'MULTIPLY' ? (n ? `${n}× ${side}` : `no extra ${side}`) : `${money(n)}/hr ${side}`);
 
 /** The company's pay differentials: add, change, turn off. */
-export default function PayRules({ rules, clients, jobs, canEdit, staffing }: { rules: RuleJson[]; clients: { id: string; name: string }[]; jobs: { id: string; title: string }[]; canEdit: boolean; staffing: boolean }) {
+export default function PayRules({ rules, clients, jobs, canEdit, staffing, healthcare = false }: { rules: RuleJson[]; clients: { id: string; name: string }[]; jobs: { id: string; title: string }[]; canEdit: boolean; staffing: boolean; healthcare?: boolean }) {
   const router = useRouter();
   const [draft, setDraft] = useState<Draft | null>(null);
   const [busy, setBusy] = useState(false);
@@ -44,8 +44,25 @@ export default function PayRules({ rules, clients, jobs, canEdit, staffing }: { 
   }
   const edit = (r: RuleJson): Draft => ({ id: r.id, name: r.name, kind: r.kind, mode: r.mode, pay: String(r.pay), bill: String(r.bill), scope: r.jobId ? `job:${r.jobId}` : r.clientId ? `client:${r.clientId}` : '', startTime: r.startTime ?? '19:00', endTime: r.endTime ?? '07:00', holidays: r.holidays.join(', ') });
 
+  // Healthcare companies are offered the usual hospital set until they have each kind company-wide.
+  const missing = ['NIGHT', 'WEEKEND', 'HOLIDAY', 'ON_CALL'].filter((k) => !rules.some((r) => r.kind === k && !r.jobId && !r.clientId));
   return (
     <>
+      {healthcare && canEdit && !draft && missing.length > 0 && (
+        <div className="card banner" style={{ marginBottom: 12 }}>
+          <b>Start with the usual healthcare differentials</b>
+          <p className="muted" style={{ margin: '4px 0 8px' }}>Nights +$3/hr (7 pm–7 am), weekends +$2/hr, the six major holidays at 1.5× and on call at $4/hr{staffing ? ', with matching bill rates' : ''}. Change any of them after.</p>
+          <button className="btn sm" disabled={busy} onClick={async () => {
+            setBusy(true); setMsg(null);
+            try {
+              const res = await fetch('/api/pay-rules/standard', { method: 'POST' });
+              const j = await res.json().catch(() => ({}));
+              if (!res.ok) throw new Error(j.error ?? 'Something went wrong. Try again.');
+              setMsg({ ok: true, text: `Added ${j.added.join(', ')}.` }); router.refresh();
+            } catch (e) { setMsg({ ok: false, text: (e as Error).message }); } finally { setBusy(false); }
+          }}>Add {missing.length === 4 ? 'them' : 'the missing ones'}</button>
+        </div>
+      )}
       {canEdit && !draft && <div className="row" style={{ flexWrap: 'wrap', marginBottom: 12 }}><button className="btn" onClick={() => setDraft(blank)}>+ Add differential</button>{PRESETS.map(([label, p]) => <button key={label} className="btn ghost sm" onClick={() => setDraft({ ...blank, ...p, holidays: p.kind === 'HOLIDAY' ? [...majorHolidays(year), ...majorHolidays(year + 1)].join(', ') : '' })}>{label}</button>)}</div>}
       {msg && <p className={msg.ok ? 'ok' : 'error'} role="status">{msg.text}</p>}
       {draft && (

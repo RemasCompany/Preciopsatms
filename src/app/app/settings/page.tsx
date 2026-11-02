@@ -28,8 +28,8 @@ export default async function Settings({ searchParams }: { searchParams: { accou
   const warnings = feedWarnings(feedJobs.map((j) => ({ id: j.id, title: j.title, location: j.location ?? '', remote: j.remote, description: j.posting ?? j.description ?? '' })));
   const admin = (role === 'OWNER' || role === 'ADMIN') && canEdit(ctx);
   const base = process.env.APP_URL ?? '';
-  const pick = ({ name, shortName, ownerName, ownerTitle, city, website, services, pitch, logoUrl, brandColor, applyEmail, smsNumber, careersHeadline, careersIntro, showPayOnCareers, showClientOnCareers, billingAddress, billingPhone, billingEmail, taxId, remitInstructions, invoiceFooter }: typeof org) =>
-    ({ name, shortName, ownerName, ownerTitle, city, website, services, pitch, logoUrl, brandColor, applyEmail, smsNumber, careersHeadline, careersIntro, showPayOnCareers, showClientOnCareers, billingAddress, billingPhone, billingEmail, taxId, remitInstructions, invoiceFooter });
+  const pick = ({ industry, name, shortName, ownerName, ownerTitle, city, website, services, pitch, logoUrl, brandColor, applyEmail, smsNumber, careersHeadline, careersIntro, showPayOnCareers, showClientOnCareers, billingAddress, billingPhone, billingEmail, taxId, remitInstructions, invoiceFooter }: typeof org) =>
+    ({ industry: industry === 'HEALTHCARE' ? 'HEALTHCARE' as const : 'GENERAL' as const, name, shortName, ownerName, ownerTitle, city, website, services, pitch, logoUrl, brandColor, applyEmail, smsNumber, careersHeadline, careersIntro, showPayOnCareers, showClientOnCareers, billingAddress, billingPhone, billingEmail, taxId, remitInstructions, invoiceFooter });
   return (
     <>
       <h1>Settings & data</h1>

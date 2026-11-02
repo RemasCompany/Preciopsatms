@@ -28,6 +28,15 @@ const EMPLOYER_NAV: Nav = [
   ['Operations', [['/app/documents', 'E-signatures', 'esign'], ['/app/eeo', 'EEO reporting', 'eeo'], ['/app/compliance', 'Compliance'], ['/app/hr-audit', 'HR audit', 'hrAudit'], ['/app/aca', 'ACA tracking', 'aca'], ['/app/reports', 'Reports'], ['/app/tasks', 'Tasks'], ['/app/team', 'Team'], ['/app/account', 'My sign-in'], ['/app/settings', 'Settings & data'], ['/app/audit', 'Audit log'], ['/app/billing', 'Billing']]],
 ];
 
+// Healthcare companies get their compliance and pay tools first (and not again further down).
+const HEALTHCARE: Nav[number] = ['Healthcare', [['/app/credentials', 'Credentials', 'credentials'], ['/app/credentials/requirements', 'Job requirements', 'credentials'], ['/app/credentials/exclusions', 'Exclusion screening', 'credentials'], ['/app/credentials/checklists', 'Skills checklists', 'credentials'], ['/app/timesheets/differentials', 'Pay differentials', 'timesheets']]];
+const navFor = (kind: string, industry: string): Nav => {
+  const base = kind === 'EMPLOYER' ? EMPLOYER_NAV : NAV;
+  if (industry !== 'HEALTHCARE') return base;
+  const moved = new Set(HEALTHCARE[1].map(([h]) => h));
+  return [base[0], HEALTHCARE, ...base.slice(1)].map(([g, items]) => [g, g === 'Healthcare' ? items : items.filter(([h]) => !moved.has(h))]);
+};
+
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const ctx = await requirePageContext();
   const { org } = ctx;
@@ -38,7 +47,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const trialDays = org.trialEndsAt ? Math.ceil((org.trialEndsAt.getTime() - Date.now()) / 864e5) : 0;
   return (
     <div className="shell">
-      <AppNav company={org.shortName ?? org.name} inboxUnread={showInbox ? unread : null} groups={(org.kind === 'EMPLOYER' ? EMPLOYER_NAV : NAV).map(([g, items]) => [g, items.filter(([h, , f]) => (!f || hasFeature(org, f)) && (!['/app/audit', '/app/invoices', '/app/compliance', '/app/aca', '/app/hr-audit'].includes(h) || ctx.role === 'OWNER' || ctx.role === 'ADMIN') && (!['/app/planning', '/app/redeploy'].includes(h) || ctx.role !== 'VIEWER')).map(([h, l]) => [h, h === '/app/inbox' && unread ? `${l} (${unread})` : l])] as NavGroup).filter(([, items]) => items.length)} />
+      <AppNav company={org.shortName ?? org.name} inboxUnread={showInbox ? unread : null} groups={navFor(org.kind, org.industry).map(([g, items]) => [g, items.filter(([h, , f]) => (!f || hasFeature(org, f)) && (!['/app/audit', '/app/invoices', '/app/compliance', '/app/aca', '/app/hr-audit'].includes(h) || ctx.role === 'OWNER' || ctx.role === 'ADMIN') && (!['/app/planning', '/app/redeploy'].includes(h) || ctx.role !== 'VIEWER')).map(([h, l]) => [h, h === '/app/inbox' && unread ? `${l} (${unread})` : l])] as NavGroup).filter(([, items]) => items.length)} />
       <div className="main">
         {(branches.length > 0 || showInbox) && (
           <div className="mainbar">

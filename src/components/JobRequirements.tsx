@@ -2,22 +2,11 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { CREDENTIAL_TYPES, CREDENTIAL_TYPE_NAMES, type CredentialGroup } from '@/lib/credentials';
-import { isStateLicense } from '@/lib/requirements';
+import { REQUIREMENT_PRESETS as PRESETS, isStateLicense } from '@/lib/requirements';
 import type { JobReadiness } from '@/lib/requirements-server';
 import { OpenRecord } from './Records';
 
 const GROUPS: [CredentialGroup, string][] = [['License', 'Licenses'], ['Certification', 'Certifications'], ['Health', 'Health records'], ['Screening', 'Screenings'], ['Equipment', 'Equipment']];
-const SCREENS = ['Background check', 'Drug screen', 'OIG / SAM exclusion check'];
-/** Common starting points; they add to what's ticked. */
-const PRESETS: [string, string[]][] = [
-  ['RN – Med-Surg / Tele', ['RN license', 'BLS', 'TB test', ...SCREENS]],
-  ['RN – ICU / ER', ['RN license', 'BLS', 'ACLS', 'TB test', ...SCREENS]],
-  ['RN – L&D', ['RN license', 'BLS', 'ACLS', 'NRP', 'TB test', ...SCREENS]],
-  ['RN – Pediatrics', ['RN license', 'BLS', 'PALS', 'TB test', ...SCREENS]],
-  ['LPN / LVN', ['LPN / LVN license', 'BLS', 'TB test', ...SCREENS]],
-  ['CNA', ['CNA certification', 'BLS', 'TB test', ...SCREENS]],
-  ['Health records', ['TB test', 'Flu vaccine', 'Hepatitis B', 'MMR / varicella titers', 'Physical exam']],
-];
 
 /** Which credentials each job needs, and who on assignment there is cleared. */
 export default function JobRequirements({ jobs, canEdit }: { jobs: JobReadiness[]; canEdit: boolean }) {

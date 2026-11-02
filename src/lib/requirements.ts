@@ -50,3 +50,29 @@ export function wrongStateText(required: string, held: Held[], state: string) {
   if (compactHeld && !compactOk) return `${need} — ${state} doesn’t accept multistate licenses`;
   return `${need}; none on file`;
 }
+
+const SCREENS = ['Background check', 'Drug screen', 'OIG / SAM exclusion check'];
+/** Common healthcare requirement sets: starting points on the Job requirements page and for new healthcare jobs. */
+export const REQUIREMENT_PRESETS: [label: string, certs: string[]][] = [
+  ['RN – Med-Surg / Tele', ['RN license', 'BLS', 'TB test', ...SCREENS]],
+  ['RN – ICU / ER', ['RN license', 'BLS', 'ACLS', 'TB test', ...SCREENS]],
+  ['RN – L&D', ['RN license', 'BLS', 'ACLS', 'NRP', 'TB test', ...SCREENS]],
+  ['RN – Pediatrics', ['RN license', 'BLS', 'PALS', 'TB test', ...SCREENS]],
+  ['LPN / LVN', ['LPN / LVN license', 'BLS', 'TB test', ...SCREENS]],
+  ['CNA', ['CNA certification', 'BLS', 'TB test', ...SCREENS]],
+  ['Health records', ['TB test', 'Flu vaccine', 'Hepatitis B', 'MMR / varicella titers', 'Physical exam']],
+];
+const preset = (label: string) => REQUIREMENT_PRESETS.find(([l]) => l === label)![1];
+
+/** The usual requirements for a nursing job, read from its title; none for anything else. Only a suggestion: admins change it. */
+export function suggestRequirements(title: string) {
+  const t = ` ${title.toLowerCase().replace(/[^a-z&]+/g, ' ')} `;
+  if (/ (cna|nurse aide|nursing aide|nursing assistant|nurse assistant) /.test(t)) return preset('CNA');
+  if (/ (lpn|lvn|licensed practical|licensed vocational) /.test(t)) return preset('LPN / LVN');
+  if (!/ (rn|registered nurse|nurse) /.test(t) || / (np|aprn|nurse practitioner) /.test(t)) return [];
+  if (/ (l&d|l d|labor|delivery|ob|obstetric) /.test(t)) return preset('RN – L&D');
+  if (/ (nicu) /.test(t)) return [...preset('RN – Pediatrics'), 'NRP'];
+  if (/ (peds|pediatric|pediatrics|picu) /.test(t)) return preset('RN – Pediatrics');
+  if (/ (icu|ccu|critical|er|ed|emergency|trauma|cvicu|sicu|micu) /.test(t)) return preset('RN – ICU / ER');
+  return preset('RN – Med-Surg / Tele');
+}
