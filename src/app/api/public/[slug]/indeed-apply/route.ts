@@ -4,6 +4,7 @@ import { tenantDb } from '@/lib/tenant';
 import { putFile } from '@/lib/storage';
 import { factsFromFile, fillFromResume } from '@/lib/resume-fill';
 import { sendEmail } from '@/lib/email';
+import { onApplied } from '@/lib/automation-server';
 import { verifyIndeedSignature } from '@/lib/job-boards';
 
 // Indeed Apply application payload (the parts we use). Indeed may add fields; unknown ones are ignored.
@@ -63,10 +64,11 @@ export async function POST(req: Request, { params }: { params: { slug: string } 
   if (facts) await fillFromResume(tdb, cand.id, facts);
   const existing = await tdb.application.findFirst({ where: { candidateId: cand.id, jobId: job.id } });
   if (existing) return Response.json({ ok: true, duplicate: true });
-  await tdb.application.create({ data: { candidateId: cand.id, jobId: job.id, stage: 'APPLIED', maxStage: 'APPLIED', source: 'indeed' } as never });
+  const created = await tdb.application.create({ data: { candidateId: cand.id, jobId: job.id, stage: 'APPLIED', maxStage: 'APPLIED', source: 'indeed' } as never });
   await db.activity.create({ data: { organizationId: org.id, text: `${a.fullName} applied to ${job.title} via Indeed` } });
   if (org.applyEmail) await sendEmail({ to: org.applyEmail, replyTo: email, subject: `New applicant from Indeed: ${a.fullName} for ${job.title}`,
     text: `${a.fullName} (${email}${a.phoneNumber ? ', ' + a.phoneNumber : ''}) applied to ${job.title} on Indeed.\n\nOpen Preciops to review: ${process.env.APP_URL}/app/pipeline?job=${job.id}` })
     .catch((e) => console.error('[indeed-apply] notification email failed', e));
+  await onApplied(org, created.id).catch((e) => console.error('[indeed-apply] automation failed', e));
   return Response.json({ ok: true });
 }

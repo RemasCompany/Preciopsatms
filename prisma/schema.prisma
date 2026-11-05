@@ -65,6 +65,7 @@ model Organization {
   payrollCompanyCode      String? // company code some providers need in imports (e.g. ADP Co Code)
   payrollExportDeductions Boolean              @default(false) // put recurring deductions in export files (off when the provider already has them)
   requireTwoStep          Boolean              @default(false) // every teammate must use two-step sign-in
+  automation              Json                 @default("{}") // hiring automations: { screen, interviews, onboarding } (src/lib/automation.ts)
   industry                String               @default("GENERAL") // GENERAL | HEALTHCARE: healthcare puts credentials, screening and differentials up front
   exclusionScreening      Boolean              @default(false) // screen workers against the OIG exclusion list every month
   exclusionScreenedAt     DateTime?
@@ -283,6 +284,7 @@ model Job {
   siteLat        Float? // job site, for time clock geofencing
   siteLng        Float?
   geofenceMeters Int?
+  managerId      String? // employers: who the hire reports to (an Employee); their department comes with them
   requiredCerts  String[]       @default([]) // equipment certifications (credential types) a worker needs for this job
   boards         String[]       @default([]) // job boards to post to; empty = every board that's turned on
   branchId       String?

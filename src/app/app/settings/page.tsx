@@ -13,6 +13,10 @@ import ScreeningCard from '@/components/Screening';
 import SsoCard from '@/components/Sso';
 import { domainOf, ssoStatus } from '@/lib/sso';
 import { screeningStatus } from '@/lib/checkr';
+import Automations from '@/components/Automations';
+import { automationOf } from '@/lib/automation';
+import { autoPosting } from '@/lib/postings';
+import { db } from '@/lib/db';
 
 export default async function Settings({ searchParams }: { searchParams: { accounting?: string; accounting_error?: string; screening?: string; screening_error?: string; sso?: string } }) {
   const ctx = await requirePageContext();
@@ -23,9 +27,9 @@ export default async function Settings({ searchParams }: { searchParams: { accou
     tdb.job.count({ where: { status: 'OPEN' } }),
     tdb.job.count({ where: { status: 'OPEN', publish: true } }),
     tdb.job.count({ where: { status: 'OPEN', publish: true, OR: [{ applyUrl: null }, { applyUrl: '' }] } }),
-    tdb.job.findMany({ where: { status: 'OPEN', publish: true }, select: { id: true, title: true, location: true, remote: true, description: true, posting: true } }),
+    tdb.job.findMany({ where: { status: 'OPEN', publish: true }, select: { id: true, title: true, location: true, remote: true, description: true, posting: true, type: true, payRate: true, skills: true, requiredCerts: true, startDate: true, sector: true, openings: true } }),
   ]);
-  const warnings = feedWarnings(feedJobs.map((j) => ({ id: j.id, title: j.title, location: j.location ?? '', remote: j.remote, description: j.posting ?? j.description ?? '' })));
+  const warnings = feedWarnings(feedJobs.map((j) => ({ id: j.id, title: j.title, location: j.location ?? '', remote: j.remote, description: j.posting || j.description || autoPosting(j, org) })));
   const admin = (role === 'OWNER' || role === 'ADMIN') && canEdit(ctx);
   const base = process.env.APP_URL ?? '';
   const pick = ({ industry, name, shortName, ownerName, ownerTitle, city, website, services, pitch, logoUrl, brandColor, applyEmail, smsNumber, careersHeadline, careersIntro, showPayOnCareers, showClientOnCareers, billingAddress, billingPhone, billingEmail, taxId, remitInstructions, invoiceFooter }: typeof org) =>
@@ -47,6 +51,11 @@ export default async function Settings({ searchParams }: { searchParams: { accou
         <label><span>Embed on your website</span><textarea readOnly rows={2} value={`<div id="preci-careers" data-org="${org.slug}"></div><script src="${base}/embed.js" async></script>`} /></label>
         <p className="muted">The page and widget update automatically as jobs open and close. Uncheck “Show on careers page” on a job to keep it internal.</p>
       </section>
+      {(role === 'OWNER' || role === 'ADMIN') && (
+        <Automations initial={automationOf(org.automation)} readOnly={!admin} onboarding={hasFeature(org, 'onboarding')}
+          team={(await db.membership.findMany({ where: { organizationId: org.id, role: { not: 'VIEWER' } }, include: { user: { select: { id: true, name: true, email: true } } } })).map((m) => ({ id: m.user.id, name: m.user.name || m.user.email }))}
+          packages={hasFeature(org, 'onboarding') ? (await tdb.onboardingPackage.findMany({ where: { archived: false }, select: { id: true, name: true }, orderBy: { name: 'asc' } })) : []} />
+      )}
       <JobBoards base={base} slug={org.slug} readOnly={!admin} indeed={{ apiToken: org.indeedApplyApiToken, hasSecret: !!org.indeedApplySecret }} warnings={warnings}
         boards={org.jobBoards} linkedin={org.linkedinCompanyId} stats={await boardStats(tdb)} />
       {showBooks && (

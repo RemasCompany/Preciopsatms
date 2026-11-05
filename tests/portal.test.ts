@@ -18,7 +18,8 @@ let org: string, rec: string, harbor: string, other: string, rita: string, other
 const as = (u: string) => { session.current = { user: { id: u, orgId: org } }; };
 const req = (method: string, body?: object) => new Request('http://x', { method, headers: { 'x-forwarded-for': '5.5.5.5' }, body: body ? JSON.stringify(body) : undefined });
 const T = (t = token) => ({ params: { token: t } });
-const WEEK = '2026-09-20';
+// A recent week, so it stays inside the portal's six-week window whenever the tests run.
+const WEEK = (() => { const d = new Date(); d.setUTCDate(d.getUTCDate() - d.getUTCDay() - 7); return d.toISOString().slice(0, 10); })();
 const linkIn = (text: string) => text.match(/\/client\/([\w-]{20,})/)![1];
 
 beforeAll(async () => {

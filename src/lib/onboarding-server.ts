@@ -169,6 +169,8 @@ export async function saveForm(link: Link, stepId: string, data: unknown) {
   const r = EmergencyContact.safeParse(data);
   if (!r.success) throw new HttpError(400, r.error.issues[0]?.message ?? 'Check the form.');
   await tdb.onboardingStep.updateMany({ where: { id: s.id }, data: { data: r.data, status: 'DONE', completedAt: new Date(), completedBy: 'worker' } });
+  // Already an employee (hired before they finished onboarding): their record gets it too, so HR doesn't retype it.
+  await tdb.employee.updateMany({ where: { candidateId: link.candidateId }, data: { emergencyName: r.data.name, emergencyRelation: r.data.relationship, emergencyPhone: r.data.phone } });
   await recompute(tdb, s.onboardingId);
 }
 

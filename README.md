@@ -83,6 +83,18 @@ Companies sign in through their own identity provider (Microsoft Entra ID, Googl
 - "Sign in with SSO" finds the company by email domain. The callback exchanges the code for the profile, checks it came from that company's WorkOS organization and one of its domains, and only signs in people who are already members. It hands the browser a two-minute, one-time ticket for the `sso` credentials provider.
 - Admins can require SSO. Passwords then stop working for everyone except owners, who keep one as a way back in. If the connection stops being active, the requirement switches off by itself. An SSO session satisfies the company's two-step requirement, since the identity provider runs its own second step.
 
+## Less admin: hiring automations and hand-offs
+Settings & data → Hiring automations (owners and admins). Each step is switched on by the company, logged in Activity, and never stops the step that triggered it. If one can't finish, Activity says so and a person does it by hand (`src/lib/automation-server.ts`).
+- **Screen new applicants.** Applications from the careers page or Indeed Apply with a match score at or above the company's bar move to Screened. The score weighs skills, certifications, experience, location and pay. Nobody is rejected automatically.
+- **Offer interview times.** When someone reaches Screened, automatically or by hand, they get 2–6 times in the interviewer's free weekday hours, at most two a day (`pickSlots`). Their pick books it and sends calendar invites.
+- **Start onboarding at the offer.** Moving to Offer, or straight to Placed, starts the chosen package and sends the new-hire link.
+- **Job postings write themselves.** An open job with no posting or description goes to the careers page and job-board feeds with an ad built from its details (`src/lib/postings.ts`). Feeds already update as jobs open and close.
+- **No re-entry at hire.** For employers, the application becomes the employee record (the candidate is the person record, so resume, documents, credentials and training stay attached). The hire also gets:
+  - the job's pay and position;
+  - the job's "Reports to" manager and that manager's department, otherwise those of others in the same position;
+  - the next employee number;
+  - the emergency contact from onboarding, including one filled in after the hire.
+
 ## Healthcare compliance and pay (Growth and up)
 Companies that set their industry to Healthcare (Settings & data → Company profile; staffing agencies or employers) get a Healthcare menu group right after Dashboard and a compliance panel on the dashboard. New nursing jobs start with the usual requirements, read from the job title (`suggestRequirements` in `src/lib/requirements.ts`), and Pay differentials offers the usual hospital set in one click. Everyone uses the same sign-in.
 - **Job requirements** (Credentials → Job requirements). Any credential type can be required on a job. Offering, placing or scheduling someone, and offering them an open shift, is stopped unless each requirement is verified and current through the shift's date (`certGaps` in `src/lib/training-server.ts`). A state license has to be from the job's state, read from its "City, ST" location. A multistate nursing license counts for RN and LPN jobs in compact states (`NLC_STATES` in `src/lib/requirements.ts`, kept to states that have fully implemented the compact). Owners and admins can override with a reason, which goes in the audit log.

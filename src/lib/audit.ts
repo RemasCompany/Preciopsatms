@@ -22,6 +22,7 @@ export const AUDIT_ACTIONS = {
   'settings.payroll': { group: 'Settings', label: 'Payroll settings' },
   'settings.timeclock': { group: 'Settings', label: 'Time clock settings' },
   'settings.engagement': { group: 'Settings', label: 'Engagement settings' },
+  'settings.automation': { group: 'Settings', label: 'Hiring automations' },
   'settings.onboarding': { group: 'Settings', label: 'Onboarding settings' },
   'settings.accounting': { group: 'Settings', label: 'Accounting connection' },
   'billing.checkout': { group: 'Billing', label: 'Started a plan change' },
