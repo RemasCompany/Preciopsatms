@@ -46,6 +46,10 @@ Do **not** set `STORAGE_DRIVER=local` on Vercel: its disk is wiped between reque
 
 Vercel → Project → **Settings → Domains** → add `app.preciopsatms.com` (and `preciopsatms.com` / `www` for the marketing page) and create the DNS records it shows. Then set `NEXTAUTH_URL` and `APP_URL` to `https://app.preciopsatms.com` and **redeploy**.
 
+**One address for sign-in.** A sign-in only belongs to the domain it happened on, and sign-in always returns to `NEXTAUTH_URL`. So choose one address (for example `https://app.preciopsatms.com`) and set **both** `NEXTAUTH_URL` and `APP_URL` to it. Every other domain on the project (`preciopsatms.com`, `www.`, `preciopsatms.app` and so on) then opens pages on that address automatically. API routes (webhooks, feeds, the careers widget) keep working on any domain.
+
+A production deploy stops before going live, and its build log says why, when any of these is wrong: `NEXTAUTH_SECRET` is missing or shorter than 32 characters; `NEXTAUTH_URL` or `APP_URL` isn't an https address; the two are different addresses; or `DATABASE_URL` and `DIRECT_URL` point to different databases. Open `/api/health` on the site to see the same checks (setting names only, never values).
+
 ## 4. Stripe (billing)
 
 1. In Stripe (start in **test mode**), create three recurring prices: Starter (flat monthly), Growth (per seat), Enterprise (per seat). Put their IDs in `STRIPE_PRICE_*`. For companies that sign up as employers, also create three per-employee prices and put them in `STRIPE_PRICE_STARTER_EMPLOYER`, `STRIPE_PRICE_GROWTH_EMPLOYER` and `STRIPE_PRICE_ENTERPRISE_EMPLOYER` (the quantity is kept equal to active employees automatically).

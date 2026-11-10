@@ -4,6 +4,7 @@ import { Prisma, type Role } from '@prisma/client';
 import { authOptions } from './auth';
 import { db } from './db';
 import { hasFeature, planIncludes, STAFFING_ONLY, type Feature } from './plans';
+import { randomBytes } from 'crypto';
 import { captureError, cleanPath } from './monitoring';
 
 // Models that carry organizationId. Every query through tenantDb() is forced into the caller's org.
@@ -142,8 +143,10 @@ export function withApi<T extends unknown[]>(fn: (...args: T) => Promise<Respons
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') return Response.json({ error: 'That record already exists' }, { status: 409 });
       if (e && typeof e === 'object' && 'issues' in e) return Response.json({ error: 'Invalid input', issues: (e as { issues: unknown }).issues }, { status: 400 });
       const r = args[0] instanceof Request ? args[0] : null;
-      await captureError(e, { route: r ? cleanPath(r.url) : undefined, method: r?.method });
-      return Response.json({ error: 'Something went wrong' }, { status: 500 });
+      // A short reference in the message and the log, so a report from a user leads straight to the error.
+      const ref = randomBytes(4).toString('hex').toUpperCase();
+      await captureError(e, { route: r ? cleanPath(r.url) : undefined, method: r?.method, tags: { ref } });
+      return Response.json({ error: `Something went wrong on our side (reference ${ref}). Try again in a minute; if it keeps happening, send us that reference.`, ref }, { status: 500 });
     }
   };
 }

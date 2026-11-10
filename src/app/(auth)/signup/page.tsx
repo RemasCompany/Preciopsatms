@@ -9,9 +9,18 @@ export default function Signup() {
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault(); setBusy(true); setErr('');
     const f = Object.fromEntries(new FormData(e.currentTarget)) as Record<string, string>;
-    const r = await fetch('/api/signup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(f) });
-    if (!r.ok) { setErr((await r.json()).error ?? 'Could not create your account'); setBusy(false); return; }
-    await signIn('credentials', { email: f.email, password: f.password, callbackUrl: '/app/billing?welcome=1' });
+    const fail = (m: string) => { setErr(m); setBusy(false); };
+    let r: Response;
+    try { r = await fetch('/api/signup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(f) }); }
+    catch { return fail('Couldn’t reach Preciops. Check your connection and try again.'); }
+    // An error page instead of JSON means the server itself failed, not the form.
+    const j = await r.json().catch(() => null) as { error?: string } | null;
+    if (!r.ok) return fail(j?.error ?? 'We couldn’t create your account because of a problem on our side. Try again in a few minutes.');
+    try {
+      const s = await signIn('credentials', { email: f.email, password: f.password, redirect: false });
+      if (s?.error) return fail('Your account was created, but signing in failed on our side. Go to Sign in and use your email and password.');
+      window.location.href = '/app/billing?welcome=1';
+    } catch { fail('Your account was created, but signing in failed on our side. Go to Sign in and use your email and password.'); }
   }
   return (
     <main className="public" style={{ maxWidth: 460 }}>

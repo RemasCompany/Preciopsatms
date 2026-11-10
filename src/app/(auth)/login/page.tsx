@@ -6,7 +6,10 @@ import { signIn } from 'next-auth/react';
 const ERRORS: Record<string, string> = {
   TOO_MANY_ATTEMPTS: 'Too many sign-in attempts. Wait 15 minutes and try again, or reset your password.',
   TWO_STEP_INVALID: 'That code didn’t work. Codes change every 30 seconds, so enter the newest one, or use a recovery code.',
+  CredentialsSignin: 'Email or password is incorrect.',
 };
+// Anything else is the server failing (a setting or the database), not the person's password: say so.
+const SERVER = 'Sign-in isn’t working on our side right now. Try again in a few minutes; if it keeps happening, contact support.';
 
 export default function Login() {
   const [err, setErr] = useState('');
@@ -36,12 +39,14 @@ export default function Login() {
     // Signing in to a particular company (from an invite link that sent them here).
     // (next-auth posts every field as text, so leave out the empty ones rather than send "undefined".)
     const orgId = new URLSearchParams(window.location.search).get('org');
-    const r = await signIn('credentials', { email, password, ...(code ? { code } : {}), ...(orgId ? { orgId } : {}), redirect: false });
+    let r: Awaited<ReturnType<typeof signIn>>;
+    try { r = await signIn('credentials', { email, password, ...(code ? { code } : {}), ...(orgId ? { orgId } : {}), redirect: false }); }
+    catch { setBusy(false); setErr(navigator.onLine ? SERVER : 'You’re offline. Check your connection and try again.'); return; }
     setBusy(false);
     if (!r?.error) { window.location.href = '/app'; return; }
     if (r.error === 'TWO_STEP_REQUIRED') { setCreds({ email, password }); return; }
     if (r.error === 'SSO_REQUIRED') { setSso(true); setEmail(email); setErr('Your company signs in with single sign-on. Continue with your work account.'); return; }
-    setErr(ERRORS[r.error] ?? 'Email or password is incorrect.');
+    setErr(ERRORS[r.error] ?? SERVER);
   }
   function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault(); const f = new FormData(e.currentTarget);

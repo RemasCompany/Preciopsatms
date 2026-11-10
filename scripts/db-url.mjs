@@ -36,3 +36,34 @@ export function pickDatabaseUrls(env = process.env) {
     problems: [...run.problems, ...direct.problems],
   };
 }
+
+/** Whether two connection strings reach the same database (a pooled and a direct string for one Neon database do). */
+export function sameDatabase(a, b) {
+  try {
+    const x = new URL(a), y = new URL(b);
+    const host = (u) => u.hostname.toLowerCase().replace('-pooler.', '.');
+    return host(x) === host(y) && x.pathname.replace(/^\//, '') === y.pathname.replace(/^\//, '');
+  } catch { return false; }
+}
+
+const httpsHost = (v) => { try { const u = new URL(String(v).trim()); return u.protocol === 'https:' ? u.hostname : null; } catch { return null; } };
+
+/**
+ * Settings a production deploy can't work without, as plain sentences (names only, never values). Sign-in needs
+ * NEXTAUTH_SECRET and one https address in NEXTAUTH_URL and APP_URL (the same one); the app has to use the database
+ * the migrations went to.
+ */
+export function productionProblems(env = process.env) {
+  const out = [];
+  const secret = String(env.NEXTAUTH_SECRET ?? '').trim();
+  if (!secret) out.push('NEXTAUTH_SECRET is missing. Without it nobody can sign in. Set it to a long random value (openssl rand -base64 32).');
+  else if (secret.length < 32) out.push('NEXTAUTH_SECRET is shorter than 32 characters. Use a long random value (openssl rand -base64 32).');
+  const auth = httpsHost(env.NEXTAUTH_URL), app = httpsHost(env.APP_URL);
+  if (!auth) out.push('NEXTAUTH_URL must be the site’s https:// address, e.g. https://app.preciopsatms.com. Sign-in sends people back to it.');
+  if (!app) out.push('APP_URL must be the site’s https:// address (the same as NEXTAUTH_URL).');
+  if (auth && app && auth !== app) out.push(`NEXTAUTH_URL (${auth}) and APP_URL (${app}) are different addresses. Use the same one for both, or sign-in breaks on one of them.`);
+  const { runtime, runtimeFrom, migrate, migrateFrom } = pickDatabaseUrls(env);
+  if (runtime && migrate && !sameDatabase(runtime, migrate))
+    out.push(`${runtimeFrom} (what the app uses) and ${migrateFrom} (where database updates are applied) point to different databases. Make them the pooled and direct strings of the same Neon database, or the app runs on a database that was never set up.`);
+  return out;
+}
