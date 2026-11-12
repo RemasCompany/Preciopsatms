@@ -47,7 +47,7 @@ test('choose a plan', async () => {
     await page.waitForURL(/checkout\.stripe\.com/);
     await page.goto('/app/billing');
   }
-  // Stand in for Stripe's webhook (completing hosted checkout isn't automatable): the company is now on Growth.
+
   await db.organization.update({ where: { id: org.id }, data: { plan: 'growth', subscriptionStatus: 'active' } });
 });
 
@@ -81,10 +81,10 @@ test('a candidate applies on the careers page', async ({ browser }) => {
   await visitor.close();
 });
 
+
 test('move the applicant to Placed on the pipeline', async () => {
   await page.goto('/app/pipeline');
   await page.waitForLoadState('networkidle');
-  // Keyboard moves: each → arrow moves the card one stage right (Applied → … → Placed).
   const card = () => page.getByLabel(new RegExp(`^${applicant.name}, ${jobTitle}`));
   const stages = ['Sourced', 'Screened', 'Submitted', 'Interview', 'Offer', 'Placed'];
   for (const s of stages) {

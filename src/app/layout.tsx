@@ -2,8 +2,8 @@ import './globals.css';
 import type { Metadata, Viewport } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Preciops-ATMS — Advanced Talent Management Systems',
-  description: 'Applicant tracking, CRM, timesheets, payroll export, e-signatures and compliance for staffing firms.',
+  title: 'Preciops-ATMS | Advanced Talent Management Software',
+  description: 'Hire, train, schedule, pay and stay compliant from one platform. Preciops-ATMS brings ATS, employee training, shift differentials, HR audit logs and payroll together for any industry.',
   appleWebApp: { capable: true, title: 'Preciops', statusBarStyle: 'black-translucent' },
   formatDetection: { telephone: false }, // phone numbers are linked on purpose where it helps
 };
