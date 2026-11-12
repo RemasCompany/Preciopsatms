@@ -22,6 +22,7 @@ export const RECORDS: Record<RecordKind, { one: string; titleKey: string; featur
     f('applyUrl', 'Apply link (leave blank to apply on your careers page)', 'url'), f('publish', 'Show on careers page', 'chk'),
     f('internal', 'Post to employees (they can see it and apply from their employee page)', 'chk'),
     f('skills', 'Required skills (comma separated)', 'tags'), f('description', 'Description', 'area'),
+    f('managerId', 'Reports to (the new hire’s manager; their department comes with them)', 'emp'),
   ] },
   candidates: { one: 'candidate', titleKey: 'name', feature: 'ats', fields: [
     f('name', 'Full name', 'text', { required: true }), f('title', 'Current title'), f('email', 'Email', 'email'), f('phone', 'Phone', 'tel'), f('location', 'Location'),
@@ -121,6 +122,7 @@ export const OWNED_KINDS: RecordKind[] = ['deals', 'leads'];
 /** Employers have no clients or bill rates on jobs, and call branches locations; employer job types come first. */
 export function fieldsFor(kind: RecordKind, orgKind?: 'STAFFING' | 'EMPLOYER'): Field[] {
   const fields = RECORDS[kind].fields;
+  if (kind === 'jobs' && orgKind !== 'EMPLOYER') return fields.filter((fl) => fl.key !== 'managerId'); // agencies place workers with clients
   if (orgKind !== 'EMPLOYER' || kind !== 'jobs') return fields;
   return fields.filter((fl) => fl.key !== 'clientId' && fl.key !== 'billRate').map((fl) => {
     if (fl.key === 'branchId') return { ...fl, label: 'Location' };

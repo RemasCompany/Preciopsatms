@@ -79,7 +79,8 @@ describe('error monitoring', () => {
     process.env.SENTRY_DSN = 'https://pubkey@o1.ingest.sentry.io/42';
     const handler = withApi(async (_req: Request) => { throw new Error('db exploded for bob@x.test'); });
     const res = await handler(new Request('http://x/api/things?email=bob@x.test'));
-    expect([res.status, (await res.json()).error]).toEqual([500, 'Something went wrong']);
+    const j = await res.json();
+    expect([res.status, j.error]).toEqual([500, `Something went wrong on our side (reference ${j.ref}). Try again in a minute; if it keeps happening, send us that reference.`]);
     expect(posts[0].url).toBe('https://o1.ingest.sentry.io/api/42/envelope/');
     expect(posts[0].auth).toContain('sentry_key=pubkey');
     const event = JSON.parse(posts[0].body.split('\n')[2]);

@@ -1,4 +1,5 @@
 import { db } from './db';
+import { autoPosting } from './postings';
 
 const TYPE_LABEL: Record<string, string> = { CONTRACT: 'Contract', CONTRACT_TO_HIRE: 'Contract-to-hire', DIRECT_HIRE: 'Direct hire', TEMP: 'Temp', PER_DIEM: 'Per diem', FULL_TIME: 'Full-time', PART_TIME: 'Part-time', SEASONAL: 'Seasonal' };
 
@@ -15,7 +16,7 @@ export async function publicJobs(slug: string) {
       pay: org.showPayOnCareers && j.payRate ? `$${Number(j.payRate).toFixed(2).replace(/\.00$/, '')}/hr` : '',
       payRate: org.showPayOnCareers && j.payRate ? Number(j.payRate) : 0,
       client: org.showClientOnCareers ? j.client?.name ?? '' : '',
-      description: j.posting ?? j.description ?? '', skills: j.skills, posted: j.createdAt.toISOString().slice(0, 10), hot: j.hot,
+      description: j.posting || j.description || autoPosting(j, org), skills: j.skills, posted: j.createdAt.toISOString().slice(0, 10), hot: j.hot,
       url: j.applyUrl || `${base}/${j.id}`, external: !!j.applyUrl, boards: j.boards,
     })),
   };

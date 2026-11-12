@@ -8,6 +8,6 @@ const Body = z.object({ requiredCerts: z.array(z.string().refine((t) => EQUIPMEN
 /** Set the certifications a job requires. Admins only, since this drives the placement and scheduling warnings. */
 export const PATCH = withApi(async (req: Request, { params }: { params: { id: string } }) => {
   const { tdb, org, user } = await requireApiContext({ minRole: 'ADMIN', feature: 'training', write: true });
-  await setJobCerts(tdb, org, user, params.id, Body.parse(await req.json().catch(() => null)).requiredCerts);
+  await setJobCerts(tdb, org, user, params.id, Body.parse(await req.json().catch(() => null)).requiredCerts, EQUIPMENT_TYPES);
   return Response.json({ ok: true });
 });

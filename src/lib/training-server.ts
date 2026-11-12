@@ -11,6 +11,9 @@ import {
   AnswersBody, CourseBody, OPEN_STATUSES, RECERT_WINDOW_DAYS, REFRESHER_TRIGGERS, grade, recertDate,
   type CourseInput, type Lesson, type Question, type Status,
 } from './training';
+import { EQUIPMENT_TYPES } from './training';
+import { typeSpec } from './credentials';
+import { candidatesFor, isStateLicense, workState, wrongStateText } from './requirements';
 
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
 const day = (s: string) => new Date(`${s}T00:00:00Z`);
@@ -205,59 +208,78 @@ export async function evaluate(org: Organization, user: User, id: string, body: 
 
 // ---- is someone certified for a job? ----
 
+const typeSpecExpires = (t: string) => !!typeSpec(t).expires;
+
+/** Job requirements are enforced with credential tracking (healthcare licenses, screenings) or equipment training. */
+export const certsEnforced = (org: Pick<Organization, 'plan' | 'subscriptionStatus' | 'kind'>) => hasFeature(org, 'credentials') || hasFeature(org, 'training');
+
 /**
- * What's missing for each required certification, as text a recruiter can act on. A certification counts when it's
- * verified, lasts through `through`, and isn't on hold for refresher training or a failed evaluation since it was issued.
+ * What's missing for each required credential, as text a recruiter can act on. A credential counts when it's verified,
+ * lasts through `through`, isn't on hold for refresher training or a failed evaluation since it was issued and, for a
+ * state license, is valid in `state` (the job's work state; a multistate nursing license counts in compact states).
  */
-export async function certGaps(tdb: TenantDb, candidateId: string, required: string[], through: string, today: string) {
+export async function certGaps(tdb: TenantDb, candidateId: string, required: string[], through: string, today: string, state: string | null = null) {
   if (!required.length) return [];
-  const [creds, holds] = await Promise.all([
-    tdb.credential.findMany({ where: { candidateId, type: { in: required } }, orderBy: { expiresAt: 'desc' } }),
+  const [held, holds] = await Promise.all([
+    tdb.credential.findMany({ where: { candidateId }, orderBy: { expiresAt: 'desc' } }),
     tdb.trainingEnrollment.findMany({ where: { candidateId, course: { certType: { in: required } }, OR: [{ reason: 'refresher', status: { in: OPEN_STATUSES } }, { status: 'failed' }] }, include: { course: { select: { certType: true } } }, orderBy: { createdAt: 'desc' } }),
   ]);
   const out: string[] = [];
   for (const type of required) {
-    const c = creds.find((x) => x.type === type);
-    const exp = c?.expiresAt ? ymd(c.expiresAt) : null;
-    const issued = c?.issuedAt ?? c?.verifiedAt ?? null;
-    const hold = c && holds.find((h) => h.course.certType === type && (!issued || (h.evaluatedAt ?? h.createdAt) >= issued));
-    if (!c) out.push(`${type}: not certified`);
-    else if (!c.verifiedAt) out.push(`${type}: not verified`);
-    else if (!exp) out.push(`${type}: no expiration date on file`);
-    else if (exp < through) out.push(`${type}: ${exp < today ? `expired ${fmt(exp)}` : `expires ${fmt(exp)}, before ${fmt(through)}`}`);
-    else if (hold) out.push(`${type}: on hold — ${hold.status === 'failed' ? 'failed an evaluation' : `refresher training required (${hold.trigger ?? 'see training record'})`}`);
+    const options = candidatesFor(type, held, state);
+    if (!options.length) { out.push(state && isStateLicense(type) ? `${type}: ${wrongStateText(type, held, state)}` : `${type}: ${type.includes('license') ? 'none on file' : 'not certified'}`); continue; }
+    // The best one on file: verified first, then the latest expiration.
+    const c = [...options].sort((a, b) => Number(!!b.verifiedAt) - Number(!!a.verifiedAt) || (b.expiresAt?.getTime() ?? Infinity) - (a.expiresAt?.getTime() ?? Infinity))[0];
+    const exp = c.expiresAt ? ymd(c.expiresAt) : null;
+    const issued = c.issuedAt ?? c.verifiedAt ?? null;
+    const hold = holds.find((h) => h.course.certType === type && (!issued || (h.evaluatedAt ?? h.createdAt) >= issued));
+    const name = c.type === type ? type : `${type} (${c.type}${c.state ? `, ${c.state}` : ''})`;
+    if (!c.verifiedAt) out.push(`${name}: not verified`);
+    else if (!exp && typeSpecExpires(c.type)) out.push(`${name}: no expiration date on file`);
+    else if (exp && exp < through) out.push(`${name}: ${exp < today ? `expired ${fmt(exp)}` : `expires ${fmt(exp)}, before ${fmt(through)}`}`);
+    else if (hold) out.push(`${name}: on hold — ${hold.status === 'failed' ? 'failed an evaluation' : `refresher training required (${hold.trigger ?? 'see training record'})`}`);
   }
   return out;
 }
 
+/** What to tell someone who can't override a gap. */
+const gapHint = (required: string[]) => required.some((t) => EQUIPMENT_TYPES.includes(t))
+  ? 'Assign training on the Training page, add the credential, or ask an owner or admin to override.'
+  : 'Add or verify it on the candidate’s Credentials, or ask an owner or admin to override.';
+export { gapHint };
+
 /**
- * Stops an offer, placement or shift for someone missing a job's required certification, unless an owner or admin
+ * Stops an offer, placement or shift for someone missing a job's required credential, unless an owner or admin
  * gives a reason to go ahead. Overrides are written to the audit log.
  */
 export async function enforceCerts(
   ctx: { tdb: TenantDb; org: Organization; user: User; role: Role },
-  candidate: { id: string; name: string }, job: { id: string; title: string; requiredCerts: string[] },
+  candidate: { id: string; name: string }, job: { id: string; title: string; requiredCerts: string[]; location?: string | null },
   action: string, through: string, override?: string | null,
 ) {
-  if (!hasFeature(ctx.org, 'training') || !job.requiredCerts.length) return;
-  const gaps = await certGaps(ctx.tdb, candidate.id, job.requiredCerts, through, localDate(new Date(), ctx.org.timezone));
+  if (!certsEnforced(ctx.org) || !job.requiredCerts.length) return;
+  const location = job.location !== undefined ? job.location : (await ctx.tdb.job.findFirst({ where: { id: job.id }, select: { location: true } }))?.location;
+  const gaps = await certGaps(ctx.tdb, candidate.id, job.requiredCerts, through, localDate(new Date(), ctx.org.timezone), workState(location));
   if (!gaps.length) return;
   const why = override?.trim();
   const can = isAdmin(ctx.role);
-  if (!why) throw new HttpError(409, `${candidate.name} isn’t certified for ${job.title}: ${gaps.join('; ')}. ${can ? 'Give a reason to continue anyway.' : 'Assign training on the Training page, or ask an owner or admin to override.'}`, { certOverride: true, canOverride: can, gaps });
-  if (!can) throw new HttpError(403, 'Only an owner or admin can override a missing certification.');
+  if (!why) throw new HttpError(409, `${candidate.name} isn’t cleared for ${job.title}: ${gaps.join('; ')}. ${can ? 'Give a reason to continue anyway.' : gapHint(job.requiredCerts)}`, { certOverride: true, canOverride: can, gaps });
+  if (!can) throw new HttpError(403, 'Only an owner or admin can override a missing credential.');
   if (why.length < 5) throw new HttpError(400, 'Give a reason for the override (at least a few words).');
-  const text = `Overrode missing certification to ${action} ${candidate.name} (${job.title}): ${gaps.join('; ')}. Reason: ${why.slice(0, 300)}`;
+  const text = `Overrode missing credential to ${action} ${candidate.name} (${job.title}): ${gaps.join('; ')}. Reason: ${why.slice(0, 300)}`;
   await logActivity(ctx.org.id, text, ctx.user.id);
   await audit(ctx.org.id, ctx.user, 'training.override', text, { targetType: 'candidate', targetId: candidate.id });
 }
 
 /** Sets which certifications a job needs (admins only — this controls the warnings). */
-export async function setJobCerts(tdb: TenantDb, org: Organization, user: User, jobId: string, certs: string[]) {
+export async function setJobCerts(tdb: TenantDb, org: Organization, user: User, jobId: string, certs: string[], scope?: string[]) {
   const job = await tdb.job.findFirst({ where: { id: jobId }, select: { id: true, title: true, requiredCerts: true } });
   if (!job) throw new HttpError(404, 'That job was deleted.');
-  await tdb.job.updateMany({ where: { id: jobId }, data: { requiredCerts: [...new Set(certs)] } });
-  await audit(org.id, user, 'training.course', `Set required certifications for ${job.title}: ${certs.join(', ') || 'none'}`, { targetType: 'job', targetId: jobId, changes: { requiredCerts: [job.requiredCerts, certs] } });
+  // An editor that manages only some types (the Training page: equipment) leaves the others alone.
+  const next = [...new Set([...(scope ? job.requiredCerts.filter((t) => !scope.includes(t)) : []), ...certs])];
+  await tdb.job.updateMany({ where: { id: jobId }, data: { requiredCerts: next } });
+  await audit(org.id, user, 'training.course', `Set required credentials for ${job.title}: ${next.join(', ') || 'none'}`, { targetType: 'job', targetId: jobId, changes: { requiredCerts: [job.requiredCerts, next] } });
+  return next;
 }
 
 // ---- lists for the Training page ----

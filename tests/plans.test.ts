@@ -5,7 +5,7 @@ const org = (plan: PlanId, subscriptionStatus = 'active') => ({ plan, subscripti
 
 describe('plan feature gating', () => {
   it.each<[PlanId, Feature, boolean]>([
-    ['starter', 'ats', true], ['starter', 'careers', true], ['starter', 'timesheets', false], ['starter', 'ai', false], ['starter', 'eeo', false],
+    ['starter', 'ats', true], ['starter', 'careers', true], ['starter', 'timesheets', false], ['starter', 'ai', false], ['starter', 'eeo', false], ['starter', 'scheduling', true],
     ['growth', 'timesheets', true], ['growth', 'esign', true], ['growth', 'ai', true], ['growth', 'eeo', false], ['growth', 'sso', false],
     ['enterprise', 'eeo', true], ['enterprise', 'sso', true], ['enterprise', 'whitelabel', true],
   ])('%s → %s = %s', (plan, feature, expected) => {

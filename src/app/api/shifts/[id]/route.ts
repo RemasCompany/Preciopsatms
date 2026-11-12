@@ -5,7 +5,8 @@ import { dayLabel } from '@/lib/schedule';
 import { shiftRuleWarnings } from '@/lib/state-rules';
 import { localDate } from '@/lib/timeclock';
 import { shiftHours } from '@/lib/schedule';
-import { certGaps } from '@/lib/training-server';
+import { certGaps, certsEnforced } from '@/lib/training-server';
+import { workState } from '@/lib/requirements';
 
 type Ctx = { params: { id: string } };
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
@@ -29,7 +30,7 @@ export const PATCH = withApi(async (req: Request, { params }: Ctx) => {
     ...(changed ? { notified: false, remindedAt: null, ...(changedTimes ? { response: 'PENDING' as const, respondedAt: null, declineReason: null } : {}) } : {}),
   } });
   const rules = changed ? shiftRuleWarnings(s.application.job, { date: next.date, hours: shiftHours(next), breakMinutes: next.breakMinutes }, localDate(new Date(), org.timezone)) : [];
-  const certs = changedTimes && hasFeature(org, 'training') ? (await certGaps(tdb, s.application.candidateId, s.application.job.requiredCerts, next.date, localDate(new Date(), org.timezone))).map((g) => `Not certified for this job — ${g}.`) : [];
+  const certs = changedTimes && certsEnforced(org) ? (await certGaps(tdb, s.application.candidateId, s.application.job.requiredCerts, next.date, localDate(new Date(), org.timezone), workState(s.application.job.location))).map((g) => `Not cleared for this job — ${g}.`) : [];
   return Response.json({ ok: true, needsNotice: changed && !!s.notifiedAt, warnings: [...certs, ...await shiftWarnings(tdb, { credentials: hasFeature(org, 'credentials'), onboarding: hasFeature(org, 'onboarding') }, s.application.candidateId, [next.date]), ...rules] });
 });
 

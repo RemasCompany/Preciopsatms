@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { premiumLines } from '@/lib/payroll-run-server';
 import { requirePageContext, canEdit } from '@/lib/tenant';
 import { hasFeature } from '@/lib/plans';
 import { weekEnding, addWeeks } from '@/lib/weeks';
@@ -44,7 +45,7 @@ export default async function Payroll() {
         <div className="tablewrap" id="runs"><table>
           <thead><tr><th>Run</th><th>Pay period</th><th>Pay date</th><th>Workers</th><th>Hours</th><th>Gross pay</th><th>Status</th></tr></thead>
           <tbody>{runs.map((r) => {
-            const items: RunItem[] = r.items.map((i) => ({ ...i, weekEnding: ymd(i.weekEnding), regularHours: Number(i.regularHours), overtimeHours: Number(i.overtimeHours), payRate: Number(i.payRate), billRate: Number(i.billRate), regularPay: Number(i.regularPay), overtimePay: Number(i.overtimePay), leaveHours: Number(i.leaveHours), leavePay: Number(i.leavePay), adjustments: i.adjustments.map((a) => ({ ...a, amount: Number(a.amount) })) }));
+            const items: RunItem[] = r.items.map((i) => ({ ...i, weekEnding: ymd(i.weekEnding), regularHours: Number(i.regularHours), overtimeHours: Number(i.overtimeHours), payRate: Number(i.payRate), billRate: Number(i.billRate), regularPay: Number(i.regularPay), overtimePay: Number(i.overtimePay), leaveHours: Number(i.leaveHours), leavePay: Number(i.leavePay), premiumPay: Number(i.premiumPay), premiumBill: Number(i.premiumBill), premiums: premiumLines(i.premiums), adjustments: i.adjustments.map((a) => ({ ...a, amount: Number(a.amount) })) }));
             const t = totals(items);
             return (
               <tr key={r.id}>

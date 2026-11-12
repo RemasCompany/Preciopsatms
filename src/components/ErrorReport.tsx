@@ -11,6 +11,7 @@ export default function ErrorReport({ error, reset }: { error: Error & { digest?
     <div className="card" role="alert" style={{ maxWidth: 560 }}>
       <h2 style={{ marginTop: 0 }}>Something went wrong</h2>
       <p className="muted">This page hit an error. We’ve been notified. Your data is safe — try again, and if it keeps happening, reload the page.</p>
+      {error.digest && <p className="muted" style={{ fontSize: 13 }}>Reference: {error.digest} (it matches the server log, so include it if you contact support)</p>}
       <button className="btn" onClick={reset}>Try again</button>
     </div>
   );

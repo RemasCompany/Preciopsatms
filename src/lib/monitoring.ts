@@ -41,7 +41,8 @@ export function buildEvent(err: unknown, x: Extra = {}) {
 let sending = 0;
 /** Reports an error (and always logs it). Never throws; gives up after 2 seconds. */
 export async function captureError(err: unknown, x: Extra = {}) {
-  console.error(x.route ? `[error] ${x.method ?? ''} ${x.route}` : '[error]', err);
+  const tag = x.tags?.ref ? `[error ${x.tags.ref}]` : '[error]';
+  console.error(x.route ? `${tag} ${x.method ?? ''} ${x.route}` : tag, err);
   const dsn = process.env.SENTRY_DSN && parseDsn(process.env.SENTRY_DSN);
   if (!dsn || sending > 20) return; // a flood of errors shouldn't pile up requests
   const event = buildEvent(err, x);

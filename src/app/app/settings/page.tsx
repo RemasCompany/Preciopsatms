@@ -2,14 +2,23 @@ import { requirePageContext, canEdit } from '@/lib/tenant';
 import SettingsForm from '@/components/SettingsForm';
 import CompanyType from '@/components/CompanyType';
 import DataTools from '@/components/DataTools';
+import DeleteCompany from '@/components/DeleteCompany';
 import JobBoards from '@/components/JobBoards';
 import { boardStats, feedWarnings } from '@/lib/job-boards';
 import { hasFeature, planIncludes } from '@/lib/plans';
 import { OnboardingSettings } from '@/components/Onboarding';
 import { AccountingCard } from '@/components/Accounting';
 import { PROVIDERS, providerEnabled, type Provider } from '@/lib/accounting';
+import ScreeningCard from '@/components/Screening';
+import SsoCard from '@/components/Sso';
+import { domainOf, ssoStatus } from '@/lib/sso';
+import { screeningStatus } from '@/lib/checkr';
+import Automations from '@/components/Automations';
+import { automationOf } from '@/lib/automation';
+import { autoPosting } from '@/lib/postings';
+import { db } from '@/lib/db';
 
-export default async function Settings({ searchParams }: { searchParams: { accounting?: string; accounting_error?: string } }) {
+export default async function Settings({ searchParams }: { searchParams: { accounting?: string; accounting_error?: string; screening?: string; screening_error?: string; sso?: string } }) {
   const ctx = await requirePageContext();
   const { org, tdb, role } = ctx;
   const showBooks = hasFeature(org, 'invoicing') && (role === 'OWNER' || role === 'ADMIN');
@@ -18,13 +27,13 @@ export default async function Settings({ searchParams }: { searchParams: { accou
     tdb.job.count({ where: { status: 'OPEN' } }),
     tdb.job.count({ where: { status: 'OPEN', publish: true } }),
     tdb.job.count({ where: { status: 'OPEN', publish: true, OR: [{ applyUrl: null }, { applyUrl: '' }] } }),
-    tdb.job.findMany({ where: { status: 'OPEN', publish: true }, select: { id: true, title: true, location: true, remote: true, description: true, posting: true } }),
+    tdb.job.findMany({ where: { status: 'OPEN', publish: true }, select: { id: true, title: true, location: true, remote: true, description: true, posting: true, type: true, payRate: true, skills: true, requiredCerts: true, startDate: true, sector: true, openings: true } }),
   ]);
-  const warnings = feedWarnings(feedJobs.map((j) => ({ id: j.id, title: j.title, location: j.location ?? '', remote: j.remote, description: j.posting ?? j.description ?? '' })));
+  const warnings = feedWarnings(feedJobs.map((j) => ({ id: j.id, title: j.title, location: j.location ?? '', remote: j.remote, description: j.posting || j.description || autoPosting(j, org) })));
   const admin = (role === 'OWNER' || role === 'ADMIN') && canEdit(ctx);
   const base = process.env.APP_URL ?? '';
-  const pick = ({ name, shortName, ownerName, ownerTitle, city, website, services, pitch, logoUrl, brandColor, applyEmail, smsNumber, careersHeadline, careersIntro, showPayOnCareers, showClientOnCareers, billingAddress, billingPhone, billingEmail, taxId, remitInstructions, invoiceFooter }: typeof org) =>
-    ({ name, shortName, ownerName, ownerTitle, city, website, services, pitch, logoUrl, brandColor, applyEmail, smsNumber, careersHeadline, careersIntro, showPayOnCareers, showClientOnCareers, billingAddress, billingPhone, billingEmail, taxId, remitInstructions, invoiceFooter });
+  const pick = ({ industry, name, shortName, ownerName, ownerTitle, city, website, services, pitch, logoUrl, brandColor, applyEmail, smsNumber, careersHeadline, careersIntro, showPayOnCareers, showClientOnCareers, billingAddress, billingPhone, billingEmail, taxId, remitInstructions, invoiceFooter }: typeof org) =>
+    ({ industry: industry === 'HEALTHCARE' ? 'HEALTHCARE' as const : 'GENERAL' as const, name, shortName, ownerName, ownerTitle, city, website, services, pitch, logoUrl, brandColor, applyEmail, smsNumber, careersHeadline, careersIntro, showPayOnCareers, showClientOnCareers, billingAddress, billingPhone, billingEmail, taxId, remitInstructions, invoiceFooter });
   return (
     <>
       <h1>Settings & data</h1>
@@ -42,6 +51,11 @@ export default async function Settings({ searchParams }: { searchParams: { accou
         <label><span>Embed on your website</span><textarea readOnly rows={2} value={`<div id="preci-careers" data-org="${org.slug}"></div><script src="${base}/embed.js" async></script>`} /></label>
         <p className="muted">The page and widget update automatically as jobs open and close. Uncheck “Show on careers page” on a job to keep it internal.</p>
       </section>
+      {(role === 'OWNER' || role === 'ADMIN') && (
+        <Automations initial={automationOf(org.automation)} readOnly={!admin} onboarding={hasFeature(org, 'onboarding')}
+          team={(await db.membership.findMany({ where: { organizationId: org.id, role: { not: 'VIEWER' } }, include: { user: { select: { id: true, name: true, email: true } } } })).map((m) => ({ id: m.user.id, name: m.user.name || m.user.email }))}
+          packages={hasFeature(org, 'onboarding') ? (await tdb.onboardingPackage.findMany({ where: { archived: false }, select: { id: true, name: true }, orderBy: { name: 'asc' } })) : []} />
+      )}
       <JobBoards base={base} slug={org.slug} readOnly={!admin} indeed={{ apiToken: org.indeedApplyApiToken, hasSecret: !!org.indeedApplySecret }} warnings={warnings}
         boards={org.jobBoards} linkedin={org.linkedinCompanyId} stats={await boardStats(tdb)} />
       {showBooks && (
@@ -51,8 +65,17 @@ export default async function Settings({ searchParams }: { searchParams: { accou
             return { provider: p, name: PROVIDERS[p].name, enabled: providerEnabled(p), connected: c ? { tenantName: c.tenantName, connectedAt: c.connectedAt.toISOString(), lastSyncAt: c.lastSyncAt?.toISOString() ?? null, lastError: c.lastError } : null };
           })} />
       )}
+      {hasFeature(org, 'credentials') && (role === 'OWNER' || role === 'ADMIN') && (
+        <ScreeningCard status={await screeningStatus(tdb)} canEdit={admin} error={searchParams.screening_error?.slice(0, 300)}
+          notice={searchParams.screening === 'ready' ? 'Connected. You can order background checks now.' : searchParams.screening === 'pending' ? 'Connected. Checkr will email you to finish approving your company.' : undefined} />
+      )}
+      {(role === 'OWNER' || role === 'ADMIN') && (
+        <SsoCard status={hasFeature(org, 'sso') ? await ssoStatus(tdb, org) : { state: 'upgrade' }} canEdit={admin} myDomain={domainOf(ctx.user.email)}
+          notice={searchParams.sso === 'back' ? 'Welcome back. If IT finished the setup, press “Check status”.' : undefined} />
+      )}
       {planIncludes(org, 'onboarding') && <OnboardingSettings enabled={org.onboardingEnabled} enforcement={org.onboardingEnforcement} readOnly={!admin} />}
       <DataTools canImport={canEdit(ctx) && role !== 'VIEWER'} owner={role === 'OWNER'} />
+      {role === 'OWNER' && <DeleteCompany company={org.name} twoStep={!!ctx.user.totpEnabledAt} subscribed={!!org.stripeSubscriptionId} />}
     </>
   );
 }

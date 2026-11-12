@@ -1,6 +1,6 @@
 # Production image for hosts that run containers (Render, Fly.io, Railway, AWS ECS, Google Cloud Run…).
 # Vercel doesn't need this; it builds from package.json ("vercel-build").
-ARG NODE_IMAGE=node:20-bookworm-slim
+ARG NODE_IMAGE=node:22-bookworm-slim
 FROM ${NODE_IMAGE} AS base
 RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /app

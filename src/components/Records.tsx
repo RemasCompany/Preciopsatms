@@ -11,6 +11,7 @@ import RecordForm, { invalidateRefs } from './RecordForm';
 import { RECORDS, defaultsFor, labelFor, vendorCompliance, HOURS_PER_WEEK, type RecordKind, type RecordValues } from '@/lib/records';
 import { BOARD_STAGES, REJECTION_REASONS, stageLabel } from '@/lib/pipeline';
 import BackgroundChecks from './BackgroundChecks';
+import SkillsChecklists from './SkillsChecklists';
 import { BOARD_INFO, isBoard, sourceLabel, type Board } from '@/lib/boards';
 import DoNotReturn from './DoNotReturn';
 import { CandidateDocs } from './HiringDocs';
@@ -150,6 +151,7 @@ function Extras(props: { kind: RecordKind; id: string; values: RecordValues; ext
     <RelatedExtras {...props} compose={setTo} />
     {kind === 'candidates' && credentials && <Credentials candidateId={id} self={self} canEdit={canEdit} compose={setTo} />}
     {kind === 'candidates' && credentials && <BackgroundChecks candidateId={id} canEdit={canEdit} />}
+    {kind === 'candidates' && credentials && <SkillsChecklists candidateId={id} canEdit={canEdit} contact={{ email: !!values.email && !optOut?.email, phone: !!values.phone && !optOut?.sms }} />}
     {kind === 'candidates' && <CandidateDocs candidateId={id} canEdit={canEdit} toast={props.toast} hasContact={{ email: !!values.email && !optOut?.email, phone: !!values.phone && !optOut?.sms }} />}
     {kind === 'candidates' && <DoNotReturn candidateId={id} canEdit={canEdit} />}
     <MessageHistory messages={(extras.messages ?? []) as SentMessage[]} />

@@ -15,6 +15,7 @@ const SECTIONS: [string, string[]][] = [
     'Passwords are stored only as bcrypt hashes. Sessions end after 12 hours.',
     'Sign-in attempts are limited per email address and per network address, so passwords can’t be guessed at speed. Failed sign-ins to real accounts are recorded in the company’s audit log.',
     'Two-step sign-in with an authenticator app (Google Authenticator, Microsoft Authenticator, 1Password, Authy and others). Each code works once. One-time recovery codes cover a lost phone. Admins can require it for their whole team.',
+    'Single sign-on (Enterprise): your team signs in with their work account through Microsoft Entra ID, Google Workspace, Okta or another SAML or OpenID Connect provider. Only people already on your team can get in, and switching off someone’s work account ends their access. Admins can require it for everyone, while owners keep a password as a way back in.',
     'Email addresses are verified. Password reset links work once and expire after an hour.',
     'Each person has a role (owner, admin, recruiter or viewer). Payroll, invoices, EEO reports, sensitive documents and the audit log are limited to owners and admins.',
     'Workers and clients use private links instead of passwords. Links are stored only as hashes, expire, and can be revoked.',
@@ -29,7 +30,8 @@ const SECTIONS: [string, string[]][] = [
   ['Files and connections', [
     'Uploaded files are kept in private storage. They can be opened only through short-lived signed links handed out after checking the person may see them.',
     'Every page is served over HTTPS, and browsers are told to use HTTPS only. Signed-in and private pages can’t be framed by other sites.',
-    'Webhooks from Checkr and Check are verified by signature. A Check webhook only prompts us to re-read the payroll or worker from Check, so its contents can’t change anything by themselves.',
+    'Webhooks from Checkr and Check are verified by signature. A webhook only prompts us to re-read the record from Checkr or Check with that company’s own access, so its contents can’t change anything by themselves.',
+    'Each company orders background checks under its own Checkr account, which Checkr approves for that employer. Reports stay in that account, and one company’s checks are never visible to another.',
   ]],
   ['Audit log and messages', [
     'Sign-ins, team and role changes, settings, payroll approvals, payments, data exports and document views are recorded with who, when and from where. Entries can’t be edited or deleted, even by owners.',
@@ -37,14 +39,13 @@ const SECTIONS: [string, string[]][] = [
   ]],
   ['Your data, your control', [
     'Owners can download all of their company’s data at any time from Settings & data, for their own records or to answer an access or portability request under GDPR or CCPA.',
-    'To delete your company’s data, or to answer a deletion request from a worker or candidate, contact us at the address below.',
+    'Owners can delete their company from Settings & data. That cancels billing, removes uploaded files and permanently deletes every record, and logins that belong to no other company. To answer a deletion request from a worker or candidate, delete their record, or contact us at the address below.',
   ]],
 ];
 
 const NOT_YET = [
   'A SOC 2 report or another independent audit.',
   'An outside penetration test.',
-  'Single sign-on (SAML or OIDC).',
   'A published uptime history.',
 ];
 

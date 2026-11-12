@@ -7,6 +7,7 @@ import { putFile } from '@/lib/storage';
 import { sendEmail } from '@/lib/email';
 import { limited } from '@/lib/rate-limit';
 import { factsFromFile, fillFromResume } from '@/lib/resume-fill';
+import { onApplied } from '@/lib/automation-server';
 import type { ResumeFacts } from '@/lib/skills';
 
 const Fields = z.object({
@@ -55,7 +56,7 @@ export async function POST(req: Request, { params }: { params: { slug: string } 
   if (facts) await fillFromResume(tdb, cand.id, facts);
 
   const existing = await tdb.application.findFirst({ where: { candidateId: cand.id, jobId: job.id } });
-  if (!existing) await tdb.application.create({ data: { candidateId: cand.id, jobId: job.id, stage: 'APPLIED', maxStage: 'APPLIED', source: sourceKey(f.src) } as never });
+  const created = existing ? null : await tdb.application.create({ data: { candidateId: cand.id, jobId: job.id, stage: 'APPLIED', maxStage: 'APPLIED', source: sourceKey(f.src) } as never });
 
   if (f.gender || f.race || f.veteran || f.disability) {
     const prev = await tdb.eeoSelfId.findFirst({ where: { candidateId: cand.id } });
@@ -65,6 +66,8 @@ export async function POST(req: Request, { params }: { params: { slug: string } 
   await db.activity.create({ data: { organizationId: org.id, text: `${f.name} applied to ${job.title} via ${sourceFor(f.src) === 'Careers page' ? 'the careers page' : sourceFor(f.src)}` } });
   if (org.applyEmail) await sendEmail({ to: org.applyEmail, subject: `New applicant: ${f.name} for ${job.title}`, replyTo: email, text: `${f.name} (${email}${f.phone ? ', ' + f.phone : ''}) applied to ${job.title}.\n\nOpen Preciops to review: ${process.env.APP_URL}/app/candidates` }).catch((e) => console.error('[apply] notification email failed', e));
   await sendEmail({ to: email, fromName: org.shortName ?? org.name, replyTo: org.applyEmail ?? undefined, subject: `We received your application — ${job.title}`, text: `Hi ${f.name.split(' ')[0]},\n\nThanks for applying for ${job.title} with ${org.shortName ?? org.name}. A recruiter will review your background and reach out if it's a fit.\n\n${org.name}` }).catch((e) => console.error('[apply] confirmation email failed', e));
+  // Hiring automations: screen a strong match and offer interview times (never blocks the application).
+  if (created) await onApplied(org, created.id).catch((e) => console.error('[apply] automation failed', e));
   return Response.json({ ok: true });
 }
 export function OPTIONS() { return new Response(null, { status: 204 }); }

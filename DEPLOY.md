@@ -46,6 +46,10 @@ Do **not** set `STORAGE_DRIVER=local` on Vercel: its disk is wiped between reque
 
 Vercel → Project → **Settings → Domains** → add `app.preciopsatms.com` (and `preciopsatms.com` / `www` for the marketing page) and create the DNS records it shows. Then set `NEXTAUTH_URL` and `APP_URL` to `https://app.preciopsatms.com` and **redeploy**.
 
+**One address for sign-in.** A sign-in only belongs to the domain it happened on, and sign-in always returns to `NEXTAUTH_URL`. So choose one address (for example `https://app.preciopsatms.com`) and set **both** `NEXTAUTH_URL` and `APP_URL` to it. Every other domain on the project (`preciopsatms.com`, `www.`, `preciopsatms.app` and so on) then opens pages on that address automatically. API routes (webhooks, feeds, the careers widget) keep working on any domain.
+
+A production deploy stops before going live, and its build log says why, when any of these is wrong: `NEXTAUTH_SECRET` is missing or shorter than 32 characters; `NEXTAUTH_URL` or `APP_URL` isn't an https address; the two are different addresses; or `DATABASE_URL` and `DIRECT_URL` point to different databases. Open `/api/health` on the site to see the same checks (setting names only, never values).
+
 ## 4. Stripe (billing)
 
 1. In Stripe (start in **test mode**), create three recurring prices: Starter (flat monthly), Growth (per seat), Enterprise (per seat). Put their IDs in `STRIPE_PRICE_*`. For companies that sign up as employers, also create three per-employee prices and put them in `STRIPE_PRICE_STARTER_EMPLOYER`, `STRIPE_PRICE_GROWTH_EMPLOYER` and `STRIPE_PRICE_ENTERPRISE_EMPLOYER` (the quantity is kept equal to active employees automatically).
@@ -77,11 +81,30 @@ Each recruiter, admin and owner gets one email listing credentials that reached 
 `/api/cron/reports` runs every day at 12:00 UTC and emails scheduled reports: weekly ones on Mondays (last week) and monthly ones on the 1st (last month), in each company's time zone.
 `/api/cron/people` runs every day at 06:15 UTC: pay changes and last days entered with a future date take effect (raises and promotions apply; employees whose last day has passed come off the schedule and out of billing).
 `/api/cron/tasks` works through the background queue. Large sends (more than 25 people from “Message this list”) are queued; the browser that queued them starts them right away and shows progress, so the scheduled run only finishes work whose browser went away and retries failures (1, 4 and 16 minutes apart, then it gives up and reports the error). Vercel's Hobby plan allows one run a day (`30 3 * * *` in `vercel.json`); on Pro, change it to `*/5 * * * *` so leftovers finish within minutes.
-On other hosts, call these yourself: `curl -H "Authorization: Bearer $CRON_SECRET" https://app.preciopsatms.com/api/cron/credential-alerts` daily (and the same for `/api/cron/shift-reminders`, `/api/cron/engagement` and `/api/cron/reports`), and `/api/cron/tasks` every 5 minutes.
+`/api/cron/exclusions` runs every day at 11:20 UTC. For each company that turned on exclusion screening and is due (a month since the last run, or someone never screened), it downloads OIG's exclusion file once and screens their workers. The server needs outbound access to `oig.hhs.gov`.
+On other hosts, call these yourself: `curl -H "Authorization: Bearer $CRON_SECRET" https://app.preciopsatms.com/api/cron/credential-alerts` daily (and the same for `/api/cron/shift-reminders`, `/api/cron/engagement`, `/api/cron/reports` and `/api/cron/exclusions`), and `/api/cron/tasks` every 5 minutes.
 
 ## Background checks (Checkr, optional)
 
-Set `CHECKR_API_KEY` (and `CHECKR_ENV=production` when you go live; anything else uses Checkr's staging sandbox). In the Checkr dashboard, add the webhook URL `https://<your-app>/api/webhooks/checkr`. Recruiters then order checks from the candidate drawer: Checkr emails the candidate to consent and enter SSN and date of birth on Checkr's site (that information never passes through Preciops), status updates arrive by webhook, and a clear report is saved as a verified background-check credential for a year. “Consider” results are flagged for review with a reminder to follow the FCRA adverse-action process.
+Each company orders checks under its own Checkr account, which Checkr approves for that employer (FCRA). Preciops connects to them as a Checkr partner:
+
+1. Email clients@checkr.com to register Preciops as a partner. Give them the redirect URI `https://<your-app>/api/screening/checkr/callback` and the webhook URL `https://<your-app>/api/webhooks/checkr`.
+2. Set `CHECKR_CLIENT_ID` and `CHECKR_CLIENT_SECRET` from Checkr (start with the test pair), and `CHECKR_ENV=production` when you go live.
+3. An owner or admin connects (or creates) their company's Checkr account in Settings & data → Background checks. Checks can be ordered once Checkr approves the account, usually within a business day.
+
+Recruiters then order checks from the candidate drawer. Checkr emails the candidate to consent and enter their SSN and date of birth on Checkr's site, so that information never passes through Preciops. Status is read back from Checkr with the company's own token whenever a webhook arrives. A clear report is saved as a verified background-check credential for a year, and "consider" results are flagged for review with the FCRA adverse-action steps.
+
+## Payroll processing (Check, optional)
+
+Set `CHECK_API_KEY` (your Check partner key), `CHECK_ENV=production` for live payroll (anything else is the sandbox) and `CHECK_WEBHOOK_SECRET`. In Check, add the webhook URL `https://<your-app>/api/webhooks/check`. Companies on Enterprise then connect under Payroll runs → Payroll processing, finish their company setup on Check's pages, and send each worker their setup link.
+
+## Single sign-on (WorkOS, Enterprise)
+
+1. Create an account at workos.com. Under **Redirects**, add `https://<your-app>/api/auth/sso/callback`.
+2. From **API Keys**, set `WORKOS_API_KEY` (secret) and `WORKOS_CLIENT_ID`. Use the Staging pair to test, then the Production pair for real customers.
+3. An Enterprise company's owner or admin adds their email domain in Settings & data → Single sign-on, then they (or their IT team, from a copied link) connect Microsoft Entra ID, Google Workspace, Okta or another provider in WorkOS's setup portal.
+
+WorkOS bills per connected company.
 
 ## Accounting: QuickBooks Online and Xero (optional)
 

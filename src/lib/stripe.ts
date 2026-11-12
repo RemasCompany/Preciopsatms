@@ -29,10 +29,10 @@ export async function syncSubscription(sub: Stripe.Subscription) {
   });
 }
 
-/** What the subscription is billed on: active employees for employers, users on per-seat agency plans, else 1. */
+/** What the subscription is billed on: active employees for employers, users on per-seat agency plans (at least the plan's minimum), else 1. */
 export async function billingQuantity(org: { id: string; plan: keyof typeof PLANS; kind: OrgKind }) {
   if (billedPerEmployee(org.kind)) return Math.max(1, await db.employee.count({ where: { organizationId: org.id, status: { not: 'TERMINATED' } } }));
-  return PLANS[org.plan].perSeat ? db.membership.count({ where: { organizationId: org.id } }) : 1;
+  return PLANS[org.plan].perSeat ? Math.max(PLANS[org.plan].minSeats, await db.membership.count({ where: { organizationId: org.id } })) : 1;
 }
 
 /**

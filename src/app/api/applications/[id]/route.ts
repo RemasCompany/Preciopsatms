@@ -11,6 +11,7 @@ import { openCaseForPlacement } from '@/lib/everify-server';
 import { assertNotBarred } from '@/lib/dnr';
 import { enforceCerts } from '@/lib/training-server';
 import { localDate } from '@/lib/timeclock';
+import { onOffer, onScreened } from '@/lib/automation-server';
 
 const Body = z.object({ stage: z.nativeEnum(Stage), rejectionReason: z.enum(REJECTION_REASONS).optional(), override: z.string().max(500).optional() });
 
@@ -31,6 +32,9 @@ export const PATCH = withApi(async (req: Request, { params }: { params: { id: st
   const maxStage = stage !== 'REJECTED' && ORDER.indexOf(stage) > ORDER.indexOf(app.maxStage) ? stage : app.maxStage;
   await tdb.application.updateMany({ where: { id: app.id }, data: { stage, maxStage, rejectionReason: stage === 'REJECTED' ? rejectionReason : null, stageChangedAt: new Date() } });
   await logActivity(org.id, `${app.candidate.name} moved to ${stage.toLowerCase()} for ${app.job.title}`, user.id);
+  // Hiring automations: interview times for the screened, onboarding at the offer (they never block the move).
+  if (stage === 'SCREENED') await onScreened(org, app.id);
+  if (stage === 'OFFER' || stage === 'PLACED') await onOffer(org, app.id, user.id);
 
   if (stage === 'PLACED') {
     if (org.kind === 'EMPLOYER') await hireFromPipeline(tdb, org, user, app.id);

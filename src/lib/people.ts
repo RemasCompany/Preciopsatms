@@ -116,6 +116,28 @@ export async function createEmployee(ctx: Ctx, body: unknown) {
 }
 
 /** Hired through the pipeline (an employer moved someone to Hired): they become an employee in that position. */
+/**
+ * Everything the hire already gave you, so nobody types it again: who they report to and that manager's department
+ * (else the department of others in the same position), the next employee number, and the emergency contact from
+ * their onboarding.
+ */
+async function carryOver(tdb: TenantDb, app: { id: string; jobId: string; candidateId: string; job: { managerId: string | null } }) {
+  const manager = app.job.managerId ? await tdb.employee.findFirst({ where: { id: app.job.managerId, status: { not: 'TERMINATED' } }, select: { id: true, departmentId: true } }) : null;
+  const peer = manager?.departmentId ? null : await tdb.employee.findFirst({ where: { application: { jobId: app.jobId }, status: { not: 'TERMINATED' }, departmentId: { not: null } }, select: { departmentId: true, managerId: true }, orderBy: { startDate: 'desc' } });
+  const form = await tdb.onboardingStep.findFirst({ where: { kind: 'FORM', status: 'DONE', onboarding: { candidateId: app.candidateId } }, orderBy: { completedAt: 'desc' }, select: { data: true } });
+  const ec = (form?.data ?? null) as { name?: string; relationship?: string; phone?: string } | null;
+  return {
+    managerId: manager?.id ?? peer?.managerId ?? null, departmentId: manager?.departmentId ?? peer?.departmentId ?? null,
+    ...(ec?.name ? { emergencyName: ec.name, emergencyRelation: ec.relationship ?? null, emergencyPhone: ec.phone ?? null } : {}),
+  };
+}
+
+/** The next employee number when the company numbers its people (1001 for the first). */
+async function nextEmployeeNumber(tdb: TenantDb) {
+  const nums = (await tdb.employee.findMany({ where: { employeeNumber: { not: null } }, select: { employeeNumber: true } })).map((e) => e.employeeNumber!).filter((n) => /^\d{1,9}$/.test(n)).map(Number);
+  return String(nums.length ? Math.max(...nums) + 1 : 1001);
+}
+
 export async function hireFromPipeline(tdb: TenantDb, org: Organization, user: User, applicationId: string) {
   if (org.kind !== 'EMPLOYER') return null;
   const app = await tdb.application.findFirst({ where: { id: applicationId }, include: { candidate: { select: { id: true, name: true } }, job: true } });
@@ -128,7 +150,9 @@ export async function hireFromPipeline(tdb: TenantDb, org: Organization, user: U
   const existing = await tdb.employee.findFirst({ where: { candidateId: app.candidateId } });
   if (existing) {
     // A current or former employee hired into a new role: a transfer or a rehire.
+    const more = await carryOver(tdb, app);
     await tdb.employee.updateMany({ where: { id: existing.id }, data: { applicationId: app.id, title: app.job.title, employmentType: type, branchId: app.job.branchId,
+      ...(more.managerId ? { managerId: more.managerId } : {}), ...(more.departmentId ? { departmentId: more.departmentId } : {}),
       ...(existing.status === 'TERMINATED' ? { status: 'ACTIVE', startDate: day(start), endDate: null, endReason: null } : {}) } });
     await tdb.candidate.updateMany({ where: { id: app.candidateId }, data: { status: 'Employee' } });
     await tdb.compensationChange.create({ data: { employeeId: existing.id, effectiveDate: day(start), payType: existing.payType, payRate: existing.payRate, title: app.job.title, reason: existing.status === 'TERMINATED' ? 'Rehired' : 'Transfer', createdById: user.id } as never });
@@ -137,7 +161,9 @@ export async function hireFromPipeline(tdb: TenantDb, org: Organization, user: U
   }
   const pay = Number(app.job.payRate ?? 0);
   await tdb.candidate.updateMany({ where: { id: app.candidateId }, data: { status: 'Employee' } });
-  const emp = await tdb.employee.create({ data: { candidateId: app.candidateId, applicationId: app.id, title: app.job.title, employmentType: type, branchId: app.job.branchId, startDate: day(start), payType: 'HOURLY', payRate: pay } as never });
+  const more = await carryOver(tdb, app);
+  const emp = await tdb.employee.create({ data: { candidateId: app.candidateId, applicationId: app.id, title: app.job.title, employmentType: type, branchId: app.job.branchId, startDate: day(start), payType: 'HOURLY', payRate: pay,
+    employeeNumber: await nextEmployeeNumber(tdb), ...more } as never });
   await tdb.compensationChange.create({ data: { employeeId: emp.id, effectiveDate: day(start), payType: 'HOURLY', payRate: pay, title: app.job.title, reason: 'Hired', createdById: user.id } as never });
   await logActivity(org.id, `${app.candidate.name} was hired as ${app.job.title} and added to Employees`, user.id);
   await billingSync(org.id);

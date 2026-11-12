@@ -7,7 +7,7 @@ type Data = {
   company: string; brandColor: string; logoUrl: string | null; contactEmail: string | null; contact: { name: string }; client: { name: string; terms: string };
   jobs: { id: string; title: string; status: string; openings: number; filled: number; location: string | null; startDate: string | null; billRate: number | null }[];
   workers: { applicationId: string; name: string; job: string; since: string }[];
-  timesheets: { id: string; week: string; worker: string; job: string; reg: number; ot: number; billRate: number; amount: number; approvedAt: string | null; approvedBy: string | null; dispute: string | null }[];
+  timesheets: { id: string; week: string; worker: string; job: string; reg: number; ot: number; billRate: number; premiums?: { label: string; hours: number; amount: number }[]; amount: number; approvedAt: string | null; approvedBy: string | null; dispute: string | null }[];
   shifts: { id: string; date: string; start: string; end: string; unit: string | null; confirmed: boolean; worker: string; job: string }[];
   invoices: { id: string; number: string; issued: string; due: string; total: number; balance: number; status: string; overdue: boolean }[];
 };
@@ -89,7 +89,7 @@ function Hours({ data, busy, act }: { data: Data; busy: boolean; act: Act }) {
           <div className="tablewrap"><table><thead><tr><th>Worker</th><th>Regular</th><th>Overtime</th><th>Bill rate</th><th>Amount</th><th></th></tr></thead><tbody>
             {rows.map((t) => (
               <tr key={t.id}>
-                <td><b>{t.worker}</b><div className="muted">{t.job}</div></td><td>{t.reg}</td><td>{t.ot}</td><td>{money(t.billRate)}/hr</td><td>{money(t.amount)}</td>
+                <td><b>{t.worker}</b><div className="muted">{t.job}</div></td><td>{t.reg}</td><td>{t.ot}</td><td>{money(t.billRate)}/hr</td><td>{money(t.amount)}{!!t.premiums?.length && <div className="muted" style={{ fontSize: 12 }}>incl. {t.premiums.map((p) => `${p.hours}h ${p.label} ${money(p.amount)}`).join(', ')}</div>}</td>
                 <td>
                   {t.approvedAt ? <span className="pill g">Approved{t.approvedBy ? ` by ${t.approvedBy.split(' ')[0]}` : ''}</span> : t.dispute ? <span className="pill r" title={t.dispute}>Questioned</span> : null}
                   {!t.approvedAt && disputing !== t.id && <button className="btn ghost sm" style={{ marginLeft: 6 }} onClick={() => { setDisputing(t.id); setText(''); }}>Something’s wrong</button>}

@@ -5,7 +5,7 @@ import { sendEmail } from './email';
 import { renderInvoicePdf } from './pdf';
 import { audit } from './audit';
 import { fetchLogo } from './logo-fetch';
-import { ITEM_KINDS, PAYMENT_METHODS, addDays, fromCents, invoiceTotals, itemCents, lineCents, statusFor, termsDays, toCents, usd, type ItemKind } from './invoicing';
+import { ITEM_KINDS, LABOR_KINDS, PAYMENT_METHODS, isLabor, addDays, fromCents, invoiceTotals, itemCents, lineCents, statusFor, termsDays, toCents, usd, type ItemKind } from './invoicing';
 
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
 const Day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Choose a date.');
@@ -41,7 +41,7 @@ type Details = z.infer<typeof DetailsBody>;
 export async function billable(tdb: TenantDb, clientId: string, from: string, to: string, payrollRunId?: string) {
   const ts = await tdb.timesheet.findMany({
     where: { status: { in: ['APPROVED', 'PAID'] }, weekEnding: { gte: new Date(`${from}T00:00:00Z`), lte: new Date(`${to}T00:00:00Z`) }, application: { job: { clientId } }, ...(payrollRunId ? { payrollRunId } : {}) },
-    include: { application: { include: { candidate: { select: { name: true } }, job: { select: { title: true } } } } }, orderBy: [{ weekEnding: 'asc' }],
+    include: { premiums: { where: { billPerHour: { gt: 0 } }, orderBy: { createdAt: 'asc' } }, application: { include: { candidate: { select: { name: true } }, job: { select: { title: true } } } } }, orderBy: [{ weekEnding: 'asc' }],
   });
   if (!ts.length) return [];
   const billed = new Set((await tdb.invoiceLine.findMany({ where: { timesheetId: { in: ts.map((t) => t.id) }, invoice: { status: { not: 'VOID' } } }, select: { timesheetId: true } })).map((l) => l.timesheetId));
@@ -53,8 +53,14 @@ const approval = (t: { clientApprovedBy: string | null; clientApprovedAt: Date |
 type Billable = Awaited<ReturnType<typeof billable>>[number];
 const hoursLine = (t: Billable) => {
   const reg = Number(t.regularHours), ot = Number(t.overtimeHours), rate = Number(t.billRate);
-  return { timesheetId: t.id, worker: t.application.candidate.name, description: t.application.job.title, weekEnding: t.weekEnding, regularHours: reg, overtimeHours: ot, rate, cents: lineCents(reg, ot, rate), approvedBy: approval(t) };
+  return { timesheetId: t.id, worker: t.application.candidate.name, description: t.application.job.title, weekEnding: t.weekEnding, regularHours: reg, overtimeHours: ot, rate, cents: lineCents(reg, ot, rate), approvedBy: approval(t),
+    premiumCents: premiumLines(t).reduce((s, p) => s + p.cents, 0) };
 };
+/** Billed premiums (night, weekend, on-call…) as their own lines, hours × the bill premium saved on the timesheet. */
+const premiumLines = (t: Billable) => t.premiums.map((p) => {
+  const qty = Number(p.hours), rate = Number(p.billPerHour);
+  return { timesheetId: t.id, worker: t.application.candidate.name, description: `${t.application.job.title} — ${p.label}`, weekEnding: t.weekEnding, quantity: qty, rate, cents: Math.round(qty * rate * 100) };
+});
 const itemLines = (items: Details['items'] = []) => items.map((it, i) => ({ kind: it.kind, worker: '', description: it.description, quantity: it.quantity, rate: it.rate, cents: itemCents(it.kind, it.quantity, it.rate), sortOrder: 1000 + i }));
 function totalsOrThrow(labor: number, items: ReturnType<typeof itemLines>, taxRatePct: number) {
   const t = invoiceTotals(labor, items.map((i) => i.cents), taxRatePct);
@@ -72,7 +78,7 @@ export async function previewInvoice(tdb: TenantDb, clientId: string, from: stri
     client: { id: client.id, name: client.name, terms: client.paymentTerms, due: addDays(issue, termsDays(client.paymentTerms)) },
     defaults: { poNumber: client.poNumber ?? '', billToName: contact?.name ?? '', billToAddress: client.billingAddress ?? '', taxRatePct: client.taxRatePct == null ? 0 : Number(client.taxRatePct) },
     contacts: client.contacts.map((c) => ({ id: c.id, name: c.name, title: c.title })),
-    lines: lines.map((l) => ({ ...l, weekEnding: ymd(l.weekEnding), amount: l.cents / 100 })),
+    lines: lines.map(({ premiumCents, ...l }) => ({ ...l, weekEnding: ymd(l.weekEnding), cents: l.cents + premiumCents, premiumCents, amount: (l.cents + premiumCents) / 100 })),
   };
 }
 
@@ -85,9 +91,9 @@ export async function createInvoice(tdb: TenantDb, org: Organization, user: User
     const skip = new Set(b.excludeTimesheetIds ?? []);
     const ts = (await billable(tx as unknown as TenantDb, client.id, b.from, b.to, b.payrollRunId)).filter((t) => !skip.has(t.id));
     if (!ts.length) throw new HttpError(409, skip.size ? 'Every week of hours was left off. Include at least one.' : `There are no approved hours for ${client.name} in that period that aren’t already invoiced.`);
-    const lines = ts.map(hoursLine), items = itemLines(b.items);
+    const lines = ts.map(hoursLine), premiums = ts.flatMap(premiumLines), items = itemLines(b.items);
     const taxRatePct = b.taxRatePct ?? (client.taxRatePct == null ? 0 : Number(client.taxRatePct));
-    const t = totalsOrThrow(lines.reduce((s, l) => s + l.cents, 0), items, taxRatePct);
+    const t = totalsOrThrow(lines.reduce((s, l) => s + l.cents, 0) + premiums.reduce((s, l) => s + l.cents, 0), items, taxRatePct);
     const issue = ymd(new Date()), year = issue.slice(0, 4);
     const seq = (await tx.invoice.count({ where: { number: { startsWith: `INV-${year}-` } } })) + 1;
     const created = await tx.invoice.create({ data: {
@@ -101,7 +107,8 @@ export async function createInvoice(tdb: TenantDb, org: Organization, user: User
       subtotal: fromCents(t.subtotal), taxRatePct, taxAmount: fromCents(t.tax), total: fromCents(t.total),
     } as never });
     await tx.invoiceLine.createMany({ data: [
-      ...lines.map(({ cents: c, ...l }, i) => ({ ...l, kind: 'hours', invoiceId: created.id, amount: fromCents(c), sortOrder: i })),
+      ...lines.map(({ cents: c, premiumCents: _p, ...l }, i) => ({ ...l, kind: 'hours', invoiceId: created.id, amount: fromCents(c), sortOrder: i })),
+      ...premiums.map(({ cents: c, ...l }, i) => ({ ...l, kind: 'premium', invoiceId: created.id, amount: fromCents(c), sortOrder: 500 + i })),
       ...items.map(({ cents: c, ...l }) => ({ ...l, invoiceId: created.id, amount: fromCents(c) })),
     ] as never });
     return created;
@@ -130,15 +137,15 @@ export function lockedReason(inv: { status: string; sentAt: Date | null; syncedA
 export async function updateDraft(tdb: TenantDb, org: Organization, user: User, inv: Loaded, b: Details) {
   const why = lockedReason(inv);
   if (why) throw new HttpError(409, why);
-  const hours = inv.lines.filter((l) => l.kind === 'hours');
+  const hours = inv.lines.filter((l) => isLabor(l.kind));
   const items = b.items ? itemLines(b.items) : null;
-  const keptItems = inv.lines.filter((l) => l.kind !== 'hours').map((l) => toCents(l.amount));
+  const keptItems = inv.lines.filter((l) => !isLabor(l.kind)).map((l) => toCents(l.amount));
   const taxRatePct = b.taxRatePct ?? Number(inv.taxRatePct);
   const t = invoiceTotals(hours.reduce((s, l) => s + toCents(l.amount), 0), items ? items.map((i) => i.cents) : keptItems, taxRatePct);
   if (t.subtotal < 0) throw new HttpError(400, `The discounts (${usd(t.discounts)}) are more than the invoice (${usd(t.labor + t.extras)}).`);
   await tdb.$transaction(async (tx) => {
     if (items) {
-      await tx.invoiceLine.deleteMany({ where: { invoiceId: inv.id, kind: { not: 'hours' } } });
+      await tx.invoiceLine.deleteMany({ where: { invoiceId: inv.id, kind: { notIn: LABOR_KINDS } } });
       if (items.length) await tx.invoiceLine.createMany({ data: items.map(({ cents: c, ...l }) => ({ ...l, invoiceId: inv.id, amount: fromCents(c) })) as never });
     }
     await tx.invoice.updateMany({ where: { id: inv.id }, data: {
@@ -164,13 +171,13 @@ type PdfInvoice = Invoice & { client: { name: string; city: string | null }; lin
 
 /** Money on an invoice, in cents: services (hours), added items, and the stored subtotal, tax and total. */
 export function invoiceSummary(inv: Pick<Invoice, 'total' | 'amountPaid' | 'subtotal' | 'taxAmount' | 'taxRatePct'> & { lines: Pick<InvoiceLine, 'kind' | 'amount' | 'regularHours' | 'overtimeHours' | 'worker'>[] }) {
-  const hours = inv.lines.filter((l) => l.kind === 'hours'), items = inv.lines.filter((l) => l.kind !== 'hours');
+  const hours = inv.lines.filter((l) => isLabor(l.kind)), items = inv.lines.filter((l) => !isLabor(l.kind));
   const total = toCents(inv.total), paid = toCents(inv.amountPaid), tax = toCents(inv.taxAmount);
   return {
     labor: hours.reduce((s, l) => s + toCents(l.amount), 0), extras: items.filter((l) => Number(l.amount) > 0).reduce((s, l) => s + toCents(l.amount), 0),
     discounts: -items.filter((l) => Number(l.amount) < 0).reduce((s, l) => s + toCents(l.amount), 0),
     subtotal: toCents(inv.subtotal) || total - tax, tax, taxRatePct: Number(inv.taxRatePct), total, paid, balance: total - paid,
-    workers: new Set(hours.map((l) => l.worker)).size, regular: hours.reduce((s, l) => s + Number(l.regularHours), 0), overtime: hours.reduce((s, l) => s + Number(l.overtimeHours), 0),
+    workers: new Set(hours.filter((l) => l.kind === 'hours').map((l) => l.worker)).size, regular: hours.reduce((s, l) => s + Number(l.regularHours), 0), overtime: hours.reduce((s, l) => s + Number(l.overtimeHours), 0),
   };
 }
 

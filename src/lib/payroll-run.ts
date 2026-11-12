@@ -30,17 +30,20 @@ export type RunItem = {
   id: string; candidateId: string; workerName: string; payrollId: string | null; position: string; clientId: string | null; clientName: string | null;
   weekEnding: string; regularHours: number; overtimeHours: number; payRate: number; billRate: number; regularPay: number; overtimePay: number;
   leaveHours?: number; leavePay?: number; // paid time off: regular rate, not worked, not billed
+  premiumPay?: number; premiumBill?: number; // differentials (night, weekend, on-call…) with the overtime they add
+  premiums?: { label: string; hours: number | null; rate: number | null; amount: number }[];
   adjustments: { id: string; kind: AdjustmentKind; description: string; amount: number; deductionId?: string | null; code?: string | null }[];
 };
 
 /** Totals for a worker (or any set of items), in cents. */
 export function totals(items: RunItem[]) {
-  let hours = 0, regularHours = 0, overtimeHours = 0, leaveHours = 0, wagesC = 0, extraTaxable = 0, reimbursements = 0, deductions = 0, pretax = 0, billable = 0;
+  let hours = 0, regularHours = 0, overtimeHours = 0, leaveHours = 0, premiumPay = 0, wagesC = 0, extraTaxable = 0, reimbursements = 0, deductions = 0, pretax = 0, billable = 0;
   for (const i of items) {
     regularHours += i.regularHours; overtimeHours += i.overtimeHours; hours += i.regularHours + i.overtimeHours;
     leaveHours += i.leaveHours ?? 0;
-    wagesC += cents(i.regularPay) + cents(i.overtimePay) + cents(i.leavePay ?? 0);
-    billable += cents(i.regularHours * i.billRate) + cents(i.overtimeHours * i.billRate * OT_MULTIPLIER);
+    wagesC += cents(i.regularPay) + cents(i.overtimePay) + cents(i.leavePay ?? 0) + cents(i.premiumPay ?? 0);
+    premiumPay += cents(i.premiumPay ?? 0);
+    billable += cents(i.regularHours * i.billRate) + cents(i.overtimeHours * i.billRate * OT_MULTIPLIER) + cents(i.premiumBill ?? 0);
     for (const a of i.adjustments) {
       const c = cents(a.amount);
       if (a.kind === 'REIMBURSEMENT') reimbursements += c; else if (a.kind === 'DEDUCTION') deductions += c; else if (a.kind === 'PRETAX_DEDUCTION') pretax += c; else extraTaxable += c;
@@ -48,7 +51,7 @@ export function totals(items: RunItem[]) {
   }
   const gross = wagesC + extraTaxable;
   // Pre-tax deductions come out before taxes, so taxable wages are gross less those.
-  return { hours, regularHours, overtimeHours, leaveHours, wages: wagesC, extraTaxable, gross, reimbursements, deductions, pretax, taxableWages: gross - pretax, billable, margin: billable - wagesC };
+  return { hours, regularHours, overtimeHours, leaveHours, premiumPay, wages: wagesC, extraTaxable, gross, reimbursements, deductions, pretax, taxableWages: gross - pretax, billable, margin: billable - wagesC };
 }
 
 export function byWorker(items: RunItem[]) {
@@ -100,7 +103,7 @@ export type ExportFormat = keyof typeof EXPORT_FORMATS;
 export const isExportFormat = (f: unknown): f is ExportFormat => typeof f === 'string' && f in EXPORT_FORMATS;
 
 /** Earning codes used in exports. Most providers let you map these once during the first import. */
-export const CODES = { REG: 'REG', OT: 'OT', PTO: 'PTO', BONUS: 'BON', OTHER_EARNING: 'OTH', REIMBURSEMENT: 'REIMB', DEDUCTION: 'DED' } as const;
+export const CODES = { REG: 'REG', OT: 'OT', PTO: 'PTO', DIFF: 'DIFF', BONUS: 'BON', OTHER_EARNING: 'OTH', REIMBURSEMENT: 'REIMB', DEDUCTION: 'DED' } as const;
 
 const cell = (v: unknown) => { const s = String(v ?? ''); return /[",\n\r]/.test(s) || /^[=+\-@]/.test(s) ? `"${s.replace(/"/g, '""').replace(/^([=+\-@])/, "'$1")}"` : s; };
 const csv = (rows: unknown[][]) => rows.map((r) => r.map(cell).join(',')).join('\r\n') + '\r\n';
@@ -131,7 +134,7 @@ export function exportRun(format: ExportFormat, run: { number: string; periodSta
     const t = totals(li);
     return {
       i, reg: t.regularHours, ot: t.overtimeHours, regPay: li.reduce((s, x) => s + cents(x.regularPay), 0), otPay: li.reduce((s, x) => s + cents(x.overtimePay), 0),
-      pto: t.leaveHours, ptoPay: li.reduce((s, x) => s + cents(x.leavePay ?? 0), 0),
+      pto: t.leaveHours, ptoPay: li.reduce((s, x) => s + cents(x.leavePay ?? 0), 0), diff: t.premiumPay,
       bonus: adjSum(all, 'BONUS'), other: adjSum(all, 'OTHER_EARNING'), reimb: adjSum(all, 'REIMBURSEMENT'), ded: adjSum(all, 'DEDUCTION'), pre: adjSum(all, 'PRETAX_DEDUCTION'),
       manualDed: all.reduce((s, x) => s + x.adjustments.filter((a) => a.kind === 'DEDUCTION' && !a.deductionId).reduce((y, a) => y + cents(a.amount), 0), 0),
       recurring: all.flatMap((x) => x.adjustments.filter((a) => a.deductionId).map((a) => ({ code: a.code || (a.kind === 'PRETAX_DEDUCTION' ? 'PRE' : CODES.DEDUCTION), label: a.description, pretax: a.kind === 'PRETAX_DEDUCTION', amount: cents(a.amount) }))),
@@ -143,15 +146,18 @@ export function exportRun(format: ExportFormat, run: { number: string; periodSta
   const pto = rows.some((r) => r.pto);
   const opt = <T,>(cols: T[]) => (pto ? cols : []);
   const hasPre = rows.some((r) => r.pre);
+  // Same for differentials: their own earning code, only when the run has some.
+  const hasDiff = rows.some((r) => r.diff);
+  const optDiff = <T,>(cols: T[]) => (hasDiff ? cols : []);
   const optPre = <T,>(cols: T[]) => (hasPre ? cols : []);
   switch (format) {
     case 'adp':
       // ADP Workforce Now "paydata" batch: one row per employee and rate, with extra earnings in the Earnings 3 columns.
       return csv([
-        ['Co Code', 'Batch ID', 'File #', 'Employee Name', 'Rate 1', 'Reg Hours', 'O/T Hours', ...opt(['Hours 3 Code', 'Hours 3 Quantity']), 'Earnings 3 Code', 'Earnings 3 Amount', 'Earnings 4 Code', 'Earnings 4 Amount', 'Earnings 5 Code', 'Earnings 5 Amount', 'Memo Code', 'Memo Amount'],
+        ['Co Code', 'Batch ID', 'File #', 'Employee Name', 'Rate 1', 'Reg Hours', 'O/T Hours', ...opt(['Hours 3 Code', 'Hours 3 Quantity']), 'Earnings 3 Code', 'Earnings 3 Amount', 'Earnings 4 Code', 'Earnings 4 Amount', 'Earnings 5 Code', 'Earnings 5 Amount', ...optDiff(['Earnings 6 Code', 'Earnings 6 Amount']), 'Memo Code', 'Memo Amount'],
         ...rows.map((r) => [opts.companyCode ?? '', run.number, r.i.payrollId ?? '', name(r).last ? `${name(r).last}, ${name(r).first}` : name(r).first, r.i.payRate.toFixed(2), hrs(r.reg), hrs(r.ot), ...opt([r.pto ? CODES.PTO : '', r.pto ? hrs(r.pto) : '']),
           r.bonus ? CODES.BONUS : '', r.bonus ? money(r.bonus) : '', r.other ? CODES.OTHER_EARNING : '', r.other ? money(r.other) : '',
-          r.reimb ? CODES.REIMBURSEMENT : '', r.reimb ? money(r.reimb) : '', r.ded ? CODES.DEDUCTION : '', r.ded ? money(r.ded) : '']),
+          r.reimb ? CODES.REIMBURSEMENT : '', r.reimb ? money(r.reimb) : '', ...optDiff([r.diff ? CODES.DIFF : '', r.diff ? money(r.diff) : '']), r.ded ? CODES.DEDUCTION : '', r.ded ? money(r.ded) : '']),
       ]);
     case 'paychex': {
       // Paychex Flex: one row per worker per earning.
@@ -161,6 +167,7 @@ export function exportRun(format: ExportFormat, run: { number: string; periodSta
         if (r.reg) out.push([...base, CODES.REG, hrs(r.reg), r.i.payRate.toFixed(2), money(r.regPay), run.payDate]);
         if (r.ot) out.push([...base, CODES.OT, hrs(r.ot), (r.i.payRate * 1.5).toFixed(4), money(r.otPay), run.payDate]);
         if (r.pto) out.push([...base, CODES.PTO, hrs(r.pto), r.i.payRate.toFixed(2), money(r.ptoPay), run.payDate]);
+        if (r.diff) out.push([...base, CODES.DIFF, '', '', money(r.diff), run.payDate]);
         for (const [code, c] of [[CODES.BONUS, r.bonus], [CODES.OTHER_EARNING, r.other], [CODES.REIMBURSEMENT, r.reimb], [CODES.DEDUCTION, r.manualDed]] as const) if (c) out.push([...base, code, '', '', money(c), run.payDate]);
         for (const d of r.recurring) out.push([...base, d.code, '', '', money(d.amount), run.payDate]);
       }
@@ -174,6 +181,7 @@ export function exportRun(format: ExportFormat, run: { number: string; periodSta
         if (r.reg) out.push([...base, 'Regular Pay', hrs(r.reg), r.i.payRate.toFixed(2), money(r.regPay), run.periodStart, run.periodEnd, run.payDate, r.positions]);
         if (r.ot) out.push([...base, 'Overtime Pay', hrs(r.ot), (r.i.payRate * 1.5).toFixed(4), money(r.otPay), run.periodStart, run.periodEnd, run.payDate, r.positions]);
         if (r.pto) out.push([...base, 'Paid Time Off', hrs(r.pto), r.i.payRate.toFixed(2), money(r.ptoPay), run.periodStart, run.periodEnd, run.payDate, r.positions]);
+        if (r.diff) out.push([...base, 'Shift Differential', '', '', money(r.diff), run.periodStart, run.periodEnd, run.payDate, r.positions]);
         for (const [item, c] of [['Bonus', r.bonus], ['Other Earnings', r.other], ['Reimbursement', r.reimb], ['After-Tax Deduction', r.manualDed]] as const) if (c) out.push([...base, item, '', '', money(c), run.periodStart, run.periodEnd, run.payDate, r.notes]);
         for (const d of r.recurring) out.push([...base, d.label, '', '', money(d.amount), run.periodStart, run.periodEnd, run.payDate, d.pretax ? 'Pre-tax deduction' : 'After-tax deduction']);
       }
@@ -182,17 +190,17 @@ export function exportRun(format: ExportFormat, run: { number: string; periodSta
     case 'gusto':
       // Gusto hours import: one row per employee and rate.
       return csv([
-        ['first_name', 'last_name', 'employee_id', 'regular_hours', 'overtime_hours', ...opt(['paid_time_off_hours']), 'rate', 'bonus', 'other_earnings', 'reimbursement', 'post_tax_deduction', 'notes'],
+        ['first_name', 'last_name', 'employee_id', 'regular_hours', 'overtime_hours', ...opt(['paid_time_off_hours']), 'rate', 'bonus', 'other_earnings', ...optDiff(['shift_differential']), 'reimbursement', 'post_tax_deduction', 'notes'],
         ...rows.map((r) => [name(r).first, name(r).last, r.i.payrollId ?? '', hrs(r.reg), hrs(r.ot), ...opt([hrs(r.pto)]), r.i.payRate.toFixed(2),
-          r.bonus ? money(r.bonus) : '', r.other ? money(r.other) : '', r.reimb ? money(r.reimb) : '', r.ded ? money(r.ded) : '', r.notes]),
+          r.bonus ? money(r.bonus) : '', r.other ? money(r.other) : '', ...optDiff([r.diff ? money(r.diff) : '']), r.reimb ? money(r.reimb) : '', r.ded ? money(r.ded) : '', r.notes]),
       ]);
     default:
       return csv([
         ['Run', 'Pay period start', 'Pay period end', 'Pay date', 'Employee ID', 'Employee name', 'First name', 'Last name', 'Position', 'Client', 'Regular hours', 'Overtime hours',
-          'Regular rate', 'Overtime rate', 'Regular pay', 'Overtime pay', ...opt(['Time off hours', 'Time off pay']), 'Bonus', 'Other earnings', 'Gross taxable pay', 'Reimbursements (non-taxable)', ...optPre(['Pre-tax deductions']), 'After-tax deductions', 'Notes'],
+          'Regular rate', 'Overtime rate', 'Regular pay', 'Overtime pay', ...opt(['Time off hours', 'Time off pay']), ...optDiff(['Differentials and premiums']), 'Bonus', 'Other earnings', 'Gross taxable pay', 'Reimbursements (non-taxable)', ...optPre(['Pre-tax deductions']), 'After-tax deductions', 'Notes'],
         ...rows.map((r) => [run.number, run.periodStart, run.periodEnd, run.payDate, r.i.payrollId ?? '', r.i.workerName, name(r).first, name(r).last, r.positions, r.clients,
-          hrs(r.reg), hrs(r.ot), r.i.payRate.toFixed(2), (r.i.payRate * 1.5).toFixed(4), money(r.regPay), money(r.otPay), ...opt([hrs(r.pto), money(r.ptoPay)]), money(r.bonus), money(r.other),
-          money(r.regPay + r.otPay + r.ptoPay + r.bonus + r.other), money(r.reimb), ...optPre([money(r.pre)]), money(r.ded), r.notes]),
+          hrs(r.reg), hrs(r.ot), r.i.payRate.toFixed(2), (r.i.payRate * 1.5).toFixed(4), money(r.regPay), money(r.otPay), ...opt([hrs(r.pto), money(r.ptoPay)]), ...optDiff([money(r.diff)]), money(r.bonus), money(r.other),
+          money(r.regPay + r.otPay + r.ptoPay + r.diff + r.bonus + r.other), money(r.reimb), ...optPre([money(r.pre)]), money(r.ded), r.notes]),
       ]);
   }
 }

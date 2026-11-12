@@ -4,7 +4,8 @@ import { HttpError, logActivity, tenantDb, type TenantDb } from './tenant';
 import { hasFeature } from './plans';
 import { onboardingGaps } from './onboarding-server';
 import { barredFrom } from './dnr';
-import { certGaps } from './training-server';
+import { certGaps, certsEnforced } from './training-server';
+import { workState } from './requirements';
 import { localDate } from './timeclock';
 import { ShiftFields, assertNoOverlap, assignmentWhere, checkTimes, deliver, parse, workerLink, type Channel } from './schedule-server';
 import { clockLong, dayLabel, overlaps, overnight } from './schedule';
@@ -49,7 +50,7 @@ export async function pool(tdb: TenantDb, org: Organization, id: string) {
   const busy = await tdb.shift.findMany({ where: { cancelled: false, date: { gte: prev, lte: next }, application: { candidateId: { in: apps.map((a) => a.candidateId) } } }, select: { date: true, start: true, end: true, breakMinutes: true, application: { select: { candidateId: true } } } });
   const offers = await tdb.shiftOffer.findMany({ where: { openShiftId: os.id }, select: { candidateId: true, status: true } });
   const block = hasFeature(org, 'onboarding') && org.onboardingEnforcement === 'block';
-  const certs = hasFeature(org, 'training') ? os.job.requiredCerts : [];
+  const certs = certsEnforced(org) ? os.job.requiredCerts : [];
   const today = localDate(new Date(), org.timezone);
   const out = [];
   for (const a of apps) {
@@ -58,7 +59,7 @@ export async function pool(tdb: TenantDb, org: Organization, id: string) {
     if (await barredFrom(tdb, c.id, os.job.clientId)) reason = 'On the do-not-return list';
     else if (busy.some((s) => s.application.candidateId === c.id && overlaps(times(os), times(s)))) reason = 'Already working then';
     else if (block && (await onboardingGaps(tdb, c.id))) reason = 'Onboarding isn’t finished';
-    else if (certs.length && (await certGaps(tdb, c.id, certs, d, today)).length) reason = 'Not certified for this job';
+    else if (certs.length && (await certGaps(tdb, c.id, certs, d, today, workState(os.job.location))).length) reason = 'Missing a required credential';
     else if (!(c.phone && !c.smsOptOut) && !(c.email && !c.emailOptOut)) reason = 'No way to reach them';
     out.push({ candidateId: c.id, applicationId: a.id, name: c.name, canText: !!c.phone && !c.smsOptOut, canEmail: !!c.email && !c.emailOptOut, reason, offer: offers.find((o) => o.candidateId === c.id)?.status ?? null });
   }
@@ -130,7 +131,7 @@ export async function workerOffers(orgId: string, candidateId: string) {
  */
 export async function respondToOffer(orgId: string, candidate: { id: string; name: string }, offerId: string, accept: boolean) {
   const tdb = tenantDb(orgId);
-  const offer = await tdb.shiftOffer.findFirst({ where: { id: offerId, candidateId: candidate.id }, include: { openShift: { include: { job: { select: { title: true, requiredCerts: true } } } }, organization: true } });
+  const offer = await tdb.shiftOffer.findFirst({ where: { id: offerId, candidateId: candidate.id }, include: { openShift: { include: { job: { select: { title: true, requiredCerts: true, location: true } } } }, organization: true } });
   if (!offer) throw new HttpError(404, 'That offer isn’t for you.');
   if (offer.status === 'ACCEPTED') throw new HttpError(409, 'You already have this shift.');
   const os = offer.openShift, what = describe(os, os.job.title);
@@ -140,8 +141,8 @@ export async function respondToOffer(orgId: string, candidate: { id: string; nam
   }
   if (ymd(os.date) < ymd(new Date())) throw new HttpError(409, 'That shift has already passed.');
   // A certification can lapse (or go on hold) between the offer and the reply.
-  if (hasFeature(offer.organization, 'training') && os.job.requiredCerts.length && (await certGaps(tdb, candidate.id, os.job.requiredCerts, ymd(os.date), localDate(new Date(), offer.organization.timezone))).length)
-    throw new HttpError(409, `This shift needs a current ${os.job.requiredCerts.join(' and ')} certification. Your recruiter will be in touch about training.`);
+  if (certsEnforced(offer.organization) && os.job.requiredCerts.length && (await certGaps(tdb, candidate.id, os.job.requiredCerts, ymd(os.date), localDate(new Date(), offer.organization.timezone), workState(os.job.location))).length)
+    throw new HttpError(409, `This shift needs a current, verified ${os.job.requiredCerts.join(' and ')}. Your recruiter will be in touch.`);
   const result = await tdb.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`openshift:${os.id}`}))`;
     const now = await tx.openShift.findFirst({ where: { id: os.id } });

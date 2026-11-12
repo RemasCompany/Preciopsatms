@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { Organization, User } from '@prisma/client';
 import { db } from './db';
+import { suggestRequirements } from './requirements';
 import { HttpError, logActivity, tenantDb, type TenantDb } from './tenant';
 import { hasFeature } from './plans';
 import { newToken, sha256 } from './tokens';
@@ -76,7 +77,7 @@ export async function portalData(p: Portal) {
     tdb.job.findMany({ where: { clientId: client.id, OR: [{ status: { in: ['OPEN', 'ON_HOLD'] } }, { updatedAt: { gte: since } }] }, orderBy: { createdAt: 'desc' }, take: 50,
       select: { id: true, title: true, status: true, openings: true, type: true, location: true, startDate: true, billRate: true, createdAt: true, _count: { select: { applications: { where: { stage: 'PLACED' } } } } } }),
     tdb.application.findMany({ where: { ...ofClient, stage: 'PLACED' }, orderBy: { stageChangedAt: 'desc' }, select: { id: true, stageChangedAt: true, candidate: { select: { name: true } }, job: { select: { title: true } } } }),
-    tdb.timesheet.findMany({ where: { application: ofClient, weekEnding: { gte: since } }, orderBy: [{ weekEnding: 'desc' }], select: { id: true, weekEnding: true, regularHours: true, overtimeHours: true, billRate: true, status: true, clientApprovedAt: true, clientApprovedBy: true, clientDisputeNote: true, application: { select: { candidate: { select: { name: true } }, job: { select: { title: true } } } } } }),
+    tdb.timesheet.findMany({ where: { application: ofClient, weekEnding: { gte: since } }, orderBy: [{ weekEnding: 'desc' }], select: { id: true, weekEnding: true, regularHours: true, overtimeHours: true, billRate: true, status: true, premiums: { select: { label: true, hours: true, billPerHour: true } }, clientApprovedAt: true, clientApprovedBy: true, clientDisputeNote: true, application: { select: { candidate: { select: { name: true } }, job: { select: { title: true } } } } } }),
     tdb.shift.findMany({ where: { application: ofClient, cancelled: false, date: { gte: todayD, lte: until } }, orderBy: [{ date: 'asc' }, { start: 'asc' }], select: { id: true, date: true, start: true, end: true, unit: true, response: true, application: { select: { candidate: { select: { name: true } }, job: { select: { title: true } } } } } }),
     tdb.invoice.findMany({ where: { clientId: client.id, status: { not: 'VOID' }, NOT: { status: 'DRAFT', sentAt: null } }, orderBy: { issueDate: 'desc' }, take: 24 }),
   ]);
@@ -87,7 +88,9 @@ export async function portalData(p: Portal) {
     workers: placed.map((a) => ({ applicationId: a.id, name: a.candidate.name, job: a.job.title, since: ymd(a.stageChangedAt) })),
     timesheets: timesheets.filter((t) => Number(t.regularHours) + Number(t.overtimeHours) > 0).map((t) => {
       const reg = Number(t.regularHours), ot = Number(t.overtimeHours), bill = Number(t.billRate);
-      return { id: t.id, week: ymd(t.weekEnding), worker: t.application.candidate.name, job: t.application.job.title, reg, ot, billRate: bill, amount: lineCents(reg, ot, bill) / 100,
+      // The client sees what they're billed for premiums, never the worker's pay.
+      const premiums = t.premiums.filter((p) => Number(p.billPerHour) > 0).map((p) => ({ label: p.label, hours: Number(p.hours), amount: Math.round(Number(p.hours) * Number(p.billPerHour) * 100) / 100 }));
+      return { id: t.id, week: ymd(t.weekEnding), worker: t.application.candidate.name, job: t.application.job.title, reg, ot, billRate: bill, premiums, amount: (lineCents(reg, ot, bill) + premiums.reduce((s, p) => s + Math.round(p.amount * 100), 0)) / 100,
         approvedAt: t.clientApprovedAt?.toISOString() ?? null, approvedBy: t.clientApprovedBy, dispute: t.clientDisputeNote, locked: t.status === 'PAID' && !!t.clientApprovedAt };
     }),
     shifts: shifts.map((s) => ({ id: s.id, date: ymd(s.date), start: s.start, end: s.end, unit: s.unit, confirmed: s.response === 'CONFIRMED', worker: s.application.candidate.name, job: s.application.job.title })),
@@ -134,6 +137,7 @@ export async function portalAct(p: Portal, body: unknown) {
   }
   if (b.startDate < localDate(new Date(), org.timezone)) throw new HttpError(400, 'The start date is in the past.');
   const job = await tdb.job.create({ data: { clientId: client.id, title: b.title, openings: b.openings, startDate: new Date(`${b.startDate}T00:00:00Z`), location: b.location || null, status: 'ON_HOLD', publish: false,
+    ...(org.industry === 'HEALTHCARE' && hasFeature(org, 'credentials') ? { requiredCerts: suggestRequirements(b.title) } : {}),
     description: [`Requested by ${contact.name} in the client portal.`, b.shift ? `Shift: ${b.shift}` : '', b.notes ?? ''].filter(Boolean).join('\n\n') } as never });
   await tdb.task.create({ data: { title: `New job order from ${who}: ${b.openings} × ${b.title}, starting ${b.startDate}. Review and open it.`.slice(0, 300), dueAt: new Date(Date.now() + 864e5), priority: 'High', related: client.name } as never });
   await logActivity(org.id, `${who} requested ${b.openings} × ${b.title} starting ${b.startDate} in the client portal`);

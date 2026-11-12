@@ -7,9 +7,10 @@ type Settings = {
   name: string; shortName: string | null; ownerName: string | null; ownerTitle: string | null; city: string | null; website: string | null;
   services: string | null; pitch: string | null; logoUrl: string | null; brandColor: string; applyEmail: string | null; smsNumber: string | null;
   careersHeadline: string; careersIntro: string | null; showPayOnCareers: boolean; showClientOnCareers: boolean;
+  industry: 'GENERAL' | 'HEALTHCARE';
   billingAddress: string | null; billingPhone: string | null; billingEmail: string | null; taxId: string | null; remitInstructions: string | null; invoiceFooter: string | null;
 };
-type TextKey = { [K in keyof Settings]: Settings[K] extends boolean ? never : K }[keyof Settings];
+type TextKey = Exclude<{ [K in keyof Settings]: Settings[K] extends boolean ? never : K }[keyof Settings], 'industry'>;
 
 const PROFILE: [TextKey, string, string?][] = [
   ['name', 'Legal company name'], ['shortName', 'Short name'], ['ownerName', 'Owner / signer name'], ['ownerTitle', 'Owner title'],
@@ -43,7 +44,12 @@ export default function SettingsForm({ initial, readOnly, invoicing = true }: { 
       <section className="card">
         <h2 style={{ marginTop: 0 }}>Company profile</h2>
         <p className="muted" style={{ marginTop: 0 }}>Used in the sidebar, email signatures and templates, offer letters and agreements, invoices, job postings, the careers page, and what AI writes on your behalf.</p>
-        <div className="form wide">{PROFILE.map(([k, l, t]) => input(k, l, t))}</div>
+        <div className="form wide">{PROFILE.map(([k, l, t]) => input(k, l, t))}
+          <label><span>Industry</span><select value={v.industry} disabled={readOnly} onChange={(e) => set('industry', e.target.value as Settings['industry'])}>
+            <option value="GENERAL">General</option><option value="HEALTHCARE">Healthcare</option>
+          </select></label>
+        </div>
+        {v.industry === 'HEALTHCARE' && <p className="muted" style={{ marginBottom: 0 }}>Healthcare puts credentials, job requirements, exclusion screening, skills checklists and pay differentials at the top of the menu and dashboard, and new nursing jobs start with the usual requirements (license, BLS, TB test and screenings).</p>}
         {v.logoUrl && /^https:\/\//.test(v.logoUrl) && (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={v.logoUrl} alt="Logo preview" style={{ height: 40, background: '#fff', borderRadius: 6, padding: 4, marginTop: 8 }} />

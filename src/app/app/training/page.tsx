@@ -47,7 +47,7 @@ export default async function Training() {
           certificateId: certified.find((x) => x.credentialId === c.id)?.id ?? null,
           onHold: holds.some((h) => h.candidateId === c.candidateId && h.course.certType === c.type),
         }))}
-        jobs={jobs.map((j) => ({ id: j.id, title: j.title, client: j.client?.name ?? null, requiredCerts: j.requiredCerts }))}
+        jobs={jobs.map((j) => ({ id: j.id, title: j.title, client: j.client?.name ?? null, requiredCerts: j.requiredCerts.filter((t) => EQUIPMENT_TYPES.includes(t)) }))}
         people={people}
       />
     </>

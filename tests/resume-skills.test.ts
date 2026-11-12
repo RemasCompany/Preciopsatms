@@ -125,7 +125,8 @@ describe('applicants’ resumes fill in their profile', () => {
     expect((await apply({ name: 'Wid Get', email: 'widget@x.test' }, file(RESUME), '10.9.0.2')).status).toBe(200);
     const c = await db.candidate.findFirstOrThrow({ where: { organizationId: orgId, email: 'widget@x.test' } });
     expect(c.skills).toEqual(expect.arrayContaining(['Forklift', 'RF scanner']));
-    expect([c.yearsExp, c.location]).toEqual([8, 'Dallas, TX']);
+    // The resume runs to “Present”, so on the server it counts up to today.
+    expect([c.yearsExp, c.location]).toEqual([readResume(RESUME, { now: new Date() }).yearsExp, 'Dallas, TX']);
   });
 
   it('a returning applicant’s skills are added to, and what a recruiter typed is kept', async () => {
@@ -140,7 +141,7 @@ describe('applicants’ resumes fill in their profile', () => {
     const profile = JSON.stringify({ skills: Array(100).fill('x'), certs: [], yearsExp: 300, title: null, location: null });
     expect((await apply({ name: 'Bad List', email: 'bad@x.test', profile }, file(RESUME), '10.9.0.4')).status).toBe(200);
     const c = await db.candidate.findFirstOrThrow({ where: { organizationId: orgId, email: 'bad@x.test' } });
-    expect(c.skills.length).toBeLessThan(30); expect(c.yearsExp).toBe(8); // read from the resume instead
+    expect(c.skills.length).toBeLessThan(30); expect(c.yearsExp).toBe(readResume(RESUME, { now: new Date() }).yearsExp); // read from the resume instead
   });
 });
 

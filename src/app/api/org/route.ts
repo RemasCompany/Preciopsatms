@@ -19,6 +19,8 @@ const Settings = z.object({
   // Shown on invoices.
   billingAddress: text(400), billingPhone: text(40), taxId: text(40), remitInstructions: text(1500), invoiceFooter: text(200),
   billingEmail: z.string().trim().max(200).refine((s) => !s || z.string().email().safeParse(s).success, 'Enter a valid billing email address.').transform((s) => s || null).nullable().optional(),
+  // Healthcare puts credentials, exclusion screening, skills checklists and pay differentials up front.
+  industry: z.enum(['GENERAL', 'HEALTHCARE'], { errorMap: () => ({ message: 'Choose your industry.' }) }).optional(),
   careersIntro: text(2000), showPayOnCareers: z.boolean().optional(), showClientOnCareers: z.boolean().optional(),
   // Indeed Apply credentials from Indeed's partner console. The secret is write-only (never sent back to the browser).
   indeedApplyApiToken: z.string().trim().max(200).regex(/^[\w-]*$/, 'That doesn’t look like an Indeed Apply API token.').transform((s) => s || null).nullable().optional(),

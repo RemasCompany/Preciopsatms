@@ -5,7 +5,7 @@ import { hasFeature } from '@/lib/plans';
 import { localDate } from '@/lib/timeclock';
 import { daysOverdue, toCents, usd } from '@/lib/invoicing';
 import { balanceCents, invoiceSummary, loadInvoice, lockedReason } from '@/lib/invoicing-server';
-import { ITEM_KINDS, type ItemKind } from '@/lib/invoicing';
+import { ITEM_KINDS, isLabor, type ItemKind } from '@/lib/invoicing';
 import { ymd } from '@/lib/weeks';
 import { EditDraft, InvoiceActions } from '@/components/Invoices';
 import { SyncButton } from '@/components/Accounting';
@@ -26,7 +26,7 @@ export default async function InvoicePage({ params }: { params: { id: string } }
   const od = ['DRAFT', 'SENT', 'PARTIAL'].includes(inv.status) ? daysOverdue(ymd(inv.dueDate), today) : 0;
   const status = inv.status === 'PARTIAL' ? 'Partly paid' : inv.status === 'DRAFT' && !inv.sentAt ? 'Draft — not sent' : inv.status[0] + inv.status.slice(1).toLowerCase();
   const t = invoiceSummary(inv), locked = lockedReason(inv);
-  const hours = inv.lines.filter((l) => l.kind === 'hours'), items = inv.lines.filter((l) => l.kind !== 'hours');
+  const hours = inv.lines.filter((l) => l.kind === 'hours'), premiums = inv.lines.filter((l) => l.kind === 'premium'), items = inv.lines.filter((l) => !isLabor(l.kind));
   const org = ctx.org;
   return (
     <>
@@ -73,6 +73,7 @@ export default async function InvoicePage({ params }: { params: { id: string } }
       <h2 style={{ fontSize: 18, margin: '22px 0 8px' }}>Services</h2>
       <div className="tablewrap"><table><thead><tr><th>Worker</th><th>Position</th><th>Week ending</th><th>Regular</th><th>Overtime (1.5x)</th><th>Bill rate</th><th>Amount</th></tr></thead><tbody>
         {hours.map((l) => <tr key={l.id}><td>{l.worker}{l.approvedBy && <div className="muted" style={{ fontSize: 12 }}>✓ {l.approvedBy}</div>}</td><td>{l.description}</td><td>{l.weekEnding ? fmt(l.weekEnding) : '—'}</td><td>{Number(l.regularHours)}</td><td>{Number(l.overtimeHours)}</td><td>{usd(toCents(l.rate))}/hr</td><td>{usd(toCents(l.amount))}</td></tr>)}
+        {premiums.map((l) => <tr key={l.id}><td>{l.worker}</td><td>{l.description}</td><td>{l.weekEnding ? fmt(l.weekEnding) : '—'}</td><td colSpan={2}>{Number(l.quantity ?? 0)} premium hrs</td><td>{usd(toCents(l.rate))}/hr</td><td>{usd(toCents(l.amount))}</td></tr>)}
         <tr><td colSpan={6}><b>Services total</b></td><td><b>{usd(t.labor)}</b></td></tr>
       </tbody></table></div>
       {items.length > 0 && <>

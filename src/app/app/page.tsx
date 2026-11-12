@@ -4,6 +4,7 @@ import { hasFeature } from '@/lib/plans';
 import { SOON_DAYS, credentialLabel, credentialStatus } from '@/lib/credentials';
 import { OpenRecord } from '@/components/Records';
 import { appInBranch, currentBranch, jobInBranch } from '@/lib/branches';
+import { jobReadiness } from '@/lib/requirements-server';
 
 export default async function Dashboard() {
   const ctx = await requirePageContext();
@@ -23,6 +24,17 @@ export default async function Dashboard() {
     where: { expiresAt: { lte: new Date(Date.now() + SOON_DAYS * 864e5) }, candidate: { status: { notIn: ['Inactive', 'Do not use'] } } },
     include: { candidate: { select: { id: true, name: true } } }, orderBy: { expiresAt: 'asc' }, take: 50,
   }) : null;
+  // Healthcare: what stands between people and their next shift, first thing.
+  const care = org.industry === 'HEALTHCARE' && hasFeature(org, 'credentials') ? await (async () => {
+    const [jobs, matches, waiting, stale] = await Promise.all([
+      jobReadiness(tdb, org),
+      tdb.exclusionMatch.count({ where: { status: 'OPEN' } }),
+      tdb.skillsChecklist.count({ where: { status: 'SENT' } }),
+      tdb.skillsChecklist.count({ where: { status: 'COMPLETED', expiresAt: { lt: new Date() } } }),
+    ]);
+    const workers = jobs.flatMap((j) => j.workers);
+    return { notCleared: workers.filter((w) => w.gaps.length).length, workers: workers.length, matches, waiting, stale, screening: org.exclusionScreening };
+  })() : null;
   const credIssues = creds?.map((c) => ({ c, s: credentialStatus({ type: c.type, number: c.number, state: c.state, expiresAt: c.expiresAt!.toISOString().slice(0, 10), verifiedAt: c.verifiedAt?.toISOString() ?? null }) })) ?? [];
   return (
     <>
@@ -31,6 +43,17 @@ export default async function Dashboard() {
         ? <div className="kpis"><div className="kpi"><b>{openJobs}</b>Open jobs</div><div className="kpi"><b>{active}</b>Candidates in process</div><div className="kpi"><b>{placed}</b>Hires this month</div>
             {people && <><Link className="kpi" href="/app/employees"><b>{people.active}</b>Employees</Link><Link className="kpi" href="/app/employees?status=ON_LEAVE"><b>{people.leave}</b>On leave</Link></>}</div>
         : <div className="kpis"><div className="kpi"><b>{openJobs}</b>Open jobs</div><div className="kpi"><b>{active}</b>Active submissions</div><div className="kpi"><b>{placed}</b>Placements this month</div></div>}
+      {care && (
+        <>
+          <h2>Healthcare compliance</h2>
+          <div className="kpis">
+            <Link className="kpi" href="/app/credentials/requirements"><b className={care.notCleared ? 'warnnum' : undefined}>{care.notCleared}</b>Not cleared for their job<span className="sub">of {care.workers} on assignment</span></Link>
+            <Link className="kpi" href="/app/credentials?show=expired"><b className={credIssues.some((x) => x.s.state === 'expired') ? 'warnnum' : undefined}>{credIssues.filter((x) => x.s.state === 'expired').length}</b>Expired credentials</Link>
+            <Link className="kpi" href="/app/credentials/exclusions"><b className={care.matches ? 'warnnum' : undefined}>{care.screening ? care.matches : 'Off'}</b>{care.screening ? 'Exclusion matches to review' : 'Exclusion screening'}</Link>
+            <Link className="kpi" href="/app/credentials/checklists?show=waiting"><b>{care.waiting}</b>Skills checklists waiting{care.stale ? <span className="sub">{care.stale} over a year old</span> : null}</Link>
+          </div>
+        </>
+      )}
       {creds && (
         <>
           <h2>Credentials <Link className="btn ghost sm" href="/app/credentials">View all</Link></h2>

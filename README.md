@@ -77,6 +77,37 @@ Team accounts can add an authenticator-app code after the password (TOTP, `src/l
 - Admins can require it for the company (Team page). Until someone sets it up, the app layout shows only the setup screen and `requireApiContext` refuses everything except routes that pass `twoStepSetup: true`.
 - Admins can reset a teammate's two-step sign-in for a lost phone. They can't reset an owner unless they're an owner, and they can't reset anyone who also belongs to another company.
 
+## Single sign-on (Enterprise)
+Companies sign in through their own identity provider (Microsoft Entra ID, Google Workspace, Okta, any SAML or OIDC provider) via WorkOS (`src/lib/sso.ts`). Set `WORKOS_API_KEY` and `WORKOS_CLIENT_ID`, and register `https://<your-app>/api/auth/sso/callback` as a redirect URI in WorkOS.
+- An admin adds the company's email domains in Settings & data (each must be used by a current member, no webmail domains, not claimed by another company). That creates a WorkOS organization. The admin, or their IT team from a copied link, then connects the identity provider in WorkOS's setup portal.
+- "Sign in with SSO" finds the company by email domain. The callback exchanges the code for the profile, checks it came from that company's WorkOS organization and one of its domains, and only signs in people who are already members. It hands the browser a two-minute, one-time ticket for the `sso` credentials provider.
+- Admins can require SSO. Passwords then stop working for everyone except owners, who keep one as a way back in. If the connection stops being active, the requirement switches off by itself. An SSO session satisfies the company's two-step requirement, since the identity provider runs its own second step.
+
+## Less admin: hiring automations and hand-offs
+Settings & data → Hiring automations (owners and admins). Each step is switched on by the company, logged in Activity, and never stops the step that triggered it. If one can't finish, Activity says so and a person does it by hand (`src/lib/automation-server.ts`).
+- **Screen new applicants.** Applications from the careers page or Indeed Apply with a match score at or above the company's bar move to Screened. The score weighs skills, certifications, experience, location and pay. Nobody is rejected automatically.
+- **Offer interview times.** When someone reaches Screened, automatically or by hand, they get 2–6 times in the interviewer's free weekday hours, at most two a day (`pickSlots`). Their pick books it and sends calendar invites.
+- **Start onboarding at the offer.** Moving to Offer, or straight to Placed, starts the chosen package and sends the new-hire link.
+- **Job postings write themselves.** An open job with no posting or description goes to the careers page and job-board feeds with an ad built from its details (`src/lib/postings.ts`). Feeds already update as jobs open and close.
+- **No re-entry at hire.** For employers, the application becomes the employee record (the candidate is the person record, so resume, documents, credentials and training stay attached). The hire also gets:
+  - the job's pay and position;
+  - the job's "Reports to" manager and that manager's department, otherwise those of others in the same position;
+  - the next employee number;
+  - the emergency contact from onboarding, including one filled in after the hire.
+
+## Healthcare compliance and pay (Growth and up)
+Companies that set their industry to Healthcare (Settings & data → Company profile; staffing agencies or employers) get a Healthcare menu group right after Dashboard and a compliance panel on the dashboard. New nursing jobs start with the usual requirements, read from the job title (`suggestRequirements` in `src/lib/requirements.ts`), and Pay differentials offers the usual hospital set in one click. Everyone uses the same sign-in.
+- **Job requirements** (Credentials → Job requirements). Any credential type can be required on a job. Offering, placing or scheduling someone, and offering them an open shift, is stopped unless each requirement is verified and current through the shift's date (`certGaps` in `src/lib/training-server.ts`). A state license has to be from the job's state, read from its "City, ST" location. A multistate nursing license counts for RN and LPN jobs in compact states (`NLC_STATES` in `src/lib/requirements.ts`, kept to states that have fully implemented the compact). Owners and admins can override with a reason, which goes in the audit log.
+- **OIG exclusion screening** (Credentials → Exclusion screening). Once a company turns it on, `/api/cron/exclusions` (daily at 11:20 UTC) checks everyone on assignment and every current employee against OIG's LEIE file (`OIG_LEIE_URL` overrides the source). It runs monthly, or sooner when there's someone new, and downloads the file only when a company is due.
+  - A clean check becomes a verified "OIG exclusion screening (monthly)" credential, good for 45 days, so jobs can require it.
+  - A name or NPI match is only a possible match. An admin confirms it on OIG's own search, then marks it cleared, which renews the credential, or confirmed, which adds the person to the company-wide do-not-return list.
+  - Names stay in our database; the list is downloaded and matched locally. SAM.gov isn't automated (its API needs a key), so it stays a manual link on the credential.
+- **Skills checklists** (Credentials → Skills checklists, and on the candidate record). There are eight specialty checklists in `src/lib/skills-checklists.ts`. One is sent to the worker's private page, where they rate each skill from 1 to 4 and sign. It's good for a year, and the printable copy goes with a facility submittal.
+- **Pay differentials** (Timesheets → Pay differentials). These are night, weekend, holiday, on-call, call-back, charge and crisis premiums, either company-wide or for one client or job (the most specific wins).
+  - Premium hours go on each week's timesheet, entered by hand or worked out from time clock punches. The extra pay and bill per hour are snapshotted when entered.
+  - Premiums that count toward the regular rate add their share of overtime: ½ × counted premium ÷ hours worked × overtime hours (FLSA 29 CFR 778.207). A 1.5× weekend or holiday premium doesn't count (778.203).
+  - They flow into gross pay, payroll runs and provider exports (code `DIFF`), pay statements, Check, invoices (as `premium` lines), the client portal, reports and planning. VMS time files still carry only regular and overtime.
+
 ## What's built
 | Area | Where |
 |---|---|
@@ -96,7 +127,7 @@ Team accounts can add an authenticator-app code after the password (TOTP, `src/l
 
 See **PLAN.md** for the roadmap and launch checklist, and **CLAUDE.md** for the remaining build work.
 
-> Status: written but not yet installed, compiled or tested — run `npm install && npm run typecheck` first and fix anything it flags.
+> Status (October 2026): installs, typechecks, lints and builds for production with no errors, all migrations apply cleanly to PostgreSQL 16, and the full Vitest suite and the Playwright e2e flow pass. Tests get a fixed test-only `NEXTAUTH_SECRET` from `vitest.config.ts` (code that seals tokens or signs links needs one), and CI sets one for every job.
 
 ## Domains (production)
 | Host | Purpose |
