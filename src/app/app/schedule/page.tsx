@@ -10,6 +10,8 @@ import Gate from '@/components/Gate';
 import OpenShifts, { type OpenRow } from '@/components/OpenShifts';
 import { clock } from '@/lib/schedule';
 import { currentBranch, jobInBranch } from '@/lib/branches';
+import { pendingChanges } from '@/lib/shift-changes';
+import ShiftChangeRequests from '@/components/ShiftChangeRequests';
 
 export const dynamic = 'force-dynamic';
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
@@ -79,6 +81,7 @@ export default async function Schedule({ searchParams }: { searchParams: { week?
   const count = (f: (s: BoardRow['shifts'][number]) => boolean) => all.filter(f).length;
   const q = (wk: Date) => `?week=${ymd(wk)}${client ? `&client=${client}` : ''}`;
   const thisWeek = ymd(weekEnding());
+  const changes = await pendingChanges(ctx.org.id);
 
   return (
     <>
@@ -105,6 +108,7 @@ export default async function Schedule({ searchParams }: { searchParams: { week?
         <div className="kpi"><b className={count((s) => s.notified && s.response === 'DECLINED') ? 'warnnum' : undefined}>{count((s) => s.notified && s.response === 'DECLINED')}</b><span>Can’t make it</span></div>
         <div className="kpi"><b>{count((s) => !s.notified)}</b><span>Not sent yet</span></div>
       </div>
+      <ShiftChangeRequests rows={changes} canEdit={canEdit(ctx)} />
       <ScheduleBoard week={w} days={days} rows={rows} canEdit={canEdit(ctx)} today={ymd(new Date())} />
       <OpenShifts rows={openRows} declined={declined} canEdit={canEdit(ctx)} today={ymd(new Date())}
         jobs={poolJobs.map((j) => ({ id: j.id, label: [j.title, j.client?.name].filter(Boolean).join(' — '), pool: j._count.applications }))} />

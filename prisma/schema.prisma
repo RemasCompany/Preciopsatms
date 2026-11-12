@@ -173,6 +173,9 @@ model Organization {
   trainingCourses       TrainingCourse[]
   trainingEnrollments   TrainingEnrollment[]
   externalRefs          ExternalRef[]
+  announcements         Announcement[]
+  shiftChangeRequests   ShiftChangeRequest[]
+  apiKeys               ApiKey[]
 }
 
 model User {
@@ -531,6 +534,8 @@ model Task {
   details        String? // instructions for the employee
   doneAt         DateTime?
   employeeSeenAt DateTime? // when the employee last looked; later changes and updates show as new
+  remindedAt     DateTime? // the "due soon" reminder went out
+  followedUpAt   DateTime? // the last overdue follow-up (repeats every few days until it's done)
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -925,6 +930,8 @@ model Branch {
   members        Membership[]
   employees      Employee[]
 
+  announcements Announcement[]
+
   @@index([organizationId])
 }
 
@@ -1257,6 +1264,8 @@ model Shift {
   updatedAt      DateTime      @updatedAt
   organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   application    Application   @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  changeRequests ShiftChangeRequest[]
 
   @@index([organizationId, date])
   @@index([applicationId, date])
@@ -2024,5 +2033,57 @@ model TimesheetPremium {
   timesheet      Timesheet    @relation(fields: [timesheetId], references: [id], onDelete: Cascade)
 
   @@index([timesheetId])
+  @@index([organizationId])
+}
+
+/// A note to the whole team or one location, shown on everyone's own page (and emailed when asked).
+model Announcement {
+  id             String       @id @default(cuid())
+  organizationId String
+  title          String
+  body           String
+  branchId       String? // one location; null = everyone
+  createdById    String?
+  emailed        Int          @default(0) // how many people it was emailed to
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  branch         Branch?      @relation(fields: [branchId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+}
+
+/// A worker asks to give up or change one of their shifts; a manager approves or declines.
+model ShiftChangeRequest {
+  id             String       @id @default(cuid())
+  organizationId String
+  shiftId        String
+  candidateId    String
+  kind           String // DROP | CHANGE
+  note           String?
+  status         String       @default("PENDING") // PENDING | APPROVED | DECLINED
+  reply          String?
+  decidedById    String?
+  decidedAt      DateTime?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  shift          Shift        @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status])
+  @@index([shiftId])
+}
+
+/// A key for the Preciops API (Enterprise). Only a hash is stored; the key itself is shown once.
+model ApiKey {
+  id             String       @id @default(cuid())
+  organizationId String
+  name           String
+  prefix         String // first characters, so people can tell keys apart
+  keyHash        String       @unique
+  createdById    String?
+  lastUsedAt     DateTime?
+  revokedAt      DateTime?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
   @@index([organizationId])
 }

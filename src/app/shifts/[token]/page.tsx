@@ -14,9 +14,11 @@ import { WorkerInterviews, type WorkerInterview } from '@/components/Interviews'
 type Shift = {
   id: string; date: string; start: string; end: string; breakMinutes: number; unit: string | null; notes: string | null;
   job: string; client: string | null; location: string | null; state: 'pending' | 'confirmed' | 'declined' | 'cancelled' | 'updating'; past: boolean;
+  change: { kind: 'DROP' | 'CHANGE'; status: 'PENDING' | 'APPROVED' | 'DECLINED'; reply: string | null } | null;
 };
+type Announcement = { id: string; title: string; body: string; date: string; location: string | null };
 type Offer = { id: string; status: 'open' | 'taken'; date: string; start: string; end: string; breakMinutes: number; unit: string | null; notes: string | null; job: string; client: string | null; location: string | null };
-type Data = { checklists?: WorkerChecklist[]; interviews?: WorkerInterview[]; documents?: WorkerDoc[]; me?: WorkerMe | null; training?: WorkerCourse[]; referrals?: WorkerRef | null; offers?: Offer[]; company: string; brandColor: string; contactEmail: string | null; logoUrl: string | null; firstName: string; shifts: Shift[]; clock: ClockData | null; onboarding?: WorkerOb[]; engagement?: WorkerEng | null };
+type Data = { announcements?: Announcement[]; checklists?: WorkerChecklist[]; interviews?: WorkerInterview[]; documents?: WorkerDoc[]; me?: WorkerMe | null; training?: WorkerCourse[]; referrals?: WorkerRef | null; offers?: Offer[]; company: string; brandColor: string; contactEmail: string | null; logoUrl: string | null; firstName: string; shifts: Shift[]; clock: ClockData | null; onboarding?: WorkerOb[]; engagement?: WorkerEng | null };
 
 const STATE: Record<Shift['state'], { text: string; cls: string }> = {
   pending: { text: 'Please confirm', cls: 'a' }, confirmed: { text: 'Confirmed', cls: 'g' }, declined: { text: 'You can’t make it', cls: 'r' },
@@ -31,6 +33,9 @@ export default function MyShifts({ params }: { params: { token: string } }) {
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState('');
+  const [asking, setAsking] = useState<string | null>(null);
+  const [askKind, setAskKind] = useState<'DROP' | 'CHANGE'>('CHANGE');
+  const [askNote, setAskNote] = useState('');
 
   const [offline, setOffline] = useState<string | null>(null); // when the copy on screen was saved, if offline
   const load = useCallback(async () => {
@@ -58,6 +63,15 @@ export default function MyShifts({ params }: { params: { token: string } }) {
     load();
   }
 
+  async function askChange(s: Shift) {
+    setBusy(s.id); setNote('');
+    const r = await fetch(`/api/public/shifts/${params.token}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ changeShiftId: s.id, kind: askKind, note: askNote }) }).catch(() => null);
+    const j = await r?.json().catch(() => ({})) ?? {};
+    setBusy(null);
+    if (!r?.ok) { setNote(j.error ?? 'That didn’t go through. Try again.'); return; }
+    setAsking(null); setAskNote(''); setNote(j.message); load();
+  }
+
   async function answerOffer(o: Offer, accept: boolean) {
     setBusy(o.id); setNote('');
     const r = await fetch(`/api/public/shifts/${params.token}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ offerId: o.id, accept }) });
@@ -79,6 +93,18 @@ export default function MyShifts({ params }: { params: { token: string } }) {
       {install && !offline && <div className="installbar"><span>{install.ios ? 'Add this page to your home screen: tap Share, then “Add to Home Screen”.' : 'Add this page to your phone like an app.'}</span>
         {!install.ios && <button className="btn sm" onClick={install.prompt}>Add to home screen</button>}<button className="btn ghost sm" onClick={install.dismiss} aria-label="Not now">Not now</button></div>}
       <h1>Hi {data.firstName}{data.me || data.clock || data.onboarding?.length || data.training?.length || data.checklists?.length || data.documents?.length || data.interviews?.length ? '' : ', here’s your schedule'}</h1>
+      {!!data.announcements?.length && (
+        <section aria-label="Announcements">
+          <h2 style={{ marginBottom: 4 }}>Announcements</h2>
+          {data.announcements.map((a) => (
+            <div key={a.id} className="card">
+              <b>{a.title}</b>
+              <p style={{ whiteSpace: 'pre-wrap', margin: '6px 0' }}>{a.body}</p>
+              <span className="muted">{dayLabel(a.date, { month: 'short', day: 'numeric' })}{a.location ? ` · ${a.location}` : ''}</span>
+            </div>
+          ))}
+        </section>
+      )}
       {!!data.interviews?.length && <WorkerInterviews token={params.token} items={data.interviews} onChange={load} />}
       {!!data.documents?.length && <WorkerDocs token={params.token} docs={data.documents} onChange={load} />}
       {data.me && <WorkerSelfService token={params.token} me={data.me} onChange={load} />}
@@ -116,6 +142,17 @@ export default function MyShifts({ params }: { params: { token: string } }) {
             <p className="muted">{[s.job, s.unit, s.client, s.location].filter(Boolean).join(' · ')}</p>
             {s.notes && <p>{s.notes}</p>}
             {s.state === 'updating' && <p className="muted">This shift is being changed. You’ll get the new details shortly.</p>}
+            {s.change && (s.change.status === 'PENDING' || s.state !== 'cancelled') && (
+              <p className={s.change.status === 'DECLINED' ? 'muted' : ''}>{s.change.status === 'PENDING' ? `You asked to ${s.change.kind === 'DROP' ? 'give up' : 'change'} this shift. Waiting for your manager.` : `Your request to ${s.change.kind === 'DROP' ? 'give up' : 'change'} this shift was ${s.change.status === 'APPROVED' ? 'approved' : 'not approved'}.`}{s.change.reply ? ` “${s.change.reply}”` : ''}</p>
+            )}
+            {asking === s.id && (
+              <div className="subform">
+                <label className="check"><input type="radio" name={`k${s.id}`} checked={askKind === 'CHANGE'} onChange={() => setAskKind('CHANGE')} /> <span>Change this shift (time, place or details)</span></label>
+                <label className="check"><input type="radio" name={`k${s.id}`} checked={askKind === 'DROP'} onChange={() => setAskKind('DROP')} /> <span>Give up this shift</span></label>
+                <label>{askKind === 'CHANGE' ? 'What would you like changed?' : 'Anything your manager should know? (optional)'}<input value={askNote} maxLength={500} onChange={(e) => setAskNote(e.target.value)} placeholder={askKind === 'CHANGE' ? 'e.g. start at 9 instead of 7' : 'e.g. doctor’s appointment'} /></label>
+                <div className="row"><button className="btn" disabled={busy === s.id} onClick={() => askChange(s)}>Send request</button><button className="btn ghost" onClick={() => setAsking(null)}>Back</button></div>
+              </div>
+            )}
             {(s.state === 'pending' || s.state === 'confirmed' || s.state === 'declined') && (
               declining === s.id ? (
                 <div className="subform">
@@ -126,6 +163,7 @@ export default function MyShifts({ params }: { params: { token: string } }) {
                 <div className="row">
                   {s.state !== 'confirmed' && <button className="btn" disabled={busy === s.id} onClick={() => respond(s, 'CONFIRMED')}>Confirm</button>}
                   {s.state !== 'declined' && <button className="btn ghost" disabled={busy === s.id} onClick={() => { setDeclining(s.id); setReason(''); }}>Can’t make it</button>}
+                  {s.change?.status !== 'PENDING' && asking !== s.id && <button className="btn ghost" disabled={busy === s.id} onClick={() => { setAsking(s.id); setAskKind('CHANGE'); setAskNote(''); setDeclining(null); }}>Ask for a change</button>}
                 </div>
               )
             )}

@@ -108,6 +108,13 @@ Companies that set their industry to Healthcare (Settings & data → Company pro
   - Premiums that count toward the regular rate add their share of overtime: ½ × counted premium ÷ hours worked × overtime hours (FLSA 29 CFR 778.207). A 1.5× weekend or holiday premium doesn't count (778.203).
   - They flow into gross pay, payroll runs and provider exports (code `DIFF`), pay statements, Check, invoices (as `premium` lines), the client portal, reports and planning. VMS time files still carry only regular and overtime.
 
+## Team communication, reminders and the API
+- **Task reminders and follow-ups** (`src/lib/task-reminders.ts`, run by `/api/cron/people` daily). A task's owner gets one email for everything due in the next two days. Open overdue tasks come back every three days, for up to 60 days. Unassigned tasks go to owners and admins, and an employee's tasks go to the employee, honoring opt-outs. A task is reminded again when its due date moves. Every message is logged.
+- **Announcements** (`/app/announcements`, `src/lib/announcements.ts`). Post to everyone or to one location (branch). Announcements show on each person's own page in the employee app for 45 days. "Also email" sends each person their own copy through the logged, opt-out-honoring bulk send, which goes to the background queue past 25 people. "Everyone" means active employees plus workers placed on an assignment.
+- **Shift change requests** (`src/lib/shift-changes.ts`). On their page, a worker asks to give up or change a shift. The request goes on the team's task list and on the Schedule page, where a manager approves or declines it. Approving a give-up cancels the shift; a change is made by editing the shift and republishing. The worker gets an email or text either way.
+- **Credential reminders to the worker.** The daily credential alert now also sends each worker one message about their own credentials expiring or expired, besides the email to recruiters.
+- **API (Enterprise)** (`/api/v1/*`, `src/lib/api-keys.ts`). Owners and admins create keys in Settings & data → API keys. A key is shown once and stored only as a hash; creating and revoking are audited. Requests send `Authorization: Bearer pk_live_…` and are limited to 120 a minute per key. Endpoints are jobs (list, get, create unpublished), candidates (list, get, create, with duplicate-email check), applications, employees (no pay, tax, bank or EEO details) and timesheets. Lists page with `?cursor=`, `?limit=` (up to 200) and `?updatedSince=`. EEO data is never exposed.
+
 ## What's built
 | Area | Where |
 |---|---|

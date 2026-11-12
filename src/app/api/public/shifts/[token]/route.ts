@@ -15,6 +15,8 @@ import { workerDocs } from '@/lib/hiring-docs-server';
 import { workerInterviews } from '@/lib/interviews-server';
 import { workerChecklists } from '@/lib/checklists-server';
 import { HttpError } from '@/lib/tenant';
+import { requestChange, workerChanges } from '@/lib/shift-changes';
+import { workerAnnouncements } from '@/lib/announcements';
 
 type Ctx = { params: { token: string } };
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
@@ -32,7 +34,9 @@ export async function GET(_req: Request, { params }: Ctx) {
     include: { application: { select: { job: { select: { title: true, location: true, client: { select: { name: true } } } } } } }, orderBy: [{ date: 'asc' }, { start: 'asc' }],
   });
   const o = link.organization;
+  const changes = await workerChanges(link.organizationId, shifts.map((s) => s.id));
   return Response.json({
+    announcements: hasFeature(o, 'messaging') ? await workerAnnouncements(link.organizationId, link.candidateId) : [],
     me: await employeeHub(link),
     documents: await workerDocs(link.organizationId, link.candidateId),
     interviews: hasFeature(o, 'ats') ? await workerInterviews(link) : [],
@@ -49,6 +53,7 @@ export async function GET(_req: Request, { params }: Ctx) {
       job: s.application.job.title, client: s.application.job.client?.name ?? null, location: s.application.job.location,
       // A shift edited since the last notice shows as "being updated" rather than leaking unsent changes.
       state: s.cancelled ? 'cancelled' : !s.notified ? 'updating' : s.response.toLowerCase(), past: ymd(s.date) < ymd(today),
+      change: changes.get(s.id) ?? null,
     })),
   });
 }
@@ -65,6 +70,11 @@ export async function POST(req: Request, { params }: Ctx) {
   if (offer.success) {
     // Picking up (or passing on) an open shift.
     try { return Response.json(await respondToOffer(link.organizationId, link.candidate, offer.data.offerId, offer.data.accept)); }
+    catch (e) { if (e instanceof HttpError) return Response.json({ error: e.message }, { status: e.status }); throw e; }
+  }
+  if (raw && typeof raw === 'object' && 'changeShiftId' in raw) {
+    // Asking to give up or change a shift.
+    try { return Response.json(await requestChange(link.organizationId, link.candidate, raw)); }
     catch (e) { if (e instanceof HttpError) return Response.json({ error: e.message }, { status: e.status }); throw e; }
   }
   const b = Body.safeParse(raw);

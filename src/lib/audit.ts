@@ -47,6 +47,7 @@ export const AUDIT_ACTIONS = {
   'screening.order': { group: 'Data', label: 'Ordered a background check' },
   'settings.screening': { group: 'Settings', label: 'Checkr connection' },
   'settings.sso': { group: 'Settings', label: 'Single sign-on' },
+  'settings.api_key': { group: 'Settings', label: 'Created or revoked an API key' },
   'hr_audit.start': { group: 'Data', label: 'Started an HR audit' },
   'hr_audit.complete': { group: 'Data', label: 'Completed an HR audit' },
   'hr_audit.export': { group: 'Data', label: 'Exported an HR audit' },

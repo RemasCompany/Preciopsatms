@@ -4,6 +4,7 @@ import { db } from './db';
 import { HttpError, tenantDb } from './tenant';
 import { hasFeature } from './plans';
 import { sendEmail } from './email';
+import { deliver } from './schedule-server';
 import { CREDENTIAL_TYPE_NAMES, alertDue, credentialLabel, credentialStatus, typeSpec } from './credentials';
 
 const ymd = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
@@ -143,9 +144,24 @@ export function alertEmail(company: string, items: Awaited<ReturnType<typeof due
  * Sends each org's recruiters one digest of credentials that reached a new alert window, logs each email,
  * and records the window so the same credential isn't reported twice.
  */
+/** The reminder a worker gets about their own credentials: one message for everything that's due. */
+export function workerReminder(company: string, firstName: string, items: { label: string; window: number; expiresAt: string }[], contact: string | null) {
+  const d = (s: string) => new Date(`${s}T00:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+  const expired = items.some((i) => i.window === 0);
+  const subject = expired ? `Your ${items.length === 1 ? items[0].label : 'credentials'} ${items.length === 1 ? 'has' : 'have'} expired` : `Time to renew: ${items.length === 1 ? items[0].label : `${items.length} credentials`}`;
+  const text = [
+    `Hi ${firstName || 'there'},`, '',
+    expired ? `${company} can’t schedule you until these are renewed:` : `These expire soon. Renew them now so your shifts aren’t affected:`,
+    ...items.map((i) => `• ${i.label}: ${i.window === 0 ? `expired ${d(i.expiresAt)}` : `expires ${d(i.expiresAt)}`}`), '',
+    `When you have the renewal, send a copy to ${contact ?? 'your recruiter'}.`, '',
+    `— ${company}`,
+  ].join('\n');
+  return { subject, text };
+}
+
 export async function runCredentialAlerts(now = new Date(), appUrl = process.env.APP_URL ?? 'http://localhost:3000') {
-  const orgs = await db.organization.findMany({ where: { subscriptionStatus: { in: ['trialing', 'active'] } }, select: { id: true, name: true, plan: true, subscriptionStatus: true } });
-  let emails = 0, credentials = 0;
+  const orgs = await db.organization.findMany({ where: { subscriptionStatus: { in: ['trialing', 'active'] } }, select: { id: true, name: true, shortName: true, applyEmail: true, plan: true, subscriptionStatus: true } });
+  let emails = 0, credentials = 0, workers = 0;
   for (const org of orgs) {
     if (!hasFeature(org, 'credentials')) continue;
     const items = await dueCredentialAlerts(org.id, now);
@@ -166,9 +182,16 @@ export async function runCredentialAlerts(now = new Date(), appUrl = process.env
         await tdb.credential.updateMany({ where: { id: { in: items.filter((i) => i.window === w).map((i) => i.id) } }, data: { alertedLevel: w } });
       }
       credentials += items.length;
+      // The worker hears about their own credentials too: one message, by email (or text with no email), honoring opt-outs.
+      const people = await tdb.candidate.findMany({ where: { id: { in: [...new Set(items.map((i) => i.candidateId))] } }, select: { id: true, name: true, email: true, phone: true, emailOptOut: true, smsOptOut: true } });
+      const company = org.shortName ?? org.name;
+      for (const p of people) {
+        const msg = workerReminder(company, p.name.split(' ')[0], items.filter((i) => i.candidateId === p.id), org.applyEmail);
+        if (!(await deliver(tdb, p, p.email ? 'email' : 'sms', msg, { name: company, replyTo: org.applyEmail ?? undefined }, null))) workers++;
+      }
     }
   }
-  return { emails, credentials };
+  return { emails, credentials, workers };
 }
 
 export { typeSpec };

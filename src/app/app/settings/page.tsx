@@ -11,6 +11,8 @@ import { AccountingCard } from '@/components/Accounting';
 import { PROVIDERS, providerEnabled, type Provider } from '@/lib/accounting';
 import ScreeningCard from '@/components/Screening';
 import SsoCard from '@/components/Sso';
+import ApiKeys from '@/components/ApiKeys';
+import { listKeys } from '@/lib/api-keys';
 import { domainOf, ssoStatus } from '@/lib/sso';
 import { screeningStatus } from '@/lib/checkr';
 import Automations from '@/components/Automations';
@@ -72,6 +74,9 @@ export default async function Settings({ searchParams }: { searchParams: { accou
       {(role === 'OWNER' || role === 'ADMIN') && (
         <SsoCard status={hasFeature(org, 'sso') ? await ssoStatus(tdb, org) : { state: 'upgrade' }} canEdit={admin} myDomain={domainOf(ctx.user.email)}
           notice={searchParams.sso === 'back' ? 'Welcome back. If IT finished the setup, press “Check status”.' : undefined} />
+      )}
+      {(role === 'OWNER' || role === 'ADMIN') && (
+        <ApiKeys keys={hasFeature(org, 'api') ? await listKeys(tdb) : []} canEdit={admin} upgrade={!hasFeature(org, 'api')} base={base} />
       )}
       {planIncludes(org, 'onboarding') && <OnboardingSettings enabled={org.onboardingEnabled} enforcement={org.onboardingEnforcement} readOnly={!admin} />}
       <DataTools canImport={canEdit(ctx) && role !== 'VIEWER'} owner={role === 'OWNER'} />
