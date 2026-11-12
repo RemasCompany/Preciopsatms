@@ -1,12 +1,6 @@
 import Link from 'next/link';
-import type { Metadata } from 'next';
 import { LandingControls } from './LandingControls';
 import './home.css';
-
-export const metadata: Metadata = {
-  title: 'Preciops-ATMS — Advanced Talent Management Systems',
-  description: 'Preciops-ATMS — Advanced Talent Management Systems. One workforce platform to recruit, schedule, pay and stay compliant, for staffing agencies and employers.',
-};
 
 /** The public home page. Its styles are scoped under .lp (home.css); the menu and pricing tabs live in LandingControls. */
 export default function Home({ searchParams }: { searchParams?: { deleted?: string } }) {
