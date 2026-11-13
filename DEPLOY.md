@@ -58,6 +58,13 @@ A production deploy stops before going live, and its build log says why, when an
    `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `customer.subscription.trial_will_end`, `invoice.paid`, `invoice.payment_failed`.
    Copy the signing secret into `STRIPE_WEBHOOK_SECRET`, then redeploy.
 
+## 4b. Online invoice payments (Stripe Connect)
+1. In the Stripe dashboard, turn on **Connect** and choose **Standard** accounts (each staffing firm owns its account and its money).
+2. Developers → Webhooks → add an endpoint for **Events on Connected accounts**: `https://<your domain>/api/stripe/connect-webhook`, with `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `account.updated` and `account.application.deauthorized`.
+3. Put its signing secret in `STRIPE_CONNECT_WEBHOOK_SECRET` and redeploy.
+4. Test: in a test company, Settings & data → Client payments → Connect Stripe, finish the test onboarding, switch on online payments, email an invoice, open its Pay online link and pay with test card 4242 4242 4242 4242 or the test bank account. The invoice should show the payment within seconds (bank transfers in test mode confirm after a short delay).
+5. The daily reminder job, `/api/cron/invoices`, is in `vercel.json`; firms switch reminders on in the same settings card.
+
 ## 5. Email (Resend)
 
 Verify the sending domain `mail.preciopsatms.com` in Resend (add the SPF, DKIM and DMARC records it shows), set `RESEND_API_KEY` and `EMAIL_FROM="Preciops <notifications@mail.preciopsatms.com>"`, and redeploy. Test by inviting yourself from **Team**.

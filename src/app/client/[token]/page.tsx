@@ -9,7 +9,7 @@ type Data = {
   workers: { applicationId: string; name: string; job: string; since: string }[];
   timesheets: { id: string; week: string; worker: string; job: string; reg: number; ot: number; billRate: number; premiums?: { label: string; hours: number; amount: number }[]; amount: number; approvedAt: string | null; approvedBy: string | null; dispute: string | null }[];
   shifts: { id: string; date: string; start: string; end: string; unit: string | null; confirmed: boolean; worker: string; job: string }[];
-  invoices: { id: string; number: string; issued: string; due: string; total: number; balance: number; status: string; overdue: boolean }[];
+  invoices: { id: string; number: string; payUrl: string | null; issued: string; due: string; total: number; balance: number; status: string; overdue: boolean }[];
 };
 const TABS = ['Hours', 'Schedule', 'Workers', 'Job orders', 'Invoices'] as const;
 type Tab = (typeof TABS)[number];
@@ -178,7 +178,7 @@ function Invoices({ token, invoices, terms }: { token: string; invoices: Data['i
     <>
       <p><b>{money(owed)}</b> open · terms {terms}</p>
       <div className="tablewrap"><table><thead><tr><th>Invoice</th><th>Issued</th><th>Due</th><th>Total</th><th>Balance</th><th></th></tr></thead><tbody>
-        {invoices.map((i) => <tr key={i.id}><td><b>{i.number}</b></td><td>{fmt(i.issued)}</td><td>{fmt(i.due)}{i.overdue && <div className="warn">Past due</div>}</td><td>{money(i.total)}</td><td>{i.status === 'PAID' ? <span className="pill g">Paid</span> : money(i.balance)}</td><td><a className="btn ghost sm" href={`/api/portal/${token}/invoices/${i.id}`}>PDF</a></td></tr>)}
+        {invoices.map((i) => <tr key={i.id}><td><b>{i.number}</b></td><td>{fmt(i.issued)}</td><td>{fmt(i.due)}{i.overdue && <div className="warn">Past due</div>}</td><td>{money(i.total)}</td><td>{i.status === 'PAID' ? <span className="pill g">Paid</span> : money(i.balance)}</td><td><div className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>{i.payUrl && <a className="btn sm" href={i.payUrl}>Pay</a>}<a className="btn ghost sm" href={`/api/portal/${token}/invoices/${i.id}`}>PDF</a></div></td></tr>)}
       </tbody></table></div>
     </>
   );

@@ -11,6 +11,8 @@ import { EditDraft, InvoiceActions } from '@/components/Invoices';
 import { SyncButton } from '@/components/Accounting';
 import { PROVIDERS, type Provider } from '@/lib/accounting';
 import Gate from '@/components/Gate';
+import { acceptsOnline, ensurePayToken, payUrl } from '@/lib/pay-links';
+import { REMINDER_DAYS } from '@/lib/invoicing';
 
 export const dynamic = 'force-dynamic';
 const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
@@ -28,6 +30,8 @@ export default async function InvoicePage({ params }: { params: { id: string } }
   const t = invoiceSummary(inv), locked = lockedReason(inv);
   const hours = inv.lines.filter((l) => l.kind === 'hours'), premiums = inv.lines.filter((l) => l.kind === 'premium'), items = inv.lines.filter((l) => !isLabor(l.kind));
   const org = ctx.org;
+  // A link to copy for invoices emailed before online payment was switched on, too.
+  const payToken = acceptsOnline(org) && bal > 0 && inv.status !== 'VOID' && inv.sentAt ? await ensurePayToken(ctx.tdb, inv) : null;
   return (
     <>
       <p className="muted" style={{ margin: 0 }}><Link href="/app/invoices">← Invoices</Link></p>
@@ -55,6 +59,10 @@ export default async function InvoicePage({ params }: { params: { id: string } }
           {canEdit(ctx) && <SyncButton provider={books} invoiceIds={[inv.id]} label={inv.syncedAt ? 'Send new payments' : `Send to ${books}`} />}
         </div>
       )}
+      {payToken && (
+        <p className="muted">Pay online link (in the email, on the PDF and in the client portal): <a href={payUrl(payToken)} target="_blank" rel="noopener">{payUrl(payToken)}</a></p>
+      )}
+      {inv.remindersSent > 0 && <p className="muted">{inv.remindersSent >= REMINDER_DAYS.length ? 'All payment reminders sent' : `${inv.remindersSent} payment reminder${inv.remindersSent === 1 ? '' : 's'} sent`}{inv.lastReminderAt ? `, last on ${fmt(inv.lastReminderAt)}` : ''}.</p>}
       {inv.sentAt && <p className="muted">Emailed {inv.sentAt.toLocaleString('en-US', { timeZone: ctx.org.timezone, dateStyle: 'medium', timeStyle: 'short' })} to {inv.sentTo}.</p>}
       {canEdit(ctx) && !locked && (
         <div className="row" style={{ marginBottom: 8 }}>

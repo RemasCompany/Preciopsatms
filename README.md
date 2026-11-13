@@ -115,6 +115,13 @@ Companies that set their industry to Healthcare (Settings & data → Company pro
 - **Credential reminders to the worker.** The daily credential alert now also sends each worker one message about their own credentials expiring or expired, besides the email to recruiters.
 - **API (Enterprise)** (`/api/v1/*`, `src/lib/api-keys.ts`). Owners and admins create keys in Settings & data → API keys. A key is shown once and stored only as a hash; creating and revoking are audited. Requests send `Authorization: Bearer pk_live_…` and are limited to 120 a minute per key. Endpoints are jobs (list, get, create unpublished), candidates (list, get, create, with duplicate-email check), applications, employees (no pay, tax, bank or EEO details) and timesheets. Lists page with `?cursor=`, `?limit=` (up to 200) and `?updatedSince=`. EEO data is never exposed.
 
+## Client payments: pay online and reminders (Growth and up)
+- **Pay online.** Each staffing firm connects its own Stripe account (Settings & data → Client payments; a Standard Connect account it owns). Payments are direct charges on that account, so the money goes straight to the firm; Preciops never holds it and takes no cut. Code: `src/lib/online-payments.ts`, `src/lib/pay-links.ts`.
+- Every invoice with a balance gets a private link, `/pay/<token>`, shown in the invoice email, on the PDF and as a **Pay** button in the client portal. The client picks bank transfer (ACH, never a fee) or card. Card payments add the firm's card fee (0–3%, set in Settings; 0 = the firm absorbs it) as its own line in Stripe Checkout, shown before paying.
+- `/api/stripe/connect-webhook` (signed with `STRIPE_CONNECT_WEBHOOK_SECRET`) records the payment on the invoice: card payments right away, bank transfers when the bank confirms (`async_payment_succeeded`). The card fee is never applied to the invoice. Payments are keyed by the Stripe payment id, so a resent webhook can't record one twice, and an event only counts when it comes from the account that company connected.
+- **Reminders** (`src/lib/invoice-reminders.ts`, run by `/api/cron/invoices` daily, off until a firm switches them on): emailed invoices still owed get a reminder 3 days before the due date, on the day, then 7, 14, 30, 60 and 90 days past due, to the addresses the invoice was emailed to, with the PDF and Pay online link. A late-sent invoice jumps to the step that applies rather than sending every missed one; there are at least 3 days between reminders; unsubscribed contacts are skipped; every attempt is logged.
+- Card surcharges: capped at 3% by the card networks, not allowed on debit cards, and restricted in some states. The settings card says so; firms decide whether to charge one.
+
 ## What's built
 | Area | Where |
 |---|---|

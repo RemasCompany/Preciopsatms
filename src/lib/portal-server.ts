@@ -8,6 +8,7 @@ import { newToken, sha256 } from './tokens';
 import { sendEmail } from './email';
 import { lineCents, toCents } from './invoicing';
 import { balanceCents } from './invoicing-server';
+import { acceptsOnline, ensurePayToken, payUrl } from './pay-links';
 import { localDate } from './timeclock';
 import { ymd } from './weeks';
 import { addFromClientFeedback } from './dnr';
@@ -81,6 +82,9 @@ export async function portalData(p: Portal) {
     tdb.shift.findMany({ where: { application: ofClient, cancelled: false, date: { gte: todayD, lte: until } }, orderBy: [{ date: 'asc' }, { start: 'asc' }], select: { id: true, date: true, start: true, end: true, unit: true, response: true, application: { select: { candidate: { select: { name: true } }, job: { select: { title: true } } } } } }),
     tdb.invoice.findMany({ where: { clientId: client.id, status: { not: 'VOID' }, NOT: { status: 'DRAFT', sentAt: null } }, orderBy: { issueDate: 'desc' }, take: 24 }),
   ]);
+  // Open invoices get a Pay online button; ones emailed before online payment was switched on get their link now.
+  const online = acceptsOnline(org);
+  if (online) for (const i of invoices) if (!i.payToken && i.status !== 'PAID' && balanceCents(i) > 0) i.payToken = await ensurePayToken(tdb, i);
   return {
     company: org.shortName ?? org.name, brandColor: org.brandColor, logoUrl: org.logoUrl, contactEmail: org.applyEmail,
     contact: { name: p.contact.name }, client: { name: client.name, terms: client.paymentTerms },
@@ -94,7 +98,7 @@ export async function portalData(p: Portal) {
         approvedAt: t.clientApprovedAt?.toISOString() ?? null, approvedBy: t.clientApprovedBy, dispute: t.clientDisputeNote, locked: t.status === 'PAID' && !!t.clientApprovedAt };
     }),
     shifts: shifts.map((s) => ({ id: s.id, date: ymd(s.date), start: s.start, end: s.end, unit: s.unit, confirmed: s.response === 'CONFIRMED', worker: s.application.candidate.name, job: s.application.job.title })),
-    invoices: invoices.map((i) => ({ id: i.id, number: i.number, issued: ymd(i.issueDate), due: ymd(i.dueDate), total: toCents(i.total) / 100, balance: balanceCents(i) / 100, status: i.status, overdue: ['DRAFT', 'SENT', 'PARTIAL'].includes(i.status) && ymd(i.dueDate) < today })),
+    invoices: invoices.map((i) => ({ id: i.id, number: i.number, payUrl: online && i.payToken && balanceCents(i) > 0 ? payUrl(i.payToken) : null, issued: ymd(i.issueDate), due: ymd(i.dueDate), total: toCents(i.total) / 100, balance: balanceCents(i) / 100, status: i.status, overdue: ['DRAFT', 'SENT', 'PARTIAL'].includes(i.status) && ymd(i.dueDate) < today })),
   };
 }
 

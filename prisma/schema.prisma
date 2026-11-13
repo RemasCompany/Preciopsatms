@@ -51,6 +51,12 @@ model Organization {
   taxId                   String? // EIN, shown on invoices when set
   remitInstructions       String? // how to pay: ACH details, check mailing address, payment link
   invoiceFooter           String? // a closing line on every invoice
+  // Clients paying invoices online. The firm connects its own Stripe account; money goes straight to it, never through Preciops.
+  stripeConnectAccountId  String?              @unique
+  stripeConnectReady      Boolean              @default(false) // Stripe says the account can take payments (charges_enabled)
+  onlinePayments          Boolean              @default(false) // put a Pay online link on invoices, emails and the client portal
+  cardFeePct              Decimal              @default(0) @db.Decimal(4, 2) // added to card payments only (0-3%); bank transfers never carry a fee
+  invoiceReminders        Boolean              @default(false) // email clients before and after an invoice is due
   reviewScheduleOn        Boolean              @default(false) // add reviews automatically as they come due, and remind managers
   reviewFrequency         String               @default("ANNUAL") // company default: ANNUAL | SEMIANNUAL | NONE
   reviewBasis             String               @default("HIRE_DATE") // HIRE_DATE (work anniversary) | CALENDAR (fixed months)
@@ -694,6 +700,9 @@ model Invoice {
   createdById    String?
   syncedAt       DateTime? // pushed to the connected accounting system
   syncError      String?
+  payToken       String?       @unique // the private Pay online link (/pay/<token>)
+  remindersSent  Int           @default(0) // how many steps of the reminder schedule have gone out
+  lastReminderAt DateTime?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -739,6 +748,7 @@ model Payment {
   reference      String?
   notes          String?
   createdById    String?
+  stripePaymentId String?      @unique // the Stripe payment for an online payment, so a repeated webhook never records it twice
   createdAt      DateTime     @default(now())
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   invoice        Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
