@@ -84,3 +84,32 @@ export function invoiceTotals(laborCents: number, itemCentsList: number[], taxRa
   const tax = taxRatePct > 0 ? cents((subtotal / 100) * (taxRatePct / 100)) : 0;
   return { labor: laborCents, extras: itemCentsList.filter((c) => c > 0).reduce((s, c) => s + c, 0), discounts: -itemCentsList.filter((c) => c < 0).reduce((s, c) => s + c, 0), subtotal, tax, total: subtotal + tax };
 }
+
+/** Card networks cap surcharges at 3%; bank transfers (ACH) never carry a fee. */
+export const MAX_CARD_FEE_PCT = 3;
+/** The fee added to a card payment of `balanceCents`, rounded to the cent. Zero when the firm absorbs it. */
+export const cardFeeCents = (balanceCents: number, pct: number) =>
+  balanceCents > 0 && pct > 0 ? cents((balanceCents / 100) * (Math.min(pct, MAX_CARD_FEE_PCT) / 100)) : 0;
+
+/**
+ * Reminder schedule, in days from the due date: 3 days before, on the day, then 7, 14, 30, 60 and 90 days past due.
+ * Stops after the last step or once the invoice is paid.
+ */
+export const REMINDER_DAYS = [-3, 0, 7, 14, 30, 60, 90] as const;
+/** At least this many days between two reminders for one invoice, even if steps were missed. */
+export const REMINDER_GAP_DAYS = 3;
+
+/**
+ * Which reminder step (index into REMINDER_DAYS) is due today, or null. An invoice emailed late jumps to the latest step
+ * that applies instead of sending every missed one.
+ */
+export function reminderStep(dueDate: string, today: string, sentSteps: number, lastReminder: string | null, emailedOn: string) {
+  const rel = day(today) - day(dueDate);
+  let step = -1;
+  REMINDER_DAYS.forEach((d, i) => { if (rel >= d) step = i; });
+  if (step < sentSteps || step < 0) return null;
+  // Nothing on the day the invoice itself went out, nor too soon after the last reminder.
+  if (day(today) - day(emailedOn) < 1) return null;
+  if (lastReminder && day(today) - day(lastReminder) < REMINDER_GAP_DAYS) return null;
+  return step;
+}

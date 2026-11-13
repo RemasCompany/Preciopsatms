@@ -8,6 +8,8 @@ import { boardStats, feedWarnings } from '@/lib/job-boards';
 import { hasFeature, planIncludes } from '@/lib/plans';
 import { OnboardingSettings } from '@/components/Onboarding';
 import { AccountingCard } from '@/components/Accounting';
+import OnlinePayments from '@/components/OnlinePayments';
+import { stripeEnabled } from '@/lib/stripe';
 import { PROVIDERS, providerEnabled, type Provider } from '@/lib/accounting';
 import ScreeningCard from '@/components/Screening';
 import SsoCard from '@/components/Sso';
@@ -20,7 +22,7 @@ import { automationOf } from '@/lib/automation';
 import { autoPosting } from '@/lib/postings';
 import { db } from '@/lib/db';
 
-export default async function Settings({ searchParams }: { searchParams: { accounting?: string; accounting_error?: string; screening?: string; screening_error?: string; sso?: string } }) {
+export default async function Settings({ searchParams }: { searchParams: { accounting?: string; accounting_error?: string; payments?: string; payments_error?: string; screening?: string; screening_error?: string; sso?: string } }) {
   const ctx = await requirePageContext();
   const { org, tdb, role } = ctx;
   const showBooks = hasFeature(org, 'invoicing') && (role === 'OWNER' || role === 'ADMIN');
@@ -60,6 +62,12 @@ export default async function Settings({ searchParams }: { searchParams: { accou
       )}
       <JobBoards base={base} slug={org.slug} readOnly={!admin} indeed={{ apiToken: org.indeedApplyApiToken, hasSecret: !!org.indeedApplySecret }} warnings={warnings}
         boards={org.jobBoards} linkedin={org.linkedinCompanyId} stats={await boardStats(tdb)} />
+      {showBooks && (
+        <OnlinePayments available={stripeEnabled()} connected={!!org.stripeConnectAccountId} ready={org.stripeConnectReady} canEdit={admin}
+          initial={{ onlinePayments: org.onlinePayments, cardFeePct: Number(org.cardFeePct), invoiceReminders: org.invoiceReminders }}
+          error={searchParams.payments_error?.slice(0, 300)}
+          notice={searchParams.payments === 'connected' ? 'Stripe is connected. Turn on online payments below.' : searchParams.payments === 'pending' ? 'Stripe is reviewing your details. Press “Check status” later, or come back once Stripe emails you.' : undefined} />
+      )}
       {showBooks && (
         <AccountingCard canEdit={admin} error={searchParams.accounting_error?.slice(0, 300)} justConnected={searchParams.accounting === 'connected'}
           providers={(Object.keys(PROVIDERS) as Provider[]).map((p) => {

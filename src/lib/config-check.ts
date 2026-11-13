@@ -10,7 +10,8 @@ export function configReport(env: Record<string, string | undefined> = process.e
   if (set('APP_URL') && env.NODE_ENV === 'production' && !env.APP_URL!.startsWith('https://')) warnings.push('APP_URL should use https:// in production (Indeed Apply and signing links require it).');
   if (!set('STRIPE_SECRET_KEY')) warnings.push('Stripe is not configured: signups run on the free trial and plans can’t be purchased.');
   else if (!set('STRIPE_WEBHOOK_SECRET')) errors.push('STRIPE_WEBHOOK_SECRET is required when Stripe is on, or subscriptions won’t sync.');
-  else for (const k of ['STRIPE_PRICE_STARTER', 'STRIPE_PRICE_GROWTH', 'STRIPE_PRICE_ENTERPRISE']) if (!set(k)) warnings.push(`${k} is missing: that plan can’t be purchased.`);
+  else if (!set('STRIPE_CONNECT_WEBHOOK_SECRET')) warnings.push('STRIPE_CONNECT_WEBHOOK_SECRET is missing: clients can pay invoices online, but those payments won’t be recorded on the invoice.');
+  if (set('STRIPE_SECRET_KEY') && set('STRIPE_WEBHOOK_SECRET')) for (const k of ['STRIPE_PRICE_STARTER', 'STRIPE_PRICE_GROWTH', 'STRIPE_PRICE_ENTERPRISE']) if (!set(k)) warnings.push(`${k} is missing: that plan can’t be purchased.`);
   if (!set('RESEND_API_KEY')) warnings.push('Resend is not configured: emails (invites, signing links, applicant notices) are not sent.');
   else if (!set('EMAIL_FROM')) errors.push('EMAIL_FROM is required when Resend is on.');
   if (env.STORAGE_DRIVER === 'local') { if (env.NODE_ENV === 'production') warnings.push('STORAGE_DRIVER=local keeps files on this server’s disk; on Vercel and most hosts that disk is wiped. Use S3 or R2.'); }

@@ -7,7 +7,14 @@ function wrap(text: string, font: PDFFont, size: number, max: number) {
   for (const para of text.split('\n')) {
     if (!para.trim()) { out.push(''); continue; }
     let line = '';
-    for (const word of para.split(/\s+/)) {
+    for (let word of para.split(/\s+/)) {
+      // A word wider than the column (a payment link) breaks across lines instead of running off the page.
+      while (font.widthOfTextAtSize(word, size) > max && word.length > 1) {
+        let n = word.length - 1;
+        while (n > 1 && font.widthOfTextAtSize(word.slice(0, n), size) > max) n--;
+        if (line) { out.push(line); line = ''; }
+        out.push(word.slice(0, n)); word = word.slice(n);
+      }
       const t = line ? `${line} ${word}` : word;
       if (font.widthOfTextAtSize(t, size) > max && line) { out.push(line); line = word; } else line = t;
     }

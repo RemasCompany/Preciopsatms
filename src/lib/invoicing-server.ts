@@ -5,6 +5,7 @@ import { sendEmail } from './email';
 import { renderInvoicePdf } from './pdf';
 import { audit } from './audit';
 import { fetchLogo } from './logo-fetch';
+import { acceptsOnline, ensurePayToken, payUrl } from './pay-links';
 import { ITEM_KINDS, LABOR_KINDS, PAYMENT_METHODS, isLabor, addDays, fromCents, invoiceTotals, itemCents, lineCents, statusFor, termsDays, toCents, usd, type ItemKind } from './invoicing';
 
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
@@ -181,6 +182,13 @@ export function invoiceSummary(inv: Pick<Invoice, 'total' | 'amountPaid' | 'subt
   };
 }
 
+/** How to pay, as printed: the firm's own instructions, plus the Pay online link when it takes online payments. */
+export function remitText(org: Organization, inv: Pick<Invoice, 'payToken' | 'status'>) {
+  const online = acceptsOnline(org) && inv.payToken && inv.status !== 'PAID' && inv.status !== 'VOID'
+    ? `Pay online by bank transfer${Number(org.cardFeePct) > 0 ? ` (no fee) or card (${Number(org.cardFeePct)}% card fee)` : ' or card'}: ${payUrl(inv.payToken)}` : null;
+  return [online, org.remitInstructions].filter(Boolean).join('\n\n') || null;
+}
+
 export async function invoicePdf(org: Organization, inv: PdfInvoice) {
   const t = invoiceSummary(inv);
   return renderInvoicePdf({
@@ -191,12 +199,12 @@ export async function invoicePdf(org: Organization, inv: PdfInvoice) {
     lines: inv.lines.filter((l) => l.kind === 'hours').map((l) => ({ worker: l.worker, position: l.description, week: l.weekEnding ? fmtDay(l.weekEnding) : null, reg: Number(l.regularHours), ot: Number(l.overtimeHours), rate: Number(l.rate), amount: Number(l.amount), approvedBy: l.approvedBy })),
     items: inv.lines.filter((l) => l.kind !== 'hours').map((l) => ({ kind: l.kind, description: l.description, qty: Number(l.quantity ?? 1), rate: Number(l.rate), amount: Number(l.amount) })),
     totals: { subtotal: t.subtotal / 100, taxRatePct: t.taxRatePct, tax: t.tax / 100, total: t.total / 100, paid: t.paid / 100, balance: t.balance / 100 },
-    notes: inv.notes, remit: org.remitInstructions, footer: org.invoiceFooter, brandColor: org.brandColor, logo: await fetchLogo(org.logoUrl),
+    notes: inv.notes, remit: remitText(org, inv), footer: org.invoiceFooter, brandColor: org.brandColor, logo: await fetchLogo(org.logoUrl),
   });
 }
 
 /** Recomputes paid amount and status from the payments (the source of truth). */
-async function settle(tdb: TenantDb, id: string) {
+export async function settleInvoice(tdb: TenantDb, id: string) {
   const inv = await tdb.invoice.findFirst({ where: { id }, include: { payments: true } });
   if (!inv) return;
   const paid = inv.payments.reduce((s, p) => s + toCents(p.amount), 0), total = toCents(inv.total);
@@ -222,8 +230,10 @@ export async function sendInvoice(tdb: TenantDb, org: Organization, user: User, 
   if (!to.length) throw new HttpError(404, `Choose a contact at ${inv.client.name}.`);
   const noEmail = to.filter((c) => !c.email);
   if (noEmail.length) throw new HttpError(400, `${noEmail.map((c) => c.name).join(', ')} ${noEmail.length === 1 ? 'has' : 'have'} no email address.`);
+  if (acceptsOnline(org) && balanceCents(inv) > 0) inv = { ...inv, payToken: await ensurePayToken(tdb, inv) };
   const pdf = Buffer.from(await invoicePdf(org, inv));
   const company = org.shortName ?? org.name, bal = usd(balanceCents(inv)), t = invoiceSummary(inv);
+  const payOnline = acceptsOnline(org) && inv.payToken && balanceCents(inv) > 0 ? payUrl(inv.payToken) : null;
   const subject = `Invoice ${inv.number} from ${company}${inv.poNumber ? ` (PO ${inv.poNumber})` : ''} — ${bal} due ${fmtDay(inv.dueDate)}`;
   const sent: string[] = [], failed: string[] = [];
   for (const c of to) {
@@ -236,7 +246,8 @@ export async function sendInvoice(tdb: TenantDb, org: Organization, user: User, 
       ...(t.extras || t.discounts ? [`Additional items: ${usd(t.extras)}${t.discounts ? `, discounts ${usd(-t.discounts)}` : ''}`] : []),
       ...(t.tax ? [`Sales tax: ${usd(t.tax)}`] : []),
       `Amount due: ${bal}`, `Due date: ${fmtDay(inv.dueDate)} (${inv.terms})`,
-      ...(org.remitInstructions ? ['', 'How to pay:', org.remitInstructions] : []), '',
+      ...(payOnline ? ['', `Pay online: ${payOnline}`, Number(org.cardFeePct) > 0 ? `Bank transfer (ACH) has no fee; cards add a ${Number(org.cardFeePct)}% processing fee.` : 'Pay by bank transfer (ACH) or card.'] : []),
+      ...(org.remitInstructions ? ['', payOnline ? 'Other ways to pay:' : 'How to pay:', org.remitInstructions] : []), '',
       'Reply to this email with any questions.', '', 'Thank you,', user.name ?? '', company,
     ].join('\n');
     try {
@@ -250,7 +261,7 @@ export async function sendInvoice(tdb: TenantDb, org: Organization, user: User, 
   }
   if (sent.length) {
     await tdb.invoice.updateMany({ where: { id: inv.id }, data: { sentAt: new Date(), sentTo: sent.join(', ') } });
-    await settle(tdb, inv.id);
+    await settleInvoice(tdb, inv.id);
     await logActivity(org.id, `Emailed invoice ${inv.number} to ${sent.join(', ')}`, user.id);
   }
   return { sent, failed };
@@ -270,7 +281,7 @@ export async function recordPayment(tdb: TenantDb, org: Organization, user: User
   if (cents > bal) throw new HttpError(400, `That’s more than the ${usd(bal)} still owed on ${inv.number}.`);
   if (b.receivedOn > ymd(new Date(Date.now() + 864e5))) throw new HttpError(400, 'The payment date is in the future.');
   const p = await tdb.payment.create({ data: { invoiceId: inv.id, amount: fromCents(cents), receivedOn: new Date(`${b.receivedOn}T00:00:00Z`), method: b.method, reference: b.reference || null, notes: b.notes || null, createdById: user.id } as never });
-  await settle(tdb, inv.id);
+  await settleInvoice(tdb, inv.id);
   const text = `Recorded a ${usd(cents)} ${PAYMENT_METHODS[b.method].toLowerCase()} payment on ${inv.number} (${inv.client.name})${b.reference ? `, ref ${b.reference}` : ''}`;
   await logActivity(org.id, text, user.id);
   await audit(org.id, user, 'billing.payment', text, { targetType: 'invoice', targetId: inv.id });
@@ -281,7 +292,7 @@ export async function deletePayment(tdb: TenantDb, org: Organization, user: User
   const p = await tdb.payment.findFirst({ where: { id: paymentId, invoiceId }, include: { invoice: { select: { number: true } } } });
   if (!p) throw new HttpError(404, 'That payment was already removed.');
   await tdb.payment.deleteMany({ where: { id: p.id } });
-  await settle(tdb, invoiceId);
+  await settleInvoice(tdb, invoiceId);
   const text = `Removed a ${usd(toCents(p.amount))} payment from ${p.invoice.number} (received ${ymd(p.receivedOn)})`;
   await logActivity(org.id, text, user.id);
   await audit(org.id, user, 'billing.payment_delete', text, { targetType: 'invoice', targetId: invoiceId });
