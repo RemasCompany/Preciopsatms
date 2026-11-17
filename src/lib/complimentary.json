@@ -1,6 +1,13 @@
 {
   "_about": "Companies that use Preciops free, by arrangement. Matched on the company name (punctuation, spacing, case and LLC/Inc. ignored). If domains are listed, the owner's sign-in email must also be at one of them. Applied at sign-up and on every deploy (scripts/complimentary.mjs).",
   "companies": [
-    { "name": "Eye Tek Security Services, LLC", "plan": "enterprise", "domains": [], "note": "Complimentary Enterprise, granted November 2026" }
+    {
+      "name": "Eye Tek Security Services, LLC",
+      "plan": "enterprise",
+      "domains": [
+        "eyeteksecurity.com"
+      ],
+      "note": "Complimentary Enterprise, granted November 2026 (owner email at eyeteksecurity.com)"
+    }
   ]
 }

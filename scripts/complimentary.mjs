@@ -15,19 +15,29 @@ export function complimentaryFor(list, company, email) {
   const c = list.find((x) => normalizeCompany(x.name) === n);
   if (!c) return null;
   if (c.domains?.length) {
-    const d = String(email ?? '').toLowerCase().split('@')[1];
-    if (!d || !c.domains.map((x) => x.toLowerCase()).includes(d)) return null;
+    // "www.example.com" or "example.com" in the list; the email must be at that domain or one of its subdomains.
+    const d = String(email ?? '').toLowerCase().trim().split('@')[1] ?? '';
+    const ok = c.domains.map((x) => x.toLowerCase().trim().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '')).some((x) => d === x || d.endsWith(`.${x}`));
+    if (!ok) return null;
   }
   return c;
 }
 
-/** Marks matching companies complimentary. Returns the names it changed. */
-export async function applyComplimentary(db, list) {
+/**
+ * Marks matching companies complimentary, and ends it for companies no longer on the list (or whose owner's email isn't
+ * at a listed domain): they get a fresh trial on the same plan to choose one. Returns the names it changed.
+ */
+export async function applyComplimentary(db, list, trialDays = Number(process.env.TRIAL_DAYS ?? 14)) {
   const changed = [];
   const orgs = await db.organization.findMany({ select: { id: true, name: true, plan: true, subscriptionStatus: true, complimentary: true } });
   for (const o of orgs) {
     const owner = await db.membership.findFirst({ where: { organizationId: o.id, role: 'OWNER' }, orderBy: { createdAt: 'asc' }, select: { user: { select: { email: true } } } });
     const c = complimentaryFor(list, o.name, owner?.user.email);
+    if (!c && o.complimentary) {
+      await db.organization.update({ where: { id: o.id }, data: { complimentary: false, complimentaryNote: null, subscriptionStatus: 'trialing', trialEndsAt: new Date(Date.now() + trialDays * 864e5) } });
+      changed.push(`${o.name} (ended; trial started)`);
+      continue;
+    }
     if (!c || (o.complimentary && o.plan === c.plan && o.subscriptionStatus === 'active')) continue;
     await db.organization.update({ where: { id: o.id }, data: { plan: c.plan, subscriptionStatus: 'active', trialEndsAt: null, complimentary: true, complimentaryNote: c.note ?? null } });
     changed.push(o.name);
