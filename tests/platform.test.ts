@@ -104,6 +104,8 @@ describe('trial ending', () => {
     await runTrialLifecycle();
     const to = (k: string) => out.emails.filter((e) => e.to === `${k}@${RUN}.test`);
     expect(to('soon').map((e) => e.subject)).toEqual(['2 days left in your Preciops trial']);
+    expect(to('soon')[0]).toMatchObject({ replyTo: 'sales@preciopsatms.com' });
+    expect(to('soon')[0].text).toContain('sales@preciopsatms.com');
     expect(to('later')).toHaveLength(0);
     expect(to('over').map((e) => e.subject)).toEqual([`Your Preciops trial for over Co ${RUN} has ended`]);
     expect(to('card')).toHaveLength(0);

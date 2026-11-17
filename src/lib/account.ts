@@ -1,4 +1,5 @@
 import type { User } from '@prisma/client';
+import { SALES_EMAIL } from './contact';
 import { db } from './db';
 import { newToken, sha256 } from './tokens';
 import { sendEmail } from './email';
@@ -33,12 +34,12 @@ export async function consumeToken(raw: string, kind: TokenKind) {
 
 export async function sendVerification(user: Pick<User, 'id' | 'email' | 'name'>) {
   const token = await issueToken(user.id, 'verify');
-  await sendEmail({ to: user.email, subject: 'Confirm your email for Preciops',
+  await sendEmail({ to: user.email, subject: 'Confirm your email for Preciops', replyTo: SALES_EMAIL,
     text: `Hi ${user.name?.split(' ')[0] ?? 'there'},\n\nPlease confirm this is your email address:\n\n${appUrl()}/verify/${token}\n\nThe link works for 7 days. If you didn’t create a Preciops account, you can ignore this email.\n\nPreciops` });
 }
 
 export async function sendPasswordReset(user: Pick<User, 'id' | 'email' | 'name'>) {
   const token = await issueToken(user.id, 'reset');
-  await sendEmail({ to: user.email, subject: 'Reset your Preciops password',
+  await sendEmail({ to: user.email, subject: 'Reset your Preciops password', replyTo: SALES_EMAIL,
     text: `Hi ${user.name?.split(' ')[0] ?? 'there'},\n\nSomeone (hopefully you) asked to reset the password for this Preciops account. Choose a new password here:\n\n${appUrl()}/reset/${token}\n\nThe link works for 1 hour and only once. If you didn’t ask for this, you can ignore this email — your password won’t change.\n\nPreciops` });
 }

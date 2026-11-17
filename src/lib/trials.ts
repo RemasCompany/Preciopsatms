@@ -1,6 +1,7 @@
 import { db } from './db';
 import { tenantDb } from './tenant';
 import { sendEmail } from './email';
+import { SALES_EMAIL } from './contact';
 
 /**
  * The free trial's end, for companies that never chose a plan (no Stripe subscription; Stripe runs card trials itself).
@@ -20,7 +21,7 @@ export function trialEmail(company: string, stage: number, endsAt: Date, now = n
     subject: `Your Preciops trial for ${company} has ended`,
     text: [`Your 14-day free trial for ${company} ended on ${fmt(endsAt)}.`, '',
       'Your account is now read-only. Everything you added is safe: jobs, candidates, employees, schedules, timesheets and documents.',
-      `Choose a plan to pick up where you left off: ${billing}`, '', 'Questions? Just reply to this email.', '', '— The Preciops team'].join('\n'),
+      `Choose a plan to pick up where you left off: ${billing}`, '', `Questions? Just reply to this email, or write to ${SALES_EMAIL}.`, '', '— The Preciops team'].join('\n'),
   };
   // The days actually left (an extended or late-checked trial may not be exactly 3 or 1).
   const n = Math.max(1, Math.ceil((endsAt.getTime() - now.getTime()) / 864e5));
@@ -28,7 +29,7 @@ export function trialEmail(company: string, stage: number, endsAt: Date, now = n
     subject: `${n} day${n === 1 ? '' : 's'} left in your Preciops trial`,
     text: [`Your free trial for ${company} ends ${n === 1 ? 'tomorrow,' : 'on'} ${fmt(endsAt)}.`, '',
       `Choose a plan to keep everything running without a break: ${billing}`,
-      'If you don’t, your account becomes read-only when the trial ends. Nothing is deleted.', '', 'Questions? Just reply to this email.', '', '— The Preciops team'].join('\n'),
+      'If you don’t, your account becomes read-only when the trial ends. Nothing is deleted.', '', `Questions? Just reply to this email, or write to ${SALES_EMAIL}.`, '', '— The Preciops team'].join('\n'),
   };
 }
 
@@ -62,7 +63,7 @@ export async function runTrialLifecycle(now = new Date()) {
     let delivered = false;
     for (const { user } of owners) {
       let status = 'sent', providerId: string | null = null, error: string | null = null;
-      try { providerId = (await sendEmail({ to: user.email, subject: msg.subject, text: msg.text, fromName: 'Preciops' })).id; delivered = true; emailed++; }
+      try { providerId = (await sendEmail({ to: user.email, subject: msg.subject, text: msg.text, fromName: 'Preciops', replyTo: SALES_EMAIL })).id; delivered = true; emailed++; }
       catch (e) { status = 'failed'; error = (e as Error).message.slice(0, 500); }
       await tdb.message.create({ data: { channel: 'email', toAddress: user.email, subject: msg.subject, body: msg.text, relatedType: 'trial_notice', status, providerId, error } as never });
     }
