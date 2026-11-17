@@ -25,6 +25,7 @@ export async function syncSubscription(sub: Stripe.Subscription) {
     data: {
       stripeSubscriptionId: sub.id,
       subscriptionStatus: sub.status,
+      trialNotice: -1,
       plan: plan ?? org.plan,
       seats: item?.quantity ?? org.seats,
       currentPeriodEnd: periodEnd,

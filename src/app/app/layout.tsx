@@ -57,7 +57,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </div>
         {!ctx.user.emailVerifiedAt && <VerifyBanner email={ctx.user.email} />}
         {org.subscriptionStatus === 'trialing' && trialDays > 0 && <p className="card banner">{trialDays} days left in your trial. <Link href="/app/billing">Choose a plan</Link></p>}
-        {!['trialing', 'active'].includes(org.subscriptionStatus) && <p className="card banner error">Your subscription is {org.subscriptionStatus.replace('_', ' ')}. Your data is safe but read-only. <Link href="/app/billing">Update billing</Link></p>}
+        {org.subscriptionStatus === 'trial_expired' ? <p className="card banner error">Your free trial has ended, so your account is read-only. Everything you added is safe. <Link href="/app/billing">Choose a plan</Link> to pick up where you left off.</p>
+          : !['trialing', 'active'].includes(org.subscriptionStatus) && <p className="card banner error">Your subscription is {org.subscriptionStatus.replace('_', ' ')}. Your data is safe but read-only. <Link href="/app/billing">Update billing</Link></p>}
         {/* The company requires two-step sign-in: this stands in for every page until they've set it up. */}
         {needsTwoStep(ctx) ? (<><h1>Set up two-step sign-in</h1><p className="lede">{org.name} asks everyone to use a code from an authenticator app when they sign in. It takes about a minute.</p>
           <TwoStep email={ctx.user.email} initial={await status(ctx.user.id)} required blocking /></>) :

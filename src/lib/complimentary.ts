@@ -8,4 +8,4 @@ export const COMPLIMENTARY = list.companies as Complimentary[];
 export const complimentaryFor = (company: string, email?: string | null) => match(COMPLIMENTARY, company, email);
 
 /** What a complimentary company's record is set to. */
-export const complimentaryData = (c: Complimentary) => ({ plan: c.plan, subscriptionStatus: 'active', trialEndsAt: null, complimentary: true, complimentaryNote: c.note });
+export const complimentaryData = (c: Complimentary) => ({ plan: c.plan, subscriptionStatus: 'active', trialEndsAt: null, complimentary: true, complimentaryNote: c.note, complimentaryBy: 'list' });

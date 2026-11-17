@@ -29,17 +29,19 @@ export function complimentaryFor(list, company, email) {
  */
 export async function applyComplimentary(db, list, trialDays = Number(process.env.TRIAL_DAYS ?? 14)) {
   const changed = [];
-  const orgs = await db.organization.findMany({ select: { id: true, name: true, plan: true, subscriptionStatus: true, complimentary: true } });
+  const orgs = await db.organization.findMany({ select: { id: true, name: true, plan: true, subscriptionStatus: true, complimentary: true, complimentaryBy: true } });
   for (const o of orgs) {
     const owner = await db.membership.findFirst({ where: { organizationId: o.id, role: 'OWNER' }, orderBy: { createdAt: 'asc' }, select: { user: { select: { email: true } } } });
     const c = complimentaryFor(list, o.name, owner?.user.email);
-    if (!c && o.complimentary) {
+    // Only free plans this list granted are taken back; ones a platform admin granted stay.
+    const fromList = !o.complimentaryBy || o.complimentaryBy === 'list';
+    if (!c && o.complimentary && fromList) {
       await db.organization.update({ where: { id: o.id }, data: { complimentary: false, complimentaryNote: null, subscriptionStatus: 'trialing', trialEndsAt: new Date(Date.now() + trialDays * 864e5) } });
       changed.push(`${o.name} (ended; trial started)`);
       continue;
     }
     if (!c || (o.complimentary && o.plan === c.plan && o.subscriptionStatus === 'active')) continue;
-    await db.organization.update({ where: { id: o.id }, data: { plan: c.plan, subscriptionStatus: 'active', trialEndsAt: null, complimentary: true, complimentaryNote: c.note ?? null } });
+    await db.organization.update({ where: { id: o.id }, data: { plan: c.plan, subscriptionStatus: 'active', trialEndsAt: null, complimentary: true, complimentaryNote: c.note ?? null, complimentaryBy: 'list' } });
     changed.push(o.name);
   }
   return changed;

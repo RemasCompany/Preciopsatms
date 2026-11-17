@@ -15,7 +15,7 @@ const nextConfig = {
           { key: 'Permissions-Policy', value: 'camera=(), microphone=(), payment=(), geolocation=(self)' },
         ],
       },
-      ...['/app/:path*', '/login', '/signup', '/forgot', '/reset/:path*', '/invite/:path*', '/client/:path*', '/shifts/:path*', '/sign/:path*', '/feedback/:path*'].map((source) => ({ source, headers: noFrame })),
+      ...['/app/:path*', '/login', '/signup', '/forgot', '/reset/:path*', '/invite/:path*', '/client/:path*', '/shifts/:path*', '/sign/:path*', '/feedback/:path*', '/platform', '/platform/:path*'].map((source) => ({ source, headers: noFrame })),
       {
         // Public job API + embed script are read cross-origin from customers' websites.
         source: '/api/public/:path*',
