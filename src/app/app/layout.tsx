@@ -11,6 +11,7 @@ import { unreadCount } from '@/lib/sms-inbox';
 import { currentBranch } from '@/lib/branches';
 import BranchSwitcher from '@/components/BranchSwitcher';
 import InboxButton from '@/components/InboxButton';
+import SignOutButton from '@/components/SignOutButton';
 import { ASSISTANT_NAME } from '@/lib/assistant-name';
 import { Suspense } from 'react';
 
@@ -47,14 +48,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const trialDays = org.trialEndsAt ? Math.ceil((org.trialEndsAt.getTime() - Date.now()) / 864e5) : 0;
   return (
     <div className="shell">
-      <AppNav company={org.shortName ?? org.name} inboxUnread={showInbox ? unread : null} groups={navFor(org.kind, org.industry).map(([g, items]) => [g, items.filter(([h, , f]) => (!f || hasFeature(org, f)) && (!['/app/audit', '/app/invoices', '/app/compliance', '/app/aca', '/app/hr-audit'].includes(h) || ctx.role === 'OWNER' || ctx.role === 'ADMIN') && (!['/app/planning', '/app/redeploy'].includes(h) || ctx.role !== 'VIEWER')).map(([h, l]) => [h, h === '/app/inbox' && unread ? `${l} (${unread})` : l])] as NavGroup).filter(([, items]) => items.length)} />
+      <AppNav company={org.shortName ?? org.name} email={ctx.user.email} inboxUnread={showInbox ? unread : null} groups={navFor(org.kind, org.industry).map(([g, items]) => [g, items.filter(([h, , f]) => (!f || hasFeature(org, f)) && (!['/app/audit', '/app/invoices', '/app/compliance', '/app/aca', '/app/hr-audit'].includes(h) || ctx.role === 'OWNER' || ctx.role === 'ADMIN') && (!['/app/planning', '/app/redeploy'].includes(h) || ctx.role !== 'VIEWER')).map(([h, l]) => [h, h === '/app/inbox' && unread ? `${l} (${unread})` : l])] as NavGroup).filter(([, items]) => items.length)} />
       <div className="main">
-        {(branches.length > 0 || showInbox) && (
-          <div className="mainbar">
-            {branches.length > 0 && <Suspense><BranchSwitcher branches={branches} current={branch?.id ?? null} label={org.kind === 'EMPLOYER' ? 'Location' : 'Branch'} /></Suspense>}
-            {showInbox && <InboxButton unread={unread} className="desk" />}
-          </div>
-        )}
+        <div className="mainbar">
+          {branches.length > 0 && <Suspense><BranchSwitcher branches={branches} current={branch?.id ?? null} label={org.kind === 'EMPLOYER' ? 'Location' : 'Branch'} /></Suspense>}
+          {showInbox && <InboxButton unread={unread} className="desk" />}
+          <span className="whoami desk"><Link href="/app/account" title="My sign-in">{ctx.user.email}</Link><SignOutButton /></span>
+        </div>
         {!ctx.user.emailVerifiedAt && <VerifyBanner email={ctx.user.email} />}
         {org.subscriptionStatus === 'trialing' && trialDays > 0 && <p className="card banner">{trialDays} days left in your trial. <Link href="/app/billing">Choose a plan</Link></p>}
         {!['trialing', 'active'].includes(org.subscriptionStatus) && <p className="card banner error">Your subscription is {org.subscriptionStatus.replace('_', ' ')}. Your data is safe but read-only. <Link href="/app/billing">Update billing</Link></p>}

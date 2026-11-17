@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import InboxButton from './InboxButton';
 import { Logo } from './Logo';
+import SignOutButton from './SignOutButton';
 
 export type NavGroup = [group: string, items: [href: string, label: string][]];
 
@@ -23,7 +24,7 @@ function Icon({ d }: { d: string }) {
 }
 
 /** Sidebar on desktop; top bar + full-screen menu + bottom tabs on phones. */
-export default function AppNav({ groups, company, inboxUnread = null }: { groups: NavGroup[]; company: string; inboxUnread?: number | null }) {
+export default function AppNav({ groups, company, email, inboxUnread = null }: { groups: NavGroup[]; company: string; email?: string; inboxUnread?: number | null }) {
   const path = usePathname();
   const [open, setOpen] = useState(false);
   useEffect(() => setOpen(false), [path]);
@@ -59,6 +60,7 @@ export default function AppNav({ groups, company, inboxUnread = null }: { groups
           <div className="mobilemenu-head"><span><Logo size={28} light /><small>{company}</small></span>
             <button className="iconbtn" onClick={() => setOpen(false)} aria-label="Close menu"><Icon d="M6 6l12 12M18 6L6 18" /></button></div>
           {links}
+          <div className="menufoot">{email && <small>Signed in as {email}</small>}<SignOutButton className="btn ghost" /></div>
         </div>
       )}
       <nav className="tabbar" aria-label="Quick">

@@ -21,9 +21,11 @@ export default function Login() {
   const [sso, setSso] = useState(false);
   const [email, setEmail] = useState('');
   const [health, setHealth] = useState(false);
+  const [signedOut, setSignedOut] = useState(false);
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
     if (q.get('for') === 'healthcare') setHealth(true);
+    if (q.get('signedout')) setSignedOut(true);
     if (q.get('sso') || q.get('sso_error')) setSso(true);
     if (q.get('sso_error')) setErr(q.get('sso_error')!.slice(0, 300));
   }, []);
@@ -59,6 +61,7 @@ export default function Login() {
 
   return (
     <main className="public" style={{ maxWidth: 420 }}>
+      {signedOut && !creds && <p className="card banner" role="status">You’re signed out.</p>}
       <h1>{creds ? 'Two-step sign-in' : sso ? 'Sign in with SSO' : health ? 'Healthcare sign in' : 'Sign in'}</h1>
       {health && !creds && !sso && <p className="muted">Healthcare companies and their teams use the same sign-in: your account opens with credentials, screening and shift differentials up front.</p>}
       <form className="card" onSubmit={submit}>
