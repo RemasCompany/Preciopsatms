@@ -4,6 +4,8 @@ import ListToolbar, { pickFilters } from '@/components/ListToolbar';
 import { OpenRecord, Pill } from '@/components/Records';
 import { currentBranch, jobInBranch } from '@/lib/branches';
 import { parsePlace, payTransparencyIssue } from '@/lib/state-rules';
+import { hasFeature } from '@/lib/plans';
+import { ASSISTANT_NAME } from '@/lib/assistant-name';
 
 const FILTERS = ['status', 'sector', 'type'];
 const money = (n: number) => `$${n.toFixed(2)}`;
@@ -24,7 +26,8 @@ export default async function Jobs({ searchParams }: { searchParams: Record<stri
       <h1>Jobs</h1>
       <p className="lede">Every open requisition, its pipeline, and the spread you earn per hour.</p>
       <p className="muted">Public careers page: <a href={`/careers/${org.slug}`}>/careers/{org.slug}</a> · Job board feed: <code>/api/public/{org.slug}/feed.xml</code></p>
-      <ListToolbar kind="jobs" q={q} filters={FILTERS} active={active} canEdit={canEdit(ctx)} placeholder="Search title, location or client…" />
+      <ListToolbar kind="jobs" q={q} filters={FILTERS} active={active} canEdit={canEdit(ctx)} placeholder="Search title, location or client…"
+        extra={canEdit(ctx) && hasFeature(org, 'ai') ? <OpenRecord kind="jobs" className="btn ghost">✨ Create with {ASSISTANT_NAME.replace(/^Assistant /, '')}</OpenRecord> : undefined} />
       {jobs.length ? (
         <div className="tablewrap"><table><thead><tr><th>Job</th><th>Sector</th><th>Location</th><th>Openings</th><th>Pipeline</th><th>Spread</th><th>Status</th></tr></thead><tbody>
           {jobs.map((j) => {

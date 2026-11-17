@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import type { Stage } from '@prisma/client';
 import Drawer from './Drawer';
 import ResumePanel from './ResumePanel';
+import JobAiPanel from './JobAiPanel';
 import { ComposeDrawer, MessageHistory, type Recipient, type SentMessage } from './Compose';
 import Credentials from './Credentials';
 import RecordForm, { invalidateRefs } from './RecordForm';
@@ -129,6 +130,7 @@ function RecordDrawer({ kind, id, preset, onClose }: Open & { onClose: () => voi
           <ResumePanel candidateId={id} resume={extras.resume as { filename: string } | null | undefined} ai={ai && canEdit} values={values} setValues={setValues}
             onPendingFile={setPendingResume} reload={() => { load(); router.refresh(); }} toast={toast} />
         )}
+        {kind === 'jobs' && ai && canEdit && <JobAiPanel isNew={!id} values={values} setValues={setValues} />}
         <RecordForm kind={kind} values={values} onChange={setValues} readOnly={!canEdit} orgKind={orgKind} />
         {id && <Extras kind={kind} id={id} values={values} extras={extras} reload={() => { load(); router.refresh(); }} open={open} toast={toast} canEdit={canEdit} />}
       </>}
