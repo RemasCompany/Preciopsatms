@@ -90,6 +90,8 @@ model Organization {
   stripeSubscriptionId    String?              @unique
   subscriptionStatus      String               @default("trialing") // mirrors Stripe: trialing|active|past_due|canceled|unpaid|incomplete
   trialEndsAt             DateTime?
+  complimentary           Boolean              @default(false) // free on its plan, by arrangement (src/lib/complimentary.json): billing never charges or changes it
+  complimentaryNote       String?
   currentPeriodEnd        DateTime?
   seats                   Int                  @default(1)
   salesTargets            SalesTarget[]

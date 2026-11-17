@@ -24,4 +24,7 @@ if (process.env.VERCEL_ENV === 'production') {
 }
 console.log(`[migrate] Applying migrations using ${migrateFrom}.`);
 const r = spawnSync('npx', ['prisma', 'migrate', 'deploy'], { stdio: 'inherit', env: { ...process.env, DATABASE_URL: migrate } });
-process.exit(r.status ?? 1);
+if (r.status !== 0) process.exit(r.status ?? 1);
+// Companies on a complimentary plan (src/lib/complimentary.json). Never fails the deploy.
+spawnSync('node', ['scripts/complimentary.mjs'], { stdio: 'inherit', env: { ...process.env, DATABASE_URL: migrate } });
+process.exit(0);

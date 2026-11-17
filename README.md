@@ -115,6 +115,9 @@ Companies that set their industry to Healthcare (Settings & data → Company pro
 - **Credential reminders to the worker.** The daily credential alert now also sends each worker one message about their own credentials expiring or expired, besides the email to recruiters.
 - **API (Enterprise)** (`/api/v1/*`, `src/lib/api-keys.ts`). Owners and admins create keys in Settings & data → API keys. A key is shown once and stored only as a hash; creating and revoking are audited. Requests send `Authorization: Bearer pk_live_…` and are limited to 120 a minute per key. Endpoints are jobs (list, get, create unpublished), candidates (list, get, create, with duplicate-email check), applications, employees (no pay, tax, bank or EEO details) and timesheets. Lists page with `?cursor=`, `?limit=` (up to 200) and `?updatedSince=`. EEO data is never exposed.
 
+## Complimentary plans
+Companies that use Preciops free, by arrangement, are listed in `src/lib/complimentary.json` (currently: Eye Tek Security Services, LLC on Enterprise). A listed company is put on its plan, active, with no trial and no billing account: at sign-up, and on every deploy for companies that signed up earlier (`scripts/complimentary.mjs`, run by `scripts/migrate.mjs`; it never fails a deploy). Names match regardless of case, punctuation, spacing or LLC/Inc. Add `"domains": ["example.com"]` to an entry so only an owner with an email at that domain gets it. Stripe never changes a complimentary plan, checkout says there's nothing to pay, and Billing shows the arrangement. To end one, remove the entry and set `complimentary` to false on the company.
+
 ## What's built
 | Area | Where |
 |---|---|

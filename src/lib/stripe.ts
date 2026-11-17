@@ -13,6 +13,11 @@ export async function syncSubscription(sub: Stripe.Subscription) {
   const plan = item ? planFromPriceId(item.price.id) : null;
   const org = await db.organization.findUnique({ where: { stripeCustomerId: customerId } });
   if (!org) return;
+  // A complimentary company keeps its plan and stays active whatever Stripe says.
+  if (org.complimentary) {
+    await db.organization.update({ where: { id: org.id }, data: { stripeSubscriptionId: sub.id } });
+    return;
+  }
   const periodEnd = new Date(sub.current_period_end * 1000);
   const newPeriod = !org.currentPeriodEnd || periodEnd.getTime() !== org.currentPeriodEnd.getTime();
   await db.organization.update({
@@ -42,7 +47,7 @@ export async function billingQuantity(org: { id: string; plan: keyof typeof PLAN
 export async function syncSeats(orgId: string) {
   if (!stripeEnabled()) return;
   const org = await db.organization.findUniqueOrThrow({ where: { id: orgId } });
-  if (!org.stripeSubscriptionId) return;
+  if (!org.stripeSubscriptionId || org.complimentary) return;
   const count = await billingQuantity(org);
   let price: string | null = null;
   try { price = priceIdFor(org.plan, org.kind); } catch { /* that price isn't configured: keep the current one */ }

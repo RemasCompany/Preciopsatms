@@ -8,6 +8,7 @@ import { audit } from '@/lib/audit';
 export const POST = withApi(async (req: Request) => {
   const { org, user } = await requireApiContext({ minRole: 'OWNER' });
   const { plan } = z.object({ plan: z.enum(['starter', 'growth', 'enterprise']) }).parse(await req.json());
+  if (org.complimentary) throw new HttpError(400, `${org.name} is on a complimentary ${planView(org.plan, org.kind).name} plan, so there’s nothing to pay.`);
   if (!stripeEnabled()) throw new HttpError(503, 'Billing isn’t set up on this server yet. Your trial continues in the meantime.');
   let customer = org.stripeCustomerId;
   if (!customer) {
