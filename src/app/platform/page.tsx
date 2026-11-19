@@ -3,6 +3,8 @@ import { notFound } from 'next/navigation';
 import { FILTERS, accounts, inFilter, isFilter, metrics, platformAdmin, type Filter } from '@/lib/platform';
 import SignOutButton from '@/components/SignOutButton';
 import { stripeStatus } from '@/lib/stripe-status';
+import { emailStatus } from '@/lib/email-status';
+import TestEmail from '@/components/TestEmail';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,6 +38,15 @@ export default async function Platform({ searchParams }: { searchParams: { filte
         <span className="grow" />
         <Link className="btn ghost sm" href="/app">Back to the app</Link><SignOutButton />
       </div>
+      {(() => { const mail = emailStatus(); return (
+        <section className={`card ${mail.ok ? '' : 'banner'}`} aria-label="Email" style={{ marginTop: 16 }}>
+          <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', margin: 0 }}>
+            <b>Email: <span className={`pill ${mail.ok ? 'g' : 'r'}`}>{mail.ok ? 'Set up' : 'Not working'}</span></b>
+            {mail.ok && <TestEmail />}
+          </div>
+          <p style={{ margin: '8px 0 0' }}>{mail.summary}</p>
+        </section>
+      ); })()}
       <section className={`card ${billing.state === 'connected' && billing.mode === 'live' ? '' : 'banner'}`} aria-label="Stripe" style={{ marginTop: 16 }}>
         <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', margin: 0 }}>
           <b>Stripe billing: <span className={`pill ${billing.state === 'connected' ? (billing.mode === 'live' ? 'g' : 'a') : 'r'}`}>{billing.state === 'connected' ? `Connected · ${billing.mode} mode` : billing.state === 'problems' ? 'Needs attention' : 'Not connected'}</span></b>
