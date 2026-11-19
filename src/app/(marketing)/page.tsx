@@ -203,8 +203,24 @@ export default function Home({ searchParams }: { searchParams?: { deleted?: stri
                   <li><b>Outreach drafts</b> and follow-ups</li>
                   <li><b>Reminders &amp; routine tasks</b> handled automatically</li>
                   <li><b>Scheduling help</b> — flag gaps and suggest fills</li>
+                  <li><b>HR compliance answers</b> — leave, accommodation and policy questions, with sources</li>
                 </ul>
                 <span className="lp-tag">AI Automation</span>
+              </article>
+              <article className="lp-module" style={{ gridColumn: '1 / -1' }}>
+                <div className="lp-module-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v18M5 7h14M7 7l-3 7a3 3 0 0 0 6 0L7 7zM17 7l-3 7a3 3 0 0 0 6 0l-3-7zM8 21h8"/></svg></div>
+                <h3>Assistant Smarty — your HR compliance expert</h3>
+                <p>Ask Assistant Smarty the HR questions that usually mean a call to a consultant. It knows your company’s size and the states where your people work, so answers fit your situation, and every answer lists its official sources.</p>
+                <ul className="lp-mini-list">
+                  <li><b>Family &amp; medical leave</b> — does FMLA apply to you, who is eligible, the notices and deadlines, and how state paid family leave programs run alongside it</li>
+                  <li><b>Pregnancy, nursing &amp; disability</b> — accommodation duties under the Pregnant Workers Fairness Act, the ADA and lactation break rules</li>
+                  <li><b>Military leave, sick leave, posters &amp; records</b> — what you owe, what to post and what to keep</li>
+                  <li><b>Handbook policies in minutes</b> — ask for a family leave or accommodation policy and get a ready-to-edit draft for your size and states</li>
+                  <li><b>Built for staffing</b> — clear answers on who owes leave when a placed worker needs it: the agency or the client</li>
+                  <li><b>Private by design</b> — names are replaced before anything reaches the AI, and conversations aren’t saved</li>
+                </ul>
+                <p style={{ marginTop: 12, fontSize: 13.5 }}>General compliance information, not legal advice — Smarty tells you when to confirm a decision with an employment lawyer. Included on Growth and Enterprise.</p>
+                <span className="lp-tag">AI · HR Compliance</span>
               </article>
               <article className="lp-module">
                 <div className="lp-module-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 15l2 2 4-4"/></svg></div>
@@ -354,6 +370,7 @@ export default function Home({ searchParams }: { searchParams?: { deleted?: stri
                   <li><span><b>Schedule and track time</b> — shift scheduling, a mobile time clock and timesheets with overtime.</span></li>
                   <li><span><b>Give staff the employee app</b> — remote clocking, access, schedules and shift requests from their phone.</span></li>
                   <li><span><b>Let AI do the busywork</b> — an AI agent automates most routine recruiting and HR tasks.</span></li>
+                  <li><span><b>An HR compliance expert on call</b> — Assistant Smarty answers family leave, accommodation and policy questions for your states, with sources, and drafts handbook policies.</span></li>
                   <li><span><b>Grow people, not paperwork</b> — onboarding, semi-annual and annual reviews with feedback reminders, goals and engagement on Growth.</span></li>
                   <li><span><b>Never miss a follow-up</b> — task and activity reminders with priorities and automatic follow-ups, plus internal communication for your whole team.</span></li>
                 </ul>
@@ -467,6 +484,10 @@ export default function Home({ searchParams }: { searchParams?: { deleted?: stri
               <details className="lp-faq">
                 <summary>What does the AI agent automate?</summary>
                 <div className="lp-faq-body"><p>The AI agent automates most repetitive work: resume parsing and candidate matching, lead scoring, outreach drafts, reminders, and routine scheduling and follow-up tasks — with your team approving the decisions that matter.</p></div>
+              </details>
+              <details className="lp-faq">
+                <summary>Can Assistant Smarty answer HR compliance questions like family leave?</summary>
+                <div className="lp-faq-body"><p>Yes. Open Assistant Smarty and choose HR compliance. Ask about FMLA and state paid family and medical leave, pregnancy and nursing accommodation, disability accommodation, military leave, sick leave, or the notices and records that go with them, or ask it to draft a handbook policy. It uses your company’s size and the states where your people work, and lists the official sources for every answer. It gives general compliance information, not legal advice, and tells you when to check with an employment lawyer. Included on Growth and Enterprise.</p></div>
               </details>
               <details className="lp-faq">
                 <summary>How do credential reminders and shift differentials work for healthcare?</summary>
