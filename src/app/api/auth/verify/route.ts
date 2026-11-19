@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { db } from '@/lib/db';
 import { consumeToken } from '@/lib/account';
+import { grantForUser } from '@/lib/complimentary';
 
 /** Confirms an email address from the link in the verification email. */
 export async function POST(req: Request) {
@@ -9,5 +10,7 @@ export async function POST(req: Request) {
   const user = await consumeToken(b.data.token, 'verify');
   if (!user) return Response.json({ error: 'This link has expired or was already used. Sign in and ask for a new one.' }, { status: 404 });
   if (!user.emailVerifiedAt) await db.user.update({ where: { id: user.id }, data: { emailVerifiedAt: new Date() } });
-  return Response.json({ ok: true, email: user.email });
+  // A company with a free plan by arrangement for its email domain gets it now that the email is confirmed.
+  const free = await grantForUser(user.id).catch(() => []);
+  return Response.json({ ok: true, email: user.email, ...(free.length ? { complimentary: true } : {}) });
 }

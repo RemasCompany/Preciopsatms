@@ -13,6 +13,7 @@ import BranchSwitcher from '@/components/BranchSwitcher';
 import InboxButton from '@/components/InboxButton';
 import SignOutButton from '@/components/SignOutButton';
 import { SALES_EMAIL } from '@/lib/contact';
+import { complimentaryFor } from '@/lib/complimentary';
 import { ASSISTANT_NAME } from '@/lib/assistant-name';
 import { Suspense } from 'react';
 
@@ -57,6 +58,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <span className="whoami desk"><Link href="/app/account" title="My sign-in">{ctx.user.email}</Link><SignOutButton /></span>
         </div>
         {!ctx.user.emailVerifiedAt && <VerifyBanner email={ctx.user.email} />}
+        {!ctx.user.emailVerifiedAt && ctx.role === 'OWNER' && !org.complimentary && complimentaryFor(org.name, ctx.user.email) && <p className="card banner" role="status"><b>Your company has a complimentary Enterprise plan.</b> Confirm your email address (the link above) to switch it on: every feature, at no charge.</p>}
         {org.subscriptionStatus === 'trialing' && trialDays > 0 && <p className="card banner">{trialDays} days left in your trial. <Link href="/app/billing">Choose a plan</Link></p>}
         {org.subscriptionStatus === 'trial_expired' ? <p className="card banner error">Your free trial has ended, so your account is read-only. Everything you added is safe. <Link href="/app/billing">Choose a plan</Link> to pick up where you left off, or email <a href={`mailto:${SALES_EMAIL}`}>{SALES_EMAIL}</a>.</p>
           : !['trialing', 'active'].includes(org.subscriptionStatus) && <p className="card banner error">Your subscription is {org.subscriptionStatus.replace('_', ' ')}. Your data is safe but read-only. <Link href="/app/billing">Update billing</Link></p>}

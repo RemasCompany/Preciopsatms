@@ -9,7 +9,7 @@ export default function Verify({ params }: { params: { token: string } }) {
     if (sent.current) return; sent.current = true; // the token is single use; don't spend it twice in dev strict mode
     fetch('/api/auth/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: params.token }) }).then(async (r) => {
       const j = await r.json().catch(() => ({}));
-      setState(r.ok ? { ok: true, text: `Thanks — ${j.email} is confirmed.` } : { ok: false, text: j.error ?? 'This link isn’t working.' });
+      setState(r.ok ? { ok: true, text: `Thanks — ${j.email} is confirmed.${j.complimentary ? ' Your company is now on a complimentary Enterprise plan: every feature, at no charge.' : ''}` } : { ok: false, text: j.error ?? 'This link isn’t working.' });
     });
   }, [params.token]);
   return (

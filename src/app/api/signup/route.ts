@@ -26,7 +26,8 @@ export const POST = withApi(async (req: Request) => {
 
   const trialDays = Number(process.env.TRIAL_DAYS ?? 14);
   // A company with a complimentary arrangement starts on its plan, free, with no billing account.
-  const comp = complimentaryFor(b.company, email);
+  // A domain arrangement needs a confirmed email, so it's granted when they click the confirmation link.
+  const comp = complimentaryFor(b.company, email, false);
   // Without Stripe configured the account still starts on the trial; the customer is created at checkout.
   const customer = stripeEnabled() && !comp ? await stripe.customers.create({ email, name: b.company, metadata: { slug } }) : null;
 
