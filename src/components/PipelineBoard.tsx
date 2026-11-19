@@ -7,10 +7,13 @@ import Drawer from './Drawer';
 import { useRecords } from './Records';
 import { matchTone } from '@/lib/match';
 import { BOARD_STAGES, START_STAGES, REJECTION_REASONS, stageLabel, type RejectionReason } from '@/lib/pipeline';
+import CandidateNotes from './CandidateNotes';
+import { ScheduleInterview } from './Interviews';
 
 export type BoardApp = {
   id: string; jobId: string; candidateId: string; stage: Stage; matchScore: number | null; stageChangedAt: string;
   candidate: string; availability: string | null; job: string; client: string | null;
+  canAct?: boolean; notes?: number; reach?: { email: boolean; phone: boolean };
 };
 type JobOpt = { id: string; title: string; client: string | null; open: boolean };
 type CandOpt = { id: string; name: string; title: string | null };
@@ -29,6 +32,9 @@ export default function PipelineBoard({ apps: initial, jobs, candidates, initial
   const [over, setOver] = useState<Stage | null>(null);
   const [rejecting, setRejecting] = useState<BoardApp | null>(null);
   const [adding, setAdding] = useState(false);
+  const [noting, setNoting] = useState<BoardApp | null>(null);
+  const [scheduling, setScheduling] = useState<BoardApp | null>(null);
+  const can = (a: BoardApp) => canEdit || !!a.canAct;
   const [sort, setSort] = useState<'recent' | 'match'>('recent');
   const [toast, setToast] = useState<{ text: string; error?: boolean } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -52,7 +58,8 @@ export default function PipelineBoard({ apps: initial, jobs, candidates, initial
   // One save at a time per card, in order: quick arrow-key moves must not land out of order on the server.
   const saving = useRef(new Map<string, Promise<void>>());
   async function move(a: BoardApp, stage: Stage, rejectionReason?: RejectionReason) {
-    if (!canEdit || a.stage === stage) return;
+    if (!can(a) || a.stage === stage) return;
+    if (stage === 'PLACED' && !canEdit) { say(`Moving someone to ${stageLabel('PLACED', kind)} is done by a recruiter or HR. Move them to Offer and let them know.`, true); return; }
     if (stage === 'REJECTED' && !rejectionReason) { setRejecting(a); return; }
     const from = a.stage;
     setApps((xs) => xs.map((x) => (x.id === a.id ? { ...x, stage, stageChangedAt: new Date().toISOString() } : x)));
@@ -76,7 +83,7 @@ export default function PipelineBoard({ apps: initial, jobs, candidates, initial
     if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
     e.preventDefault();
     const i = BOARD_STAGES.indexOf(a.stage) + (e.key === 'ArrowRight' ? 1 : -1);
-    if (i >= 0 && i < BOARD_STAGES.length) move(a, BOARD_STAGES[i]);
+    if (i >= 0 && i < BOARD_STAGES.length && can(a)) move(a, BOARD_STAGES[i]);
   }
 
   return (
@@ -103,26 +110,32 @@ export default function PipelineBoard({ apps: initial, jobs, candidates, initial
             if (sort === 'match') items.sort((x, y) => (y.matchScore ?? -1) - (x.matchScore ?? -1));
             return (
               <section key={s} role="listitem" aria-label={`${stageLabel(s, kind)}, ${items.length}`} className={`col${over === s ? ' over' : ''}`} style={{ '--c': `var(--s${i})` } as React.CSSProperties}
-                onDragOver={(e) => { if (!canEdit) return; e.preventDefault(); setOver(s); }}
+                onDragOver={(e) => { if (!canEdit && !apps.some((x) => x.canAct)) return; e.preventDefault(); setOver(s); }}
                 onDragLeave={() => setOver((o) => (o === s ? null : o))}
                 onDrop={(e) => { e.preventDefault(); setOver(null); const a = apps.find((x) => x.id === e.dataTransfer.getData('text/plain')); if (a) move(a, s); }}>
                 <h3><span>{stageLabel(s, kind)}</span><small>{items.length}</small></h3>
                 {items.map((a) => {
                   const d = daysIn(a.stageChangedAt);
                   return (
-                    <div key={a.id} className="cardk" tabIndex={0} draggable={canEdit}
-                      aria-label={`${a.candidate}, ${a.job}. ${canEdit ? 'Enter opens the candidate; left and right arrow keys change stage.' : 'Enter opens the candidate.'}`}
+                    <div key={a.id} className="cardk" tabIndex={0} draggable={can(a)}
+                      aria-label={`${a.candidate}, ${a.job}. ${can(a) ? 'Enter opens the candidate; left and right arrow keys change stage.' : 'Enter opens the candidate.'}`}
                       onDragStart={(e) => { e.dataTransfer.setData('text/plain', a.id); e.dataTransfer.effectAllowed = 'move'; }}
                       onKeyDown={(e) => onKey(e, a)} onClick={() => open('candidates', a.candidateId)}>
                       <b>{a.candidate}</b>
                       <span className="muted">{a.job}{a.client ? ` · ${a.client}` : ''}</span>
                       <div className="meta"><span>{a.matchScore != null ? <span className={`pill ${matchTone(a.matchScore)}`} title="Match score out of 100: skills, experience, role, certifications, location, pay and availability">{a.matchScore}% match</span> : a.availability ?? ''}</span><span>{d ? `${d}d in stage` : 'today'}</span></div>
-                      {canEdit && (
+                      {can(a) && (
                         <select className="movesel" aria-label={`Move ${a.candidate} to stage`} value={a.stage}
                           onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}
                           onChange={(e) => move(a, e.target.value as Stage)}>
-                          {BOARD_STAGES.map((st) => <option key={st} value={st}>{st === a.stage ? `In ${stageLabel(st, kind)}` : `Move to ${stageLabel(st, kind)}`}</option>)}
+                          {BOARD_STAGES.filter((st) => canEdit || st !== 'PLACED' || a.stage === 'PLACED').map((st) => <option key={st} value={st}>{st === a.stage ? `In ${stageLabel(st, kind)}` : `Move to ${stageLabel(st, kind)}`}</option>)}
                         </select>
+                      )}
+                      {can(a) && (
+                        <div className="row cardacts" style={{ gap: 6, marginTop: 6 }} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                          <button type="button" className="btn ghost sm" onClick={() => setNoting(a)} aria-label={`Notes on ${a.candidate}${a.notes ? `, ${a.notes}` : ''}`}>Note{a.notes ? ` · ${a.notes}` : ''}</button>
+                          {a.stage !== 'REJECTED' && a.stage !== 'PLACED' && <button type="button" className="btn ghost sm" onClick={() => setScheduling(a)} aria-label={`Schedule an interview with ${a.candidate}`}>Interview</button>}
+                        </div>
                       )}
                     </div>
                   );
@@ -144,6 +157,20 @@ export default function PipelineBoard({ apps: initial, jobs, candidates, initial
         </Drawer>
       )}
 
+      {noting && (
+        <Drawer title={noting.candidate} kicker={`Notes · ${noting.job}`} onClose={() => { setNoting(null); router.refresh(); }}>
+          <CandidateNotes candidateId={noting.candidateId} applications={[{ id: noting.id, job: noting.job, canAct: true }]} recruiter={canEdit} focusApp={noting.id}
+            onCount={(n) => setApps((xs) => xs.map((x) => (x.id === noting.id ? { ...x, notes: n } : x)))} />
+          <p><button type="button" className="btn ghost sm" onClick={() => { const a = noting; setNoting(null); open('candidates', a.candidateId); }}>Open full profile</button></p>
+        </Drawer>
+      )}
+      {scheduling && (
+        <Drawer title={scheduling.candidate} kicker={`Interview · ${scheduling.job}`} onClose={() => setScheduling(null)}>
+          <ScheduleInterview applications={[{ id: scheduling.id, job: scheduling.job }]} contact={scheduling.reach ?? { email: false, phone: false }}
+            toast={(t, err) => say(t, !!err)} onCancel={() => setScheduling(null)}
+            onDone={() => { const a = scheduling; setScheduling(null); if (BOARD_STAGES.indexOf(a.stage) < BOARD_STAGES.indexOf('INTERVIEW')) setApps((xs) => xs.map((x) => (x.id === a.id ? { ...x, stage: 'INTERVIEW', stageChangedAt: new Date().toISOString() } : x))); router.refresh(); }} />
+        </Drawer>
+      )}
       {adding && (
         <AddToPipeline jobs={jobs.filter((j) => j.open)} candidates={candidates} defaultJob={job} apps={apps}
           onClose={() => setAdding(false)}

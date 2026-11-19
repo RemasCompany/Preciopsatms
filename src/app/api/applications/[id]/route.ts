@@ -12,13 +12,17 @@ import { assertNotBarred } from '@/lib/dnr';
 import { enforceCerts } from '@/lib/training-server';
 import { localDate } from '@/lib/timeclock';
 import { onOffer, onScreened } from '@/lib/automation-server';
+import { requireApplicationActor } from '@/lib/hiring-manager';
 
 const Body = z.object({ stage: z.nativeEnum(Stage), rejectionReason: z.enum(REJECTION_REASONS).optional(), override: z.string().max(500).optional() });
 
 /** Move an application through the pipeline. Placing someone auto-fills the job when every opening is filled. */
 export const PATCH = withApi(async (req: Request, { params }: { params: { id: string } }) => {
-  const { tdb, org, user, role } = await requireApiContext({ minRole: 'RECRUITER', write: true });
+  // Recruiters and up, or this job's hiring manager (who can move applicants but not hire them).
+  const { tdb, org, user, role } = await requireApiContext({ write: true });
+  const actor = await requireApplicationActor({ tdb, user, role }, params.id);
   const { stage, rejectionReason, override } = Body.parse(await req.json());
+  if (actor.hiringManagerOnly && stage === 'PLACED') throw new HttpError(403, `Moving someone to ${org.kind === 'EMPLOYER' ? 'Hired' : 'Placed'} is done by a recruiter or HR. Move them to Offer and let them know.`);
   if (stage === 'REJECTED' && !rejectionReason) throw new HttpError(400, 'A rejection reason is required for EEO record-keeping');
   const app = await tdb.application.findFirst({ where: { id: params.id }, include: { candidate: true, job: true } });
   if (!app) throw new HttpError(404, 'Not found');

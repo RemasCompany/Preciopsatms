@@ -1,6 +1,7 @@
 import { boardStats } from './job-boards';
 import { z } from 'zod';
-import { Prisma } from '@prisma/client';
+import { Prisma, type Role } from '@prisma/client';
+import { managedJobIds } from './hiring-manager';
 import { HttpError, type TenantDb } from './tenant';
 import { db } from './db';
 import { RECORDS, optValue, type Field, type RecordKind, type RecordValues } from './records';
@@ -123,8 +124,14 @@ const recentMessages = (tdb: TenantDb, relatedType: string, ids: string[]) =>
     select: { id: true, channel: true, toAddress: true, subject: true, body: true, status: true, error: true, createdAt: true } });
 
 /** Related data shown under the form in each drawer. */
-export async function loadExtras(tdb: TenantDb, kind: RecordKind, id: string) {
+export async function loadExtras(tdb: TenantDb, kind: RecordKind, id: string, who?: { user: { id: string; email: string }; role: Role }) {
   const extras = await loadRelated(tdb, kind, id);
+  if (kind === 'candidates' && who) {
+    // Which applications this person can work (notes, stage, interviews): recruiters all; a hiring manager their own jobs.
+    const managed = who.role === 'VIEWER' ? await managedJobIds(tdb, who.user) : null;
+    const apps = (extras as { applications: { jobId: string }[] }).applications.map((a) => ({ ...a, canAct: !managed || managed.has(a.jobId) }));
+    return { ...extras, applications: apps, messages: await recentMessages(tdb, 'candidate', [id]) };
+  }
   if (kind === 'candidates' || kind === 'leads' || kind === 'vendors') return { ...extras, messages: await recentMessages(tdb, kind.slice(0, -1), [id]) };
   if (kind === 'clients') {
     const contacts = (extras as { contacts: { id: string }[] }).contacts;

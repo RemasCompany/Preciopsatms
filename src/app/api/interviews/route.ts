@@ -1,5 +1,6 @@
 import { requireApiContext, withApi } from '@/lib/tenant';
 import { listInterviews, proposeInterview, type InterviewView } from '@/lib/interviews-server';
+import { requireApplicationActor } from '@/lib/hiring-manager';
 
 const VIEWS: InterviewView[] = ['upcoming', 'feedback', 'waiting', 'past'];
 
@@ -13,6 +14,9 @@ export const GET = withApi(async (req: Request) => {
 
 /** Offer the candidate times to pick from (or set one), with calendar invites once it's booked. */
 export const POST = withApi(async (req: Request) => {
-  const ctx = await requireApiContext({ minRole: 'RECRUITER', feature: 'ats', write: true });
-  return Response.json(await proposeInterview(ctx, await req.json().catch(() => null)), { status: 201 });
+  // Recruiters and up, or this job's hiring manager.
+  const ctx = await requireApiContext({ feature: 'ats', write: true });
+  const body = await req.json().catch(() => null);
+  await requireApplicationActor(ctx, String((body as { applicationId?: unknown } | null)?.applicationId ?? ''));
+  return Response.json(await proposeInterview(ctx, body), { status: 201 });
 });

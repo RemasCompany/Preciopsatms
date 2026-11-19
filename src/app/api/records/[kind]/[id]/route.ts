@@ -11,10 +11,10 @@ function kindOf(k: string): RecordKind {
 
 export const GET = withApi(async (_req: Request, { params }: Ctx) => {
   const kind = kindOf(params.kind);
-  const { tdb } = await requireApiContext({ feature: RECORDS[kind].feature });
+  const { tdb, user, role } = await requireApiContext({ feature: RECORDS[kind].feature });
   const row = await delegate(tdb, kind).findFirst({ where: { id: params.id } });
   if (!row) throw new HttpError(404, 'That record was deleted.');
-  return Response.json({ record: toValues(kind, row), extras: await loadExtras(tdb, kind, params.id) });
+  return Response.json({ record: toValues(kind, row), extras: await loadExtras(tdb, kind, params.id, { user, role }) });
 });
 
 export const PATCH = withApi(async (req: Request, { params }: Ctx) => {

@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
 
 export const GET = withApi(async (req: Request) => {
   const { tdb, org, user } = await requireApiContext({ minRole: 'OWNER' });
-  const [members, jobs, candidates, applications, eeoSelfIds, clients, contacts, deals, leads, vendors, tasks, timesheets, documents, messages, activity, files, invites, credentials, salesTargets, shifts, timeEntries, payrollRuns, onboardings, onboardingPackages, feedback, recognitions, auditLog, invoices] = await Promise.all([
+  const [members, jobs, candidates, applications, eeoSelfIds, clients, contacts, deals, leads, vendors, tasks, timesheets, documents, messages, activity, files, invites, credentials, salesTargets, shifts, timeEntries, payrollRuns, onboardings, onboardingPackages, feedback, recognitions, auditLog, invoices, candidateNotes, interviews, jobChanges] = await Promise.all([
     db.membership.findMany({ where: { organizationId: org.id }, select: { role: true, createdAt: true, user: { select: { id: true, name: true, email: true, createdAt: true } } } }),
     tdb.job.findMany(), tdb.candidate.findMany(), tdb.application.findMany(), tdb.eeoSelfId.findMany(), tdb.client.findMany(), tdb.contact.findMany(),
     tdb.deal.findMany(), tdb.lead.findMany(), tdb.vendor.findMany(), tdb.task.findMany(), tdb.timesheet.findMany(),
@@ -20,10 +20,11 @@ export const GET = withApi(async (req: Request) => {
     tdb.storedFile.findMany({ select: { id: true, filename: true, contentType: true, size: true, createdAt: true } }),
     tdb.invite.findMany({ select: { id: true, email: true, role: true, expiresAt: true, acceptedAt: true } }),
     tdb.credential.findMany(), tdb.salesTarget.findMany(), tdb.shift.findMany(), tdb.timeEntry.findMany(), tdb.payrollRun.findMany({ include: { items: { include: { adjustments: true } } } }), tdb.onboarding.findMany({ include: { steps: true } }), tdb.onboardingPackage.findMany(), tdb.feedback.findMany(), tdb.recognition.findMany(), tdb.auditLog.findMany({ orderBy: { createdAt: 'asc' } }), tdb.invoice.findMany({ include: { lines: true, payments: true } }),
+    tdb.candidateNote.findMany(), tdb.interview.findMany({ include: { scorecards: true } }), tdb.jobChange.findMany(),
   ]);
   const { stripeCustomerId: _c, stripeSubscriptionId: _s, ...organization } = org;
   await logActivity(org.id, 'Exported all company data', user.id);
   await audit(org.id, user, 'data.export_all', 'Exported all company data (JSON)', { req });
-  const body = JSON.stringify({ exportedAt: new Date().toISOString(), organization, members, jobs, candidates, applications, eeoSelfIds, clients, contacts, deals, leads, vendors, tasks, timesheets, documents, messages, activity, files, invites, credentials, salesTargets, shifts, timeEntries, payrollRuns, onboardings, onboardingPackages, feedback, recognitions, auditLog, invoices }, null, 2);
+  const body = JSON.stringify({ exportedAt: new Date().toISOString(), organization, members, jobs, candidates, applications, eeoSelfIds, clients, contacts, deals, leads, vendors, tasks, timesheets, documents, messages, activity, files, invites, credentials, salesTargets, shifts, timeEntries, payrollRuns, onboardings, onboardingPackages, feedback, recognitions, auditLog, invoices, candidateNotes, interviews, jobChanges }, null, 2);
   return new Response(body, { headers: { 'Content-Type': 'application/json', 'Content-Disposition': `attachment; filename="preciops-export-${org.slug}-${new Date().toISOString().slice(0, 10)}.json"`, 'Cache-Control': 'private, no-store' } });
 });

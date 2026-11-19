@@ -146,6 +146,15 @@ On an employee's record, **Promote or change job** starts a promotion, demotion,
   - demotions show a caution about documentation and legal risk.
 - **Who sees what:** managers never see current pay. History is visible to HR and the person's managers only. Every step is in the audit log.
 
+## Reviewing applicants: notes, stages and interviews
+- **Notes** (`src/lib/hiring-manager.ts`, `CandidateNotes`): a dated timeline on each candidate showing who wrote each note and which job it's about. You can add notes on the candidate record, or from a pipeline card (**Note · N**). They're never shown to the candidate. Authors and admins can delete notes. Notes are included in the full data export.
+- **Pipeline cards** have **Note** and **Interview** buttons, so a manager can write impressions or set up an interview without leaving the board. Scheduling an interview moves the applicant to Interview.
+- **Hiring managers:**
+  - **Who counts:** someone with the Viewer role who is the job's "Reports to", matched by the email they sign in with on their employee record.
+  - **What they can do, for that job's applicants only:** add notes, drag them between stages (rejections still need a reason) and schedule, reschedule or cancel interviews.
+  - **What stays with recruiters and HR:** moving someone to Hired or Placed, which creates the employee record or assignment, and anything on other jobs.
+  - **Recruiters and up** can do all of this for every job.
+
 ## What's built
 | Area | Where |
 |---|---|

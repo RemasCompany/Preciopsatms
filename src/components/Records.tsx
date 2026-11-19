@@ -17,6 +17,7 @@ import { BOARD_INFO, isBoard, sourceLabel, type Board } from '@/lib/boards';
 import DoNotReturn from './DoNotReturn';
 import { CandidateDocs } from './HiringDocs';
 import { CandidateInterviews } from './Interviews';
+import CandidateNotes from './CandidateNotes';
 import { CandidateJobMatches, JobMatches } from './Matches';
 
 type Open = { kind: RecordKind; id?: string; preset?: RecordValues };
@@ -174,7 +175,7 @@ function QuickContact({ phone, email, optOut }: { phone: string | null; email: s
   );
 }
 
-function StageSelect({ appId, stage, onMoved, canEdit }: { appId: string; stage: Stage; onMoved: () => void; canEdit: boolean }) {
+function StageSelect({ appId, stage, onMoved, canEdit, noHire = false }: { appId: string; stage: Stage; onMoved: () => void; canEdit: boolean; noHire?: boolean }) {
   const { toast, kind } = useRecords();
   const [pending, setPending] = useState<Stage | null>(null);
   async function move(to: Stage, rejectionReason?: string) {
@@ -189,7 +190,7 @@ function StageSelect({ appId, stage, onMoved, canEdit }: { appId: string; stage:
   );
   return (
     <select aria-label="Stage" value={stage} disabled={!canEdit} onChange={(e) => { const s = e.target.value as Stage; if (s === 'REJECTED') setPending(s); else move(s); }}>
-      {BOARD_STAGES.map((s) => <option key={s} value={s}>{stageLabel(s, kind)}</option>)}
+      {BOARD_STAGES.filter((s) => !noHire || s !== 'PLACED' || stage === 'PLACED').map((s) => <option key={s} value={s}>{stageLabel(s, kind)}</option>)}
     </select>
   );
 }
@@ -200,7 +201,9 @@ function RelatedExtras({ kind, id, values, extras, reload, open, toast, canEdit,
   const [pick, setPick] = useState('');
   const { kind: orgKind } = useRecords();
   if (kind === 'candidates') {
-    const apps = (extras.applications ?? []) as { id: string; jobId: string; job: string; client: string | null; billRate: number | null; stage: Stage; assignmentEnd?: string | null }[];
+    const apps = (extras.applications ?? []) as { id: string; jobId: string; job: string; client: string | null; billRate: number | null; stage: Stage; assignmentEnd?: string | null; canAct?: boolean }[];
+    // Recruiters work every application; a hiring manager (Viewer role) only their own jobs'.
+    const actOn = (a: { canAct?: boolean }) => canEdit || !!a.canAct;
     const setEnd = async (appId: string, date: string) => {
       try { await api('/api/redeploy', 'POST', { action: 'endDate', applicationId: appId, date: date || null }); toast(date ? 'Assignment end date saved.' : 'End date cleared.'); reload(); }
       catch (e) { toast((e as Error).message, true); }
@@ -217,7 +220,7 @@ function RelatedExtras({ kind, id, values, extras, reload, open, toast, canEdit,
           {apps.map((a) => (
             <div key={a.id} className="li"><button className="link x" onClick={() => open('jobs', a.jobId)}><b>{a.job}</b><span className="muted">{[a.client, a.billRate ? `bill ${money(a.billRate)}/hr` : null].filter(Boolean).join(' · ')}</span></button>
               <span className="row" style={{ gap: 6 }}>{a.stage === 'PLACED' && orgKind !== 'EMPLOYER' && <label className="muted" style={{ fontSize: 12, display: 'flex', gap: 4, alignItems: 'center' }}>Ends<input type="date" defaultValue={a.assignmentEnd ?? ''} disabled={!canEdit} aria-label={`Assignment end date for ${a.job}`} onChange={(e) => setEnd(a.id, e.target.value)} style={{ width: 'auto' }} /></label>}
-              <StageSelect appId={a.id} stage={a.stage} onMoved={reload} canEdit={canEdit} /></span></div>
+              <StageSelect appId={a.id} stage={a.stage} onMoved={reload} canEdit={actOn(a)} noHire={!canEdit} /></span></div>
           ))}
           {!apps.length && <p className="muted">Not submitted to any job yet.</p>}
         </div>
@@ -226,7 +229,8 @@ function RelatedExtras({ kind, id, values, extras, reload, open, toast, canEdit,
             <button className="btn ghost" onClick={submit} disabled={!pick}>Add to pipeline</button></div>
         )}
       </section>
-      <CandidateInterviews candidateId={id} applications={apps.map((a) => ({ id: a.id, job: a.job, stage: a.stage }))} canEdit={canEdit} toast={toast} contact={{ email: !!values.email, phone: !!values.phone }} />
+      <CandidateNotes candidateId={id} applications={apps.map((a) => ({ id: a.id, job: a.job, canAct: actOn(a) }))} recruiter={canEdit} />
+      <CandidateInterviews candidateId={id} applications={apps.filter(actOn).map((a) => ({ id: a.id, job: a.job, stage: a.stage }))} canEdit={apps.some(actOn)} toast={toast} contact={{ email: !!values.email, phone: !!values.phone }} />
       <CandidateJobMatches key={apps.length} candidateId={id} canEdit={canEdit} reload={reload} />
     </>);
   }
