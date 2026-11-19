@@ -4,15 +4,15 @@ import { limited } from '@/lib/rate-limit';
 import { ask } from '@/lib/assistant';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
+export const maxDuration = 120; // HR answers may search official sites
 
 const Body = z.object({
   question: z.string().trim().min(2, 'Type a question.').max(1000, 'Keep questions under 1,000 characters.'),
-  history: z.array(z.object({ q: z.string().max(1000), a: z.string().max(8000) })).max(10).default([]),
-  mode: z.enum(['business', 'coach']).default('business'),
+  history: z.array(z.object({ q: z.string().max(1000), a: z.string().max(12000) })).max(10).default([]),
+  mode: z.enum(['business', 'coach', 'hr']).default('business'),
 });
 
-/** Ask the assistant about this company's data, or for manager coaching on a people issue. One AI credit per question. */
+/** Ask the assistant about this company's data, for manager coaching, or an HR compliance question. One AI credit per question. */
 export const POST = withApi(async (req: Request) => {
   const { org, role, user } = await requireApiContext({ minRole: 'RECRUITER', feature: 'ai', write: true });
   const b = Body.safeParse(await req.json().catch(() => ({})));

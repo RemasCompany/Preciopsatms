@@ -123,6 +123,14 @@ Companies that use Preciops free, by arrangement, are listed in `src/lib/complim
 - **Who gets in:** anyone whose sign-in email is at the company's own domain. The default is `remascompany.com`; change the domains with `PLATFORM_ADMIN_DOMAINS` and add individual addresses with `PLATFORM_ADMIN_EMAILS` (both comma-separated). They also need a confirmed email and two-step sign-in, or single sign-on. Everyone else gets a 404.
 - **Trial ending** (`src/lib/trials.ts`, run daily by `/api/cron/people`). For companies that never chose a plan, owners get an email 3 days and 1 day before the trial ends. When it ends, the company becomes read-only (`trial_expired`): they can sign in and see everything, but can't make changes. Nothing is deleted, and choosing a plan on Billing turns everything back on. Card trials started through Stripe checkout are left to Stripe; complimentary companies are left alone.
 
+## Assistant Smarty: HR compliance mode
+A third tab on the assistant (Your business · Manager coaching · HR compliance) answers questions about US leave and workplace policy: FMLA and state paid family and medical leave, pregnancy and lactation accommodation (PWFA, PDA, PUMP Act), ADA accommodation, USERRA, paid sick leave, posters and records. It also drafts ready-to-edit handbook policies.
+- **What it works from:**
+  - **Company facts:** type, today's headcount, states where people work (from the company city, branches and assignment locations), which federal laws likely apply by size, and the leave policies set up in Preciops. Never individual people.
+  - **A curated reference** in `src/lib/hr-law.ts`, dated `REVIEWED`, with official sources. Review it every six months and whenever a state program changes.
+  - **Live search of official sites** (`OFFICIAL_DOMAINS`: dol.gov, eeoc.gov, state agencies) for figures that change every year. Web search has to be enabled for the Anthropic API organization; without it the assistant answers from the reference and points to the official site for current amounts.
+- Names are replaced with "Person A"… before anything is sent, as in coaching. Answers cite sources and say they are general information, not legal advice. Each question costs one AI credit.
+
 ## What's built
 | Area | Where |
 |---|---|

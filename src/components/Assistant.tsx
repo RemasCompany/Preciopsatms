@@ -3,7 +3,7 @@ import { ASSISTANT_NAME } from '@/lib/assistant-name';
 import { useState } from 'react';
 
 type Turn = { q: string; a: string };
-type Mode = 'business' | 'coach';
+type Mode = 'business' | 'coach' | 'hr';
 const SUGGESTIONS = ['What needs my attention today?', 'Which open jobs have been open longest, and how is their pipeline?', 'How many people did we place last month, and from which sources?'];
 const ADMIN_SUGGESTIONS = ['Which client had the best margin last month?', 'How much do clients owe us, and how much is past due?'];
 // Employers have no clients or placements: questions about their own hiring and hours instead.
@@ -16,11 +16,19 @@ const COACH_SUGGESTIONS = [
   'A worker says a coworker keeps making comments about their religion. What should I do?',
   'A client supervisor says our worker is too slow and wants them replaced. How should I handle it?',
 ];
-const PLACEHOLDER = { business: 'e.g. How many timesheets are waiting for approval?', coach: 'Describe the situation: what happened, who’s involved, how long it’s been going on, and what you’ve tried.' };
+const HR_SUGGESTIONS = [
+  'Does FMLA apply to us, and who is eligible?',
+  'An employee is pregnant and asked for lighter duties. What do we have to do?',
+  'Which state paid family leave programs apply where our people work?',
+  'Write a family and medical leave policy for our handbook.',
+  'An employee’s FMLA leave runs out next week but they can’t come back yet. What are our options?',
+];
+const STAFFING_HR = 'One of our placed workers needs family leave. Are we or the client responsible?';
+const PLACEHOLDER = { hr: 'e.g. What notices do we owe an employee who asks for leave to care for a parent in Florida?', business: 'e.g. How many timesheets are waiting for approval?', coach: 'Describe the situation: what happened, who’s involved, how long it’s been going on, and what you’ve tried.' };
 
 export default function Assistant({ admin, credits: initial, employer = false }: { admin: boolean; credits: number; employer?: boolean }) {
   const [mode, setMode] = useState<Mode>('business');
-  const [turns, setTurns] = useState<Record<Mode, Turn[]>>({ business: [], coach: [] });
+  const [turns, setTurns] = useState<Record<Mode, Turn[]>>({ business: [], coach: [], hr: [] });
   const [q, setQ] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -38,13 +46,13 @@ export default function Assistant({ admin, credits: initial, employer = false }:
     } catch { setError('Couldn’t reach the server. Check your connection and try again.'); }
     finally { setBusy(false); }
   }
-  const suggestions = mode === 'coach' ? (employer ? COACH_SUGGESTIONS.slice(0, 4).concat('An employee says their manager is singling them out. How do I look into it fairly?') : COACH_SUGGESTIONS)
+  const suggestions = mode === 'hr' ? (employer ? HR_SUGGESTIONS : [HR_SUGGESTIONS[0], STAFFING_HR, ...HR_SUGGESTIONS.slice(1, 4)]) : mode === 'coach' ? (employer ? COACH_SUGGESTIONS.slice(0, 4).concat('An employee says their manager is singling them out. How do I look into it fairly?') : COACH_SUGGESTIONS)
     : employer ? [...EMPLOYER_SUGGESTIONS, ...(admin ? EMPLOYER_ADMIN : [])] : [...SUGGESTIONS, ...(admin ? ADMIN_SUGGESTIONS : [])];
 
   return (
     <section className="card">
       <div className="row" role="tablist" aria-label="What you need" style={{ marginTop: 0 }}>
-        {([['business', 'Your business'], ['coach', 'Manager coaching']] as const).map(([m, l]) => (
+        {([['business', 'Your business'], ['coach', 'Manager coaching'], ['hr', 'HR compliance']] as const).map(([m, l]) => (
           <button key={m} type="button" role="tab" aria-selected={mode === m} className={`btn sm ${mode === m ? '' : 'ghost'}`} onClick={() => { setMode(m); setError(''); }}>{l}</button>
         ))}
       </div>
@@ -52,6 +60,12 @@ export default function Assistant({ admin, credits: initial, employer = false }:
         <p className="muted" style={{ fontSize: 13 }}>
           Advice for people issues: conflict between team members, performance or attendance, coaching, hard conversations and discipline. Names of your workers and team are replaced with “Person A”, “Person B” before anything is sent to the AI, and conversations aren’t saved.
           Anything involving harassment, discrimination, safety, injuries, medical leave or a possible firing goes to HR or your employment lawyer as well. This is guidance, not legal advice.
+        </p>
+      )}
+      {mode === 'hr' && (
+        <p className="muted" style={{ fontSize: 13 }}>
+          Family and medical leave (FMLA and state paid leave), pregnancy and nursing accommodation, disability accommodation, military leave, sick leave, and the notices and records that go with them. Answers use your company’s size and locations, a reference reviewed by Preciops, and official government sites, with sources listed. Ask for a ready-to-edit policy for your handbook any time.
+          Names are replaced before anything is sent to the AI, and conversations aren’t saved. This is general compliance information, not legal advice: confirm high-stakes decisions with an employment lawyer.
         </p>
       )}
       {list.length === 0 && (
@@ -66,10 +80,10 @@ export default function Assistant({ admin, credits: initial, employer = false }:
           <div style={{ whiteSpace: 'pre-wrap' }}><b>{ASSISTANT_NAME}:</b> {t.a}</div>
         </div>
       ))}
-      {busy && <p className="muted" aria-live="polite">{ASSISTANT_NAME} is {mode === 'coach' ? 'thinking it through' : 'looking that up'}…</p>}
+      {busy && <p className="muted" aria-live="polite">{ASSISTANT_NAME} is {mode === 'coach' ? 'thinking it through' : mode === 'hr' ? 'checking the rules' : 'looking that up'}…</p>}
       {error && <p className="error" role="alert">{error}</p>}
       <form onSubmit={(e) => { e.preventDefault(); ask(q); }}>
-        <label><span>{mode === 'coach' ? 'What’s going on?' : 'Your question'}</span><textarea rows={mode === 'coach' ? 4 : 2} maxLength={1000} value={q} onChange={(e) => setQ(e.target.value)} placeholder={PLACEHOLDER[mode]}
+        <label><span>{mode === 'coach' ? 'What’s going on?' : 'Your question'}</span><textarea rows={mode === 'business' ? 2 : 4} maxLength={1000} value={q} onChange={(e) => setQ(e.target.value)} placeholder={PLACEHOLDER[mode]}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); ask(q); } }} /></label>
         <button disabled={busy || !q.trim() || !credits}>{busy ? 'Asking…' : 'Ask'}</button>
         {list.length > 0 && <button type="button" className="ghost" style={{ marginLeft: 8 }} onClick={() => { setTurns((t) => ({ ...t, [mode]: [] })); setError(''); }}>New conversation</button>}

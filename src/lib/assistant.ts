@@ -11,6 +11,8 @@ import { balanceCents } from './invoicing-server';
 import { scrub } from './monitoring';
 import { assignmentWhere } from './schedule-server';
 import { pseudonymize } from './pseudonymize';
+import { OFFICIAL_DOMAINS, REVIEWED, THRESHOLDS, TOPICS, reference } from './hr-law';
+import { parsePlace } from './state-rules';
 
 /**
  * The in-app assistant answers questions about the business ("what needs my attention?", "which client has the best
@@ -109,7 +111,105 @@ Answer from the tools, not from memory: call them for any number you give, and s
 
 Be brief and practical: lead with the answer, then at most a few bullet points. Suggest the next action in the app when it helps (e.g. "approve 4 timesheets on the Timesheets page").`;
 
-export type Mode = 'business' | 'coach';
+export type Mode = 'business' | 'coach' | 'hr';
+
+// ---------- HR compliance ----------
+
+/** The company facts that decide which laws apply: headcount, where people work, and its leave policies. No people. */
+async function companyFacts(c: Ctx) {
+  const [employees, onAssignment, policies, branches, jobs] = await Promise.all([
+    c.tdb.employee.findMany({ where: { status: { not: 'TERMINATED' } }, select: { employmentType: true, payType: true, branch: { select: { city: true } } } }),
+    c.tdb.application.count({ where: assignmentWhere }),
+    c.tdb.leavePolicy.findMany({ where: { archived: false }, select: { name: true, paid: true, method: true, rate: true, maxBalance: true, waitingDays: true, types: true } }),
+    c.tdb.branch.findMany({ select: { name: true, city: true } }),
+    c.tdb.job.findMany({ where: { applications: { some: assignmentWhere } }, select: { location: true } }),
+  ]);
+  const states = new Set<string>();
+  for (const l of [c.org.city, ...branches.map((b) => b.city), ...jobs.map((j) => j.location), ...employees.map((e) => e.branch?.city)]) { const st = parsePlace(l).state; if (st) states.add(st); }
+  const headcount = c.org.kind === 'EMPLOYER' ? employees.length : employees.length + onAssignment;
+  return {
+    company: c.org.shortName ?? c.org.name, type: c.org.kind === 'EMPLOYER' ? 'employer (its own staff)' : 'staffing agency (employer of record for workers placed with clients)',
+    industry: c.org.industry, headquarters: c.org.city,
+    activeEmployees: employees.length, ...(c.org.kind === 'EMPLOYER' ? {} : { workersOnAssignment: onAssignment }),
+    approximateHeadcount: headcount, note: 'Headcount is today’s count in Preciops; legal tests use counts over time (for example FMLA: 20+ workweeks). People paid outside Preciops are not included.',
+    statesWherePeopleWork: [...states].sort(),
+    federalLawsLikelyToApply: THRESHOLDS.map((t) => ({ law: t.law, threshold: t.note, likely: headcount >= t.employees })),
+    leavePoliciesInPreciops: policies.map((p) => ({ name: p.name, paid: p.paid, accrual: p.method === 'ANNUAL' ? `${Number(p.rate)} hours a year` : `${Number(p.rate)} hours per hour worked`, cap: p.maxBalance === null ? null : Number(p.maxBalance), waitingDays: p.waitingDays, appliesTo: p.types.length ? p.types : 'everyone' })),
+  };
+}
+
+function hrTools(): Anthropic.Beta.BetaToolUnion[] {
+  return [
+    { name: 'company_facts', description: 'This company’s facts that decide which employment laws apply: type (employer or staffing agency), approximate headcount, states where people work, which federal laws likely apply by size, and the leave policies set up in Preciops. Call this before saying whether a law applies to them.',
+      input_schema: { type: 'object', properties: {}, additionalProperties: false }, strict: true },
+    { name: 'hr_reference', description: `Curated, dated summaries of US leave and accommodation law with official sources (reviewed ${REVIEWED}). Topics: ${TOPICS.join(', ')}, state_paid_leave. Pass a two-letter state to include that state’s paid family and medical leave program.`,
+      input_schema: { type: 'object', properties: { topic: { type: 'string', enum: [...TOPICS, 'state_paid_leave'] }, state: { type: 'string', description: 'Two-letter US state code, or empty' } }, required: ['topic', 'state'], additionalProperties: false }, strict: true },
+  ];
+}
+const webSearch = { type: 'web_search_20260209', name: 'web_search', max_uses: 3, allowed_domains: OFFICIAL_DOMAINS } as unknown as Anthropic.Beta.BetaToolUnion;
+/** Set once the API says web search isn't available to this account, so later questions skip it. */
+let searchUnavailable = false;
+
+async function runHrTool(c: Ctx, name: string, input: unknown) {
+  if (name === 'company_facts') return companyFacts(c);
+  if (name === 'hr_reference') {
+    const i = (input ?? {}) as { topic?: string; state?: string };
+    return reference(i.topic ?? '', i.state && /^[A-Za-z]{2}$/.test(i.state) ? i.state : null);
+  }
+  throw new HttpError(400, `Unknown tool ${name}`);
+}
+
+const hrSystem = (c: Ctx, search: boolean) => `You are ${ASSISTANT_NAME}, the HR compliance expert inside Preciops for ${c.org.shortName ?? c.org.name}, ${c.org.kind === 'EMPLOYER' ? 'an employer managing its own staff' : 'a staffing agency, which is the employer of record for the workers it places with clients'}. You help HR, owners and managers understand and apply US employment law on leave and workplace policies: family and medical leave (FMLA and state paid leave programs), pregnancy and lactation accommodation, disability accommodation, military leave, paid sick leave, and the notices, forms, timelines and records that go with them. You also draft clear, plain-language policies and employee notices on request.
+
+How to answer:
+- First work out which rules apply. Call company_facts for their size and the states where people work, and hr_reference for the law. If the answer depends on something the data doesn't show (the employee's state, how long they've worked, hours in the last 12 months), say what you assumed or ask one short question.
+- Lead with the practical answer (does it apply, what to do, by when), then the steps, then what to put in writing. Name the forms and deadlines (for example the FMLA eligibility notice within 5 business days).
+- When federal and state law both apply, the rule more generous to the employee wins; say how they run together (for example FMLA and a state paid leave program at the same time).
+${search ? '- For amounts or dates that change (benefit caps, contribution rates, program start dates) or anything that may have changed since the reference was reviewed, check the official sites with web search. Prefer the agency site over summaries.' : '- Amounts that change yearly (benefit caps, contribution rates) are not in your reference: point the person to the program’s official site rather than guessing a number.'}
+- Cite your sources at the end as a short "Sources" list of official links. Never invent a citation, a statute number or a figure. If you aren't sure, say so.
+- When asked for a policy, write a complete, ready-to-edit policy for this company's states and size, with bracketed placeholders for choices only they can make, and note which parts are legally required versus optional.
+- ${c.org.kind === 'EMPLOYER' ? 'Point to Preciops where it helps (Staff time off for leave policies and balances, Staff reviews, Our employees).' : 'For placed workers the agency is usually the primary employer for FMLA and gives the notices; the client is a secondary employer. Point to Preciops where it helps (Staff time off, Credentials, Schedule).'}
+
+Limits: this is general compliance information, not legal advice. For a specific high-risk decision (terminating someone on or after leave, denying leave or an accommodation, a complaint of discrimination or retaliation, a workplace injury) say plainly to confirm with an employment lawyer before acting. Don't speculate about anyone's health. Names have been replaced with "Person A", "Person B" and so on; use the same labels. Today is ${c.today}.`;
+
+/** One HR compliance answer: company facts, the curated reference, and official-site search when the account has it. */
+async function hr(client: Anthropic, c: Ctx, question: string, history: Turn[]) {
+  const names = await knownNames(c);
+  const turns = history.slice(-4);
+  const p = pseudonymize([scrub(question), ...turns.flatMap((t) => [scrub(t.q), t.a])], names);
+  const [q, ...rest] = p.texts;
+  const context = turns.map((_, i) => `Q: ${rest[i * 2].slice(0, 800)}\nA: ${rest[i * 2 + 1].slice(0, 3000)}`).join('\n\n');
+  const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: 'user', content: `${context ? `Earlier in this conversation:\n${context}\n\nNew question: ` : ''}${q}` }];
+  const call = (search: boolean) => client.beta.messages.create({
+    model: MODEL, max_tokens: 16000, system: hrSystem(c, search), tools: [...hrTools(), ...(search ? [webSearch] : [])], messages,
+    output_config: { effort: 'medium' }, betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default',
+  } as Anthropic.Beta.MessageCreateParamsNonStreaming);
+  for (let step = 0; step < MAX_STEPS + 2; step++) {
+    let res: Anthropic.Beta.BetaMessage;
+    try { res = await call(!searchUnavailable); }
+    catch (e) {
+      // Web search has to be switched on for the API account; without it, answer from the reference.
+      if (!searchUnavailable && e instanceof Anthropic.BadRequestError && /web_search|web search|server tool/i.test(e.message)) { searchUnavailable = true; step--; continue; }
+      throw e;
+    }
+    if (res.stop_reason === 'refusal') return { answer: 'I can’t help with that one. For a specific legal question, ask your employment lawyer.' };
+    // A long server-side search pauses the turn; send it back as-is to let it finish.
+    if (res.stop_reason === 'pause_turn') { messages.push({ role: 'assistant', content: res.content }); continue; }
+    const uses = res.content.filter((b): b is Anthropic.Beta.BetaToolUseBlock => b.type === 'tool_use');
+    if (res.stop_reason !== 'tool_use' || !uses.length) {
+      const text = res.content.map((b) => (b.type === 'text' ? b.text : '')).join('').trim();
+      return { answer: text ? p.restore(text) : 'I couldn’t put an answer together for that. Try asking again with the state and the situation.', masked: p.count };
+    }
+    messages.push({ role: 'assistant', content: res.content });
+    const results: Anthropic.Beta.BetaToolResultBlockParam[] = [];
+    for (const u of uses) {
+      try { results.push({ type: 'tool_result', tool_use_id: u.id, content: JSON.stringify(await runHrTool(c, u.name, u.input)) }); }
+      catch (e) { results.push({ type: 'tool_result', tool_use_id: u.id, is_error: true, content: e instanceof HttpError ? e.message : 'That lookup failed.' }); }
+    }
+    messages.push({ role: 'user', content: results });
+  }
+  return { answer: 'That question needed more lookups than I can do at once. Try asking something narrower, with the state.' };
+}
 
 /**
  * Manager coaching: advice for people problems (conflict between workers, performance, attendance, coaching, difficult
@@ -169,6 +269,10 @@ export async function ask(org: Organization, role: Role, question: string, histo
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   if (mode === 'coach') {
     try { return await coach(client, c, question, history); }
+    catch (e) { await refundAndRethrow(org.id, e); }
+  }
+  if (mode === 'hr') {
+    try { return await hr(client, c, question, history); }
     catch (e) { await refundAndRethrow(org.id, e); }
   }
   const people = new Map<string, string>();
