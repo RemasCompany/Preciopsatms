@@ -6,6 +6,7 @@ import { useRecords } from './Records';
 import { Avatar } from './EmployeeHub';
 import { EMPLOYMENT_TYPES, STATUS_LABEL, TYPE_LABEL, fmtDate, money } from '@/lib/people-shared';
 import type { EmployeeRow } from '@/lib/people';
+import { JobChangeForm, JobChangeHistory, type ChangeRow } from './JobChanges';
 
 type Opt = { id: string; name: string };
 type Person = { id: string; name: string; title: string };
@@ -21,8 +22,8 @@ async function api(url: string, method: string, body?: unknown) {
 const today = () => new Date().toLocaleDateString('en-CA');
 const PILL: Record<string, string> = { ACTIVE: 'g', ON_LEAVE: 'a', TERMINATED: '' };
 
-export default function Employees({ rows, everyone, departments, branches, canEdit, admin }: {
-  rows: EmployeeRow[]; everyone: Person[]; departments: Opt[]; branches: Opt[]; canEdit: boolean; admin: boolean;
+export default function Employees({ rows, everyone, departments, branches, canEdit, admin, approvalNeeded = true }: {
+  rows: EmployeeRow[]; everyone: Person[]; departments: Opt[]; branches: Opt[]; canEdit: boolean; admin: boolean; approvalNeeded?: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState<string | null>(null);
@@ -58,7 +59,7 @@ export default function Employees({ rows, everyone, departments, branches, canEd
       )}
       {adding && <AddEmployee everyone={everyone} departments={departments} branches={branches} onClose={() => setAdding(false)} onDone={(id) => { setAdding(false); router.refresh(); setOpen(id); }} />}
       {depts && <Departments onClose={() => { setDepts(false); router.refresh(); }} />}
-      {open && <EmployeeDrawer id={open} everyone={everyone} departments={departments} branches={branches} canEdit={canEdit} admin={admin} onClose={() => setOpen(null)} onChanged={() => router.refresh()} />}
+      {open && <EmployeeDrawer id={open} everyone={everyone} departments={departments} branches={branches} canEdit={canEdit} admin={admin} approvalNeeded={approvalNeeded} onClose={() => setOpen(null)} onChanged={() => router.refresh()} />}
     </>
   );
 }
@@ -108,7 +109,7 @@ function AddEmployee({ everyone, departments, branches, onClose, onDone }: { eve
 }
 
 type Profile = { preferredName: string | null; pronouns: string | null; bio: string | null; skills: string[]; photo: boolean; complete: boolean; homeAddress?: string | null; emergencyName?: string | null; emergencyRelation?: string | null; emergencyPhone?: string | null };
-type Detail = { employee: EmployeeRow; profile: Profile | null; reports: Person[]; pay: PayRow[] | null };
+type Detail = { employee: EmployeeRow; profile: Profile | null; reports: Person[]; pay: PayRow[] | null; canChangeJob?: boolean; jobChanges?: ChangeRow[] | null };
 
 /** What the employee filled in on their own page. */
 function ProfileSection({ e, p, canEdit, onRemoved }: { e: EmployeeRow; p: Profile; canEdit: boolean; onRemoved: () => void }) {
@@ -133,13 +134,13 @@ function ProfileSection({ e, p, canEdit, onRemoved }: { e: EmployeeRow; p: Profi
   );
 }
 
-function EmployeeDrawer({ id, everyone, departments, branches, canEdit, admin, onClose, onChanged }: {
-  id: string; everyone: Person[]; departments: Opt[]; branches: Opt[]; canEdit: boolean; admin: boolean; onClose: () => void; onChanged: () => void;
+function EmployeeDrawer({ id, everyone, departments, branches, canEdit, admin, approvalNeeded = true, onClose, onChanged }: {
+  id: string; everyone: Person[]; departments: Opt[]; branches: Opt[]; canEdit: boolean; admin: boolean; approvalNeeded?: boolean; onClose: () => void; onChanged: () => void;
 }) {
   const { toast, open: openRecord } = useRecords();
   const [d, setD] = useState<Detail | null>(null);
   const [v, setV] = useState<Record<string, string>>({});
-  const [mode, setMode] = useState<'view' | 'pay' | 'end'>('view');
+  const [mode, setMode] = useState<'view' | 'pay' | 'end' | 'job'>('view');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const load = useCallback(async () => {
@@ -182,12 +183,13 @@ function EmployeeDrawer({ id, everyone, departments, branches, canEdit, admin, o
       {mode === 'end' ? <EndForm name={e.name} busy={busy} onCancel={() => setMode('view')} onSubmit={(b) => run(async () => {
         const r = await api(`/api/employees/${id}/terminate`, 'POST', b);
         return r.effective ? `${e.name}’s employment has ended${r.removedShifts ? `; ${r.removedShifts} later shift${r.removedShifts === 1 ? '' : 's'} came off the schedule` : ''}. Their checklist is on the Offboarding page.` : `Saved. ${e.name}’s last day is ${fmtDate(b.endDate)}; their checklist is on the Offboarding page.`;
-      })} /> : mode === 'pay' ? <PayForm e={e} busy={busy} onCancel={() => setMode('view')} onSubmit={(b) => run(async () => {
+      })} /> : mode === 'job' ? <JobChangeForm e={e} admin={admin} approvalNeeded={approvalNeeded} lookups={{ everyone, departments, branches }} onCancel={() => setMode('view')} onDone={(m) => run(async () => m)} /> : mode === 'pay' ? <PayForm e={e} busy={busy} onCancel={() => setMode('view')} onSubmit={(b) => run(async () => {
         const r = await api(`/api/employees/${id}/pay`, 'POST', b);
         return r.applied ? 'Pay updated.' : `Saved. The new pay starts ${fmtDate(String(b.effectiveDate))}.`;
       })} /> : <>
         {canEdit && !ended && (
           <div className="row" style={{ marginBottom: 8 }}>
+            {d.canChangeJob && <button className="btn sm" onClick={() => setMode('job')} disabled={busy}>Promote or change job</button>}
             {e.status === 'ACTIVE' ? <button className="btn ghost sm" onClick={() => leave('ON_LEAVE')} disabled={busy}>Put on leave</button> : <button className="btn ghost sm" onClick={() => leave('ACTIVE')} disabled={busy}>Back from leave</button>}
           </div>
         )}
@@ -201,6 +203,7 @@ function EmployeeDrawer({ id, everyone, departments, branches, canEdit, admin, o
           </>}
         </div>
         {d.profile && <ProfileSection e={e} p={d.profile} canEdit={canEdit && !ended} onRemoved={() => run(async () => { await api(`/api/candidates/${e.candidateId}/photo`, 'DELETE'); return 'Picture removed.'; })} />}
+        {d.jobChanges && <JobChangeHistory rows={d.jobChanges} admin={admin} lookups={{ everyone, departments, branches }} onChanged={(m) => run(async () => m)} />}
         {d.reports.length > 0 && <section className="sec"><h3>Direct reports <span className="muted">{d.reports.length}</span></h3><div className="list">{d.reports.map((r) => <div key={r.id} className="li"><span className="x"><b>{r.name}</b><span className="muted">{r.title}</span></span></div>)}</div></section>}
         {d.pay && (
           <section className="sec"><h3>Pay {admin && !ended && <button className="btn ghost sm" onClick={() => setMode('pay')}>Change pay</button>}</h3>

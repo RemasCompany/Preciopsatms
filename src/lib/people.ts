@@ -59,7 +59,7 @@ export function parse<T extends z.ZodTypeAny>(schema: T, body: unknown): z.infer
   return r.data;
 }
 
-async function checkRefs(tdb: TenantDb, b: { departmentId?: string | null; branchId?: string | null; managerId?: string | null }, self?: string) {
+export async function checkRefs(tdb: TenantDb, b: { departmentId?: string | null; branchId?: string | null; managerId?: string | null }, self?: string) {
   if (b.departmentId && !(await tdb.department.findFirst({ where: { id: b.departmentId } }))) throw new HttpError(404, 'That department was deleted.');
   if (b.branchId && !(await tdb.branch.findFirst({ where: { id: b.branchId } }))) throw new HttpError(404, 'That location was deleted.');
   if (b.managerId) {
@@ -208,11 +208,17 @@ export async function changePay(ctx: Ctx, employeeId: string, body: unknown) {
   const e = await tdb.employee.findFirst({ where: { id: employeeId }, include: { candidate: { select: { name: true } } } });
   if (!e) throw new HttpError(404, 'That employee was deleted.');
   if (e.status === 'TERMINATED') throw new HttpError(409, 'Their employment has ended.');
-  await tdb.compensationChange.create({ data: { employeeId: e.id, effectiveDate: day(b.effectiveDate), payType: b.payType, payRate: b.payRate, title: b.title, reason: b.reason, createdById: user.id } as never });
-  const now = b.effectiveDate <= localDate(new Date(), org.timezone);
-  if (now) await applyPay(tdb, e.id, { payType: b.payType, payRate: b.payRate, title: b.title });
+  const { now } = await addCompensation(tdb, org, e.id, { ...b, userId: user.id });
   await audit(org.id, user, 'employee.pay', `Changed ${e.candidate.name}’s pay to ${money(b.payRate, b.payType)} from ${b.effectiveDate} (${b.reason})`, { targetType: 'Employee', targetId: e.id });
   return { applied: now };
+}
+
+/** Adds a line to pay history (pay and, optionally, a new title). Today or earlier applies now; later, the daily job applies it. */
+export async function addCompensation(tdb: TenantDb, org: Pick<Organization, 'timezone'>, employeeId: string, c: { effectiveDate: string; payType: PayType; payRate: number; title: string | null; reason: string; userId: string | null }) {
+  const row = await tdb.compensationChange.create({ data: { employeeId, effectiveDate: day(c.effectiveDate), payType: c.payType, payRate: c.payRate, title: c.title, reason: c.reason, createdById: c.userId } as never });
+  const now = c.effectiveDate <= localDate(new Date(), org.timezone);
+  if (now) await applyPay(tdb, employeeId, { payType: c.payType, payRate: c.payRate, title: c.title });
+  return { now, id: row.id };
 }
 
 async function applyPay(tdb: TenantDb, employeeId: string, c: { payType: PayType; payRate: unknown; title: string | null }) {
@@ -285,6 +291,9 @@ export async function runPeopleDaily(now = new Date()) {
       const e = await tdb.employee.findFirst({ where: { id: c.employeeId } });
       if (e && (Number(e.payRate) !== Number(c.payRate) || e.payType !== c.payType || (c.title && c.title !== e.title))) { await applyPay(tdb, e.id, c); pay++; }
     }
+    // Approved promotions and moves: department, manager and location change on their date.
+    const { applyDueJobChanges } = await import('./job-changes');
+    await applyDueJobChanges(tdb, today);
     const leaving = await tdb.employee.findMany({ where: { status: { not: 'TERMINATED' }, endDate: { lte: day(today) } } });
     for (const e of leaving) { await endNow(tdb, e.id, ymd(e.endDate!)); ended++; }
     if (leaving.length) await billingSync(o.id);

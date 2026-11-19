@@ -131,6 +131,21 @@ A third tab on the assistant (Your business · Manager coaching · HR compliance
   - **Live search of official sites** (`OFFICIAL_DOMAINS`: dol.gov, eeoc.gov, state agencies) for figures that change every year. Web search has to be enabled for the Anthropic API organization; without it the assistant answers from the reference and points to the official site for current amounts.
 - Names are replaced with "Person A"… before anything is sent, as in coaching. Answers cite sources and say they are general information, not legal advice. Each question costs one AI credit.
 
+## Promotions, demotions and job changes
+On an employee's record, **Promote or change job** starts a promotion, demotion, lateral move or transfer, or pay change, with an effective date and a required reason (`src/lib/job-changes.ts`).
+- **Who can start one:** HR (owners and admins), or the employee's manager, meaning anyone above them in the reporting line who signs in with the email on that manager's employee record. Nobody can change their own job (except the owner).
+- **Approval:** managers' changes wait for an owner or admin, who approves (and can set the final pay) or declines. HR's own changes are approved at once. Turn approval off for managers on the Employees page.
+- **On the effective date:** title and pay go into pay history, and department, manager and location change. Future dates are applied by the daily job.
+- **Notices:** the employee gets a written notice when it's approved (before the date), the person who asked hears the decision, and HR is emailed when something waits.
+- **Safeguards:**
+  - a reason is required;
+  - a pay cut can't be backdated;
+  - a "promotion" can't lower pay;
+  - no reporting loops;
+  - one pending change per person;
+  - demotions show a caution about documentation and legal risk.
+- **Who sees what:** managers never see current pay. History is visible to HR and the person's managers only. Every step is in the audit log.
+
 ## What's built
 | Area | Where |
 |---|---|

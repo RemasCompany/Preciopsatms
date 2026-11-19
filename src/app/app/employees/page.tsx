@@ -4,6 +4,8 @@ import { hasFeature, planIncludes } from '@/lib/plans';
 import { employeeList, isAdmin } from '@/lib/people';
 import Employees from '@/components/Employees';
 import Gate from '@/components/Gate';
+import { JobChangeQueue } from '@/components/JobChanges';
+import { pendingJobChanges } from '@/lib/job-changes';
 
 export const dynamic = 'force-dynamic';
 const STATUS = { current: 'Current', ON_LEAVE: 'On leave', TERMINATED: 'Former', all: 'Everyone' } as const;
@@ -50,8 +52,9 @@ export default async function EmployeesPage({ searchParams }: { searchParams: { 
         {employer && <Link className="btn ghost" href="/app/employees/org-chart">Org chart</Link>}
         {(searchParams.q || searchParams.department || searchParams.branch) && <Link className="btn ghost sm" href={q({})}>Clear</Link>}
       </form>
+      {isAdmin(ctx.role) && canEdit(ctx) && <JobChangeQueue rows={await pendingJobChanges(ctx.tdb, ctx.role)} approval={ctx.org.jobChangeApproval} lookups={{ everyone: current.map((e) => ({ id: e.id, name: e.name, title: e.title })), departments, branches }} />}
       <Employees rows={rows} everyone={current.map((e) => ({ id: e.id, name: e.name, title: e.title }))} departments={departments} branches={branches}
-        canEdit={canEdit(ctx)} admin={isAdmin(ctx.role) && canEdit(ctx)} />
+        canEdit={canEdit(ctx)} admin={isAdmin(ctx.role) && canEdit(ctx)} approvalNeeded={ctx.org.jobChangeApproval} />
     </>
   );
 }

@@ -93,6 +93,7 @@ model Organization {
   complimentary           Boolean              @default(false) // free on its plan, by arrangement (src/lib/complimentary.json): billing never charges or changes it
   complimentaryNote       String?
   complimentaryBy         String? // "list" (src/lib/complimentary.json) or the platform admin who granted it
+  jobChangeApproval       Boolean              @default(true) // a manager's promotion, demotion or move waits for an owner or admin to approve
   trialNotice             Int                  @default(-1) // trial-ending emails sent: 0 = 3 days before, 1 = 1 day before, 2 = ended
   currentPeriodEnd        DateTime?
   seats                   Int                  @default(1)
@@ -180,6 +181,7 @@ model Organization {
   announcements         Announcement[]
   shiftChangeRequests   ShiftChangeRequest[]
   apiKeys               ApiKey[]
+  jobChanges            JobChange[]
 }
 
 model User {
@@ -1679,6 +1681,8 @@ model Employee {
   offboarding        OffboardingTask[]
   tasks              Task[]
 
+  jobChanges JobChange[]
+
   @@index([organizationId, status])
 }
 
@@ -2090,4 +2094,43 @@ model ApiKey {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId])
+}
+
+/// A promotion, demotion, lateral move or pay change: proposed by a manager or HR, approved, then applied on its date.
+model JobChange {
+  id                 String       @id @default(cuid())
+  organizationId     String
+  employeeId         String
+  kind               String // PROMOTION | DEMOTION | LATERAL | PAY
+  status             String       @default("PENDING") // PENDING | APPROVED | DECLINED | CANCELLED
+  effectiveDate      DateTime     @db.Date
+  reason             String
+  // What it was when proposed, and what it becomes (null = unchanged).
+  fromTitle          String
+  toTitle            String?
+  fromDepartmentId   String?
+  toDepartmentId     String?
+  fromManagerId      String?
+  toManagerId        String?
+  fromBranchId       String?
+  toBranchId         String?
+  fromPayType        PayType
+  fromPayRate        Decimal      @db.Decimal(12, 2)
+  toPayType          PayType?
+  toPayRate          Decimal?     @db.Decimal(12, 2)
+  notifyEmployee     Boolean      @default(true)
+  requestedById      String?
+  requestedByName    String?
+  decidedById        String?
+  decidedByName      String?
+  decidedAt          DateTime?
+  decisionNote       String?
+  appliedAt          DateTime? // department, manager and location took effect (pay and title go through CompensationChange)
+  employeeNotifiedAt DateTime?
+  createdAt          DateTime     @default(now())
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  employee           Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status])
+  @@index([employeeId, createdAt])
 }

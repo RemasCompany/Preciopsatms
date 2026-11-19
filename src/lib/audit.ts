@@ -73,6 +73,7 @@ export const AUDIT_ACTIONS = {
   'employee.create': { group: 'People', label: 'Added an employee' },
   'employee.update': { group: 'People', label: 'Changed an employee' },
   'employee.pay': { group: 'People', label: 'Changed pay' },
+  'employee.job_change': { group: 'People', label: 'Promotion, demotion or job change' },
   'employee.terminate': { group: 'People', label: 'Ended employment' },
   'employee.department': { group: 'People', label: 'Changed departments' },
   'leave.policy': { group: 'People', label: 'Changed a time-off policy' },
