@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { FILTERS, accounts, inFilter, isFilter, metrics, platformAdmin, type Filter } from '@/lib/platform';
 import SignOutButton from '@/components/SignOutButton';
+import { stripeStatus } from '@/lib/stripe-status';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,7 +11,7 @@ const ago = (d: Date, now: Date) => { const n = Math.floor((now.getTime() - d.ge
 const PILL: Record<string, string> = { trial: 'a', expired: 'r', paying: 'g', past_due: 'r', cancelled: '', complimentary: 'g' };
 
 /** Preciops' own console: every customer company, where it stands, and who to call. Read-only. */
-export default async function Platform({ searchParams }: { searchParams: { filter?: string; q?: string } }) {
+export default async function Platform({ searchParams }: { searchParams: { filter?: string; q?: string; stripe?: string } }) {
   const admin = await platformAdmin();
   if (!admin) notFound();
   if ('setup' in admin) return (
@@ -24,7 +25,7 @@ export default async function Platform({ searchParams }: { searchParams: { filte
   const now = new Date();
   const filter: Filter = isFilter(searchParams.filter) ? searchParams.filter : 'all';
   const q = searchParams.q?.trim().slice(0, 100) ?? '';
-  const [everyone, m] = await Promise.all([accounts({ q }, now), metrics(now)]);
+  const [everyone, m, billing] = await Promise.all([accounts({ q }, now), metrics(now), stripeStatus(process.env, undefined, searchParams.stripe === 'check')]);
   const rows = everyone.filter((r) => inFilter(r, filter, now));
   const href = (f: Filter) => `/platform?${new URLSearchParams({ ...(f !== 'all' ? { filter: f } : {}), ...(q ? { q } : {}) })}`;
   const money = (c: number | null) => (c === null ? '—' : (c / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }));
@@ -35,6 +36,22 @@ export default async function Platform({ searchParams }: { searchParams: { filte
         <span className="grow" />
         <Link className="btn ghost sm" href="/app">Back to the app</Link><SignOutButton />
       </div>
+      <section className={`card ${billing.state === 'connected' && billing.mode === 'live' ? '' : 'banner'}`} aria-label="Stripe" style={{ marginTop: 16 }}>
+        <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', margin: 0 }}>
+          <b>Stripe billing: <span className={`pill ${billing.state === 'connected' ? (billing.mode === 'live' ? 'g' : 'a') : 'r'}`}>{billing.state === 'connected' ? `Connected · ${billing.mode} mode` : billing.state === 'problems' ? 'Needs attention' : 'Not connected'}</span></b>
+          <Link className="btn ghost sm" href={`/platform?stripe=check${filter !== 'all' ? `&filter=${filter}` : ''}`}>Check again</Link>
+        </div>
+        <p style={{ margin: '8px 0' }}>{billing.summary}</p>
+        {!!billing.problems.length && <ul style={{ margin: '0 0 8px' }}>{billing.problems.map((p) => <li key={p}>{p}</li>)}</ul>}
+        {(!!billing.prices.length || billing.webhook.ok !== null) && (
+          <details><summary>Details</summary>
+            <ul style={{ margin: '8px 0 0' }}>
+              {billing.prices.map((p) => <li key={p.setting}>{p.ok ? '✓' : '✗'} {p.plan} <span className="muted">({p.setting})</span>: {p.note}</li>)}
+              <li>{billing.webhook.ok ? '✓' : billing.webhook.ok === null ? '•' : '✗'} Webhook: {billing.webhook.note}</li>
+            </ul>
+          </details>
+        )}
+      </section>
       <div className="kpis" style={{ marginTop: 16 }}>
         <div className="kpi"><b>{m.total}</b><span>Companies ({m.week} new this week, {m.month} this month)</span></div>
         <div className="kpi"><b>{m.trials}</b><span>On trial{m.ending ? ` · ${m.ending} ending in 3 days` : ''}</span></div>

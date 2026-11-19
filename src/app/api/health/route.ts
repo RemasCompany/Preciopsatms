@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
 import { productionProblems } from '../../../../scripts/db-url.mjs';
+import { stripeStatus } from '@/lib/stripe-status';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,6 +27,9 @@ export async function GET(req: Request) {
   let main: string | null = null;
   try { main = process.env.APP_URL ? new URL(process.env.APP_URL).hostname : null; } catch { /* reported above */ }
   const ok = checks.every((c) => c.ok);
-  return Response.json({ ok, time: new Date().toISOString(), address: { this: host, main, ...(main && host && host !== main ? { note: `Pages on ${host} open on ${main}, where sign-in works.` } : {}) }, checks },
+  // Billing is reported but doesn't fail the health check (the site works without it). Details are on /platform.
+  const b = await stripeStatus().catch(() => null);
+  const billing = b ? { stripe: b.state === 'connected' ? `connected (${b.mode} mode)` : b.state === 'problems' ? 'needs attention (see the platform console)' : 'not connected' } : { stripe: 'unknown' };
+  return Response.json({ ok, time: new Date().toISOString(), billing, address: { this: host, main, ...(main && host && host !== main ? { note: `Pages on ${host} open on ${main}, where sign-in works.` } : {}) }, checks },
     { status: ok ? 200 : 503, headers: { 'Cache-Control': 'no-store' } });
 }
