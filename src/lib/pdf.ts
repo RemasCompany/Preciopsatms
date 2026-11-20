@@ -270,7 +270,7 @@ export async function renderPaySummariesPdf(o: {
 export async function renderTrainingCertificate(c: {
   company: string; operator: string; course: string; certType: string; equipment: string; reason: string;
   quizPassed: string | null; quizScore: number | null; trainedAt: string; evaluatedAt: string; evaluator: string; evaluatorTitle: string; expiresAt: string;
-  checklist: { item: string; pass: boolean }[]; id: string; heading: string; standard: string; footer: string;
+  checklist: { item: string; pass: boolean }[]; id: string; heading: string; standard: string; footer: string; videos?: string | null;
 }) {
   const pdf = await PDFDocument.create();
   const font = await pdf.embedFont(StandardFonts.Helvetica), bold = await pdf.embedFont(StandardFonts.HelveticaBold);
@@ -286,6 +286,7 @@ export async function renderTrainingCertificate(c: {
   const row = (label: string, value: string) => { page.drawText(ansi(label), { x: M, y, size: 10, font: bold }); for (const l of wrap(ansi(value), font, 10, W - M - 220)) { page.drawText(l, { x: 220, y, size: 10, font }); y -= 14; } y -= 4; };
   row('Training type', c.reason);
   row('Formal instruction', `${c.course}${c.quizPassed ? ` - completed ${c.quizPassed}${c.quizScore !== null ? ` (quiz ${c.quizScore}%)` : ''}` : ''}`);
+  if (c.videos) row('Video lessons watched', c.videos);
   row('Practical training', c.trainedAt);
   row('Evaluation date', c.evaluatedAt);
   row('Trained and evaluated by', `${c.evaluator}, ${c.evaluatorTitle}`);

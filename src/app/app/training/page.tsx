@@ -2,7 +2,7 @@ import { requirePageContext, canEdit } from '@/lib/tenant';
 import { hasFeature } from '@/lib/plans';
 import { localDate } from '@/lib/timeclock';
 import { recertDue } from '@/lib/training-server';
-import { EQUIPMENT_TYPES, EXTERNAL_TYPES, OPEN_STATUSES, TRAINABLE_TYPES, type Lesson, type Question } from '@/lib/training';
+import { EQUIPMENT_TYPES, EXTERNAL_TYPES, OPEN_STATUSES, TRAINABLE_TYPES, watchSummary, type Lesson, type Question, type Watch } from '@/lib/training';
 import { TEMPLATES } from '@/lib/training-templates';
 import TrainingBoard from '@/components/Training';
 import Gate from '@/components/Gate';
@@ -17,14 +17,18 @@ export default async function Training() {
   const admin = ctx.role === 'OWNER' || ctx.role === 'ADMIN';
   const today = localDate(new Date(), ctx.org.timezone);
   const since = new Date(Date.now() - 90 * 864e5);
-  const [courses, enrollments, due, jobs, people, creds] = await Promise.all([
+  const [courses, enrollments, due, jobs, people, creds, progress] = await Promise.all([
     tdb.trainingCourse.findMany({ where: { archived: false }, orderBy: { title: 'asc' } }),
     tdb.trainingEnrollment.findMany({ where: { OR: [{ status: { in: [...OPEN_STATUSES, 'requested'] } }, { updatedAt: { gte: since } }] }, include: { candidate: { select: { name: true } }, course: { select: { title: true, certType: true, lessons: true, checklist: true } } }, orderBy: { createdAt: 'desc' }, take: 500 }),
     recertDue(tdb, today),
     tdb.job.findMany({ where: { status: { in: ['OPEN', 'ON_HOLD'] } }, select: { id: true, title: true, requiredCerts: true, client: { select: { name: true } } }, orderBy: { title: 'asc' }, take: 300 }),
     tdb.candidate.findMany({ select: { id: true, name: true, status: true }, orderBy: { name: 'asc' }, take: 3000 }),
     tdb.credential.findMany({ where: { type: { in: EQUIPMENT_TYPES } }, include: { candidate: { select: { name: true } } }, orderBy: { expiresAt: 'asc' } }),
+    // Everyone ever assigned a current course, for the per-course progress dashboard.
+    tdb.trainingEnrollment.findMany({ where: { status: { in: ['assigned', 'evaluation', 'certified', 'failed'] }, course: { archived: false } }, include: { candidate: { select: { name: true } } }, orderBy: [{ lastActivityAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }], take: 3000 }),
   ]);
+  const lessonsOf = new Map(courses.map((c) => [c.id, c.lessons as Lesson[]]));
+  const now = Date.now();
   const certified = await tdb.trainingEnrollment.findMany({ where: { status: 'certified', credentialId: { in: creds.map((c) => c.id) } }, select: { id: true, credentialId: true }, orderBy: { certifiedAt: 'desc' } });
   const holds = enrollments.filter((e) => e.reason === 'refresher' && OPEN_STATUSES.includes(e.status as never));
   return (
@@ -34,11 +38,12 @@ export default async function Training() {
       <TrainingBoard
         today={today} isAdmin={admin} canEdit={canEdit(ctx)} certTypes={EQUIPMENT_TYPES} trainable={TRAINABLE_TYPES} external={EXTERNAL_TYPES}
         templates={Object.entries(TEMPLATES).map(([key, t]) => ({ key, label: t.label, title: t.course.title, added: courses.some((c) => c.title === t.course.title) }))}
-        courses={courses.map((c) => ({ id: c.id, title: c.title, certType: c.certType, prerequisite: c.prerequisite, description: c.description, recertMonths: c.recertMonths, passScore: c.passScore,
+        courses={courses.map((c) => ({ id: c.id, title: c.title, certType: c.certType, prerequisite: c.prerequisite, description: c.description, recertMonths: c.recertMonths, passScore: c.passScore, minWatchPct: c.minWatchPct,
           lessons: c.lessons as Lesson[], questions: admin ? (c.questions as Question[]) : [], questionCount: (c.questions as Question[]).length, checklist: c.checklist as string[], signup: c.signup }))}
         enrollments={enrollments.map((e) => ({
           id: e.id, candidateId: e.candidateId, name: e.candidate.name, course: e.course.title, certType: e.course.certType, status: e.status, reason: e.reason, trigger: e.trigger,
           dueDate: ymd(e.dueDate), invited: !!e.invitedAt, lessonsDone: e.lessonsDone.length, lessons: (e.course.lessons as Lesson[]).length, quizScore: e.quizScore, attempts: e.quizAttempts,
+          ...(() => { const w = watchSummary(e.course.lessons as Lesson[], e.watch as Watch); return { watchPct: w.pct, watchSeconds: w.seconds }; })(),
           checklist: e.course.checklist as string[], evaluatedAt: ymd(e.evaluatedAt), evaluator: e.evaluatorName, expiresAt: ymd(e.expiresAt), requestNote: e.requestNote,
         }))}
         due={due}
@@ -49,6 +54,15 @@ export default async function Training() {
         }))}
         jobs={jobs.map((j) => ({ id: j.id, title: j.title, client: j.client?.name ?? null, requiredCerts: j.requiredCerts.filter((t) => EQUIPMENT_TYPES.includes(t)) }))}
         people={people}
+        progress={progress.map((e) => {
+          const lessons = lessonsOf.get(e.courseId) ?? [];
+          const w = watchSummary(lessons, e.watch as Watch);
+          return {
+            id: e.id, candidateId: e.candidateId, name: e.candidate.name, courseId: e.courseId, status: e.status, lessonsDone: e.lessonsDone.length, lessons: lessons.length,
+            watchPct: w.pct, watchSeconds: w.seconds, quizScore: e.quizScore, attempts: e.quizAttempts, lastActivity: e.lastActivityAt?.toISOString() ?? null,
+            watchingNow: e.status === 'assigned' && !!e.lastActivityAt && now - e.lastActivityAt.getTime() < 15 * 60e3, assignedAt: e.createdAt.toISOString(),
+          };
+        })}
       />
     </>
   );

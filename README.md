@@ -159,6 +159,24 @@ On an employee's record, **Promote or change job** starts a promotion, demotion,
   - **What stays with recruiters and HR:** moving someone to Hired or Placed, which creates the employee record or assignment, and anything on other jobs.
   - **Recruiters and up** can do all of this for every job.
 
+## Training videos
+
+Equipment training lessons (Training → Courses → Edit) can carry a video, played inside the lesson on the worker's phone (`src/components/LessonVideo.tsx`):
+
+- **Links.** YouTube, Vimeo, Loom and Google Drive links become their embedded players; a direct link to an `.mp4`/`.webm`/`.mov` file plays in the browser's player (`videoEmbed` in `src/lib/training.ts`). Anything else stays a plain link.
+- **Uploads.** MP4, MOV or WebM up to 2 GB. The admin's browser uploads straight to the S3 bucket with a presigned PUT (`src/lib/training-media.ts`), so Vercel's request-size limit doesn't apply; the app then checks the object's size and type and records it as a `StoredFile`. Workers reach it only through their own enrollment on their private link (`/api/public/training/[token]/media`), which redirects to a 6-hour presigned GET. The team previews through `/api/training/media/[id]`. Replacing or removing a video deletes the old file.
+- **Captions.** A `.vtt` or `.srt` file per uploaded (or direct-file) video; SRT is converted to WebVTT. YouTube/Vimeo captions are managed on those sites.
+- **Watch before the test.** A course can require 50/75/90/100% of each video (`minWatchPct`). The player reports which 1% pieces were actually played (skipping ahead counts for nothing) and the seconds of playback; they're stored on the enrollment (`watch`). A video lesson can't be marked done, and the quiz can't be taken, until the requirement is met; both are checked on the server. Loom and Google Drive can't report progress, so they aren't held to it (the editor says so). The certificate PDF lists the percent watched and the viewing time.
+- **Course progress** (Training page): per course, how many haven't started, started, finished the lessons, passed the quiz, are certified, and are active right now (last 15 minutes), with each person's lessons, videos watched, quiz score and last activity.
+
+**Storage setup.** Uploads need `S3_BUCKET`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` (and `S3_ENDPOINT` for R2 and other S3-compatible stores). The platform console and `/api/health` say whether they're set. Because the browser uploads directly, the bucket's CORS rules must allow it:
+
+```json
+[{ "AllowedOrigins": ["https://app.preciopsatms.com", "https://preciopsatms.com", "https://www.preciopsatms.com"], "AllowedMethods": ["PUT", "GET"], "AllowedHeaders": ["Content-Type"], "MaxAgeSeconds": 3600 }]
+```
+
+Without that rule the upload fails with a message that names CORS. Links (YouTube, Vimeo, Loom, Drive) work with no storage at all.
+
 ## What's built
 | Area | Where |
 |---|---|

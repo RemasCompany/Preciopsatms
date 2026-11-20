@@ -5,6 +5,7 @@ import SignOutButton from '@/components/SignOutButton';
 import { stripeStatus } from '@/lib/stripe-status';
 import { emailStatus } from '@/lib/email-status';
 import TestEmail from '@/components/TestEmail';
+import { storageStatus } from '@/lib/storage-status';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,6 +46,12 @@ export default async function Platform({ searchParams }: { searchParams: { filte
             {mail.ok && <TestEmail />}
           </div>
           <p style={{ margin: '8px 0 0' }}>{mail.summary}</p>
+        </section>
+      ); })()}
+      {(() => { const st = storageStatus(); return (
+        <section className={`card ${st.ok ? '' : 'banner'}`} aria-label="File storage" style={{ marginTop: 16 }}>
+          <b>File storage: <span className={`pill ${st.ok ? 'g' : 'r'}`}>{st.ok ? 'Set up' : 'Not working'}</span></b>
+          <p style={{ margin: '8px 0 0' }}>{st.summary}</p>
         </section>
       ); })()}
       <section className={`card ${billing.state === 'connected' && billing.mode === 'live' ? '' : 'banner'}`} aria-label="Stripe" style={{ marginTop: 16 }}>

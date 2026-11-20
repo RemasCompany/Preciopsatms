@@ -1566,6 +1566,7 @@ model TrainingCourse {
   description    String?
   recertMonths   Int                  @default(36)
   passScore      Int                  @default(80) // percent
+  minWatchPct    Int                  @default(0) // videos must be watched this far (percent) before the quiz; 0 = not required
   lessons        Json // [{ title, body, videoUrl? }]
   questions      Json // [{ q, choices: string[], answer: index }] — answers never leave the server
   checklist      Json // string[]: the practical evaluation items
@@ -1593,6 +1594,8 @@ model TrainingEnrollment {
   assignedById   String?
   invitedAt      DateTime?
   lessonsDone    Int[]          @default([])
+  watch          Json           @default("{}") // per lesson index: { s: watched 1% segments, sec: seconds watched, dur: video length, at }
+  lastActivityAt DateTime? // last lesson, video or quiz activity from the worker
   quizAttempts   Int            @default(0)
   quizScore      Int?
   quizPassedAt   DateTime?

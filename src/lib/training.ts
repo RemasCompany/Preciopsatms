@@ -3,7 +3,8 @@
 import { z } from 'zod';
 import { CREDENTIAL_TYPES } from './credentials';
 
-export type Lesson = { title: string; body: string; videoUrl?: string | null };
+/** A lesson: text, plus an optional video (a link, or a file uploaded to the company's private storage) with optional captions. */
+export type Lesson = { title: string; body: string; videoUrl?: string | null; videoFileId?: string | null; videoName?: string | null; captionFileId?: string | null; captionName?: string | null };
 export type Question = { q: string; choices: string[]; answer: number };
 export type Status = 'requested' | 'assigned' | 'evaluation' | 'certified' | 'failed' | 'cancelled';
 export const OPEN_STATUSES: Status[] = ['assigned', 'evaluation'];
@@ -40,7 +41,12 @@ export const CourseBody = z.object({
   description: z.string().trim().max(2000).nullable().optional(),
   recertMonths: z.coerce.number().int().min(1).max(MAX_RECERT_MONTHS, `OSHA requires a new evaluation at least every ${MAX_RECERT_MONTHS} months.`),
   passScore: z.coerce.number().int().min(50, 'Set the passing score between 50% and 100%.').max(100, 'Set the passing score between 50% and 100%.'),
-  lessons: z.array(z.object({ title: z.string().trim().min(1, 'Every lesson needs a title.').max(120), body: z.string().trim().min(1, 'Every lesson needs some text.').max(8000), videoUrl: https.nullable().optional().or(z.literal('')) })).min(1, 'Add at least one lesson.').max(30),
+  minWatchPct: z.coerce.number().int().min(0).max(100, 'Set the watch requirement between 0% and 100%.').default(0),
+  lessons: z.array(z.object({
+    title: z.string().trim().min(1, 'Every lesson needs a title.').max(120), body: z.string().trim().min(1, 'Every lesson needs some text.').max(8000),
+    videoUrl: https.nullable().optional().or(z.literal('')),
+    videoFileId: z.string().max(40).nullish().or(z.literal('')), captionFileId: z.string().max(40).nullish().or(z.literal('')),
+  })).min(1, 'Add at least one lesson.').max(30),
   questions: z.array(z.object({
     q: z.string().trim().min(3, 'Every question needs text.').max(400),
     choices: z.array(z.string().trim().min(1, 'Fill in every answer choice.').max(200)).min(2, 'Each question needs at least two choices.').max(6),
@@ -50,6 +56,88 @@ export const CourseBody = z.object({
   signup: z.enum(['none', 'open', 'approval']).default('none'), // can employees sign up themselves from their page?
 });
 export type CourseInput = z.input<typeof CourseBody>;
+
+// ---- video ----
+
+export type VideoKind = 'youtube' | 'vimeo' | 'loom' | 'drive' | 'file' | 'upload';
+export type Video = { kind: VideoKind; src: string; trackable: boolean };
+export const VIDEO_LABEL: Record<VideoKind, string> = { youtube: 'YouTube', vimeo: 'Vimeo', loom: 'Loom', drive: 'Google Drive', file: 'Video file', upload: 'Uploaded video' };
+/** Uploads: what the browser can play. MP4 (H.264) plays everywhere; MOV plays in Safari and usually in Chrome. */
+export const VIDEO_TYPES: Record<string, string> = { mp4: 'video/mp4', m4v: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm' };
+export const MAX_VIDEO_BYTES = 2 * 1024 ** 3;
+export const MAX_CAPTION_BYTES = 1024 ** 2;
+export const SEGMENTS = 100; // a video is tracked in 1% pieces, so skipping ahead doesn't count as watching
+
+/**
+ * Turns a video link into something the lesson can play inline: YouTube, Vimeo, Loom and Google Drive links become their
+ * embed players; a direct link to an MP4/WebM/MOV file plays in the browser's own player. Anything else stays a plain link
+ * (null). "trackable" means the player reports how much was watched (Loom and Drive don't).
+ */
+export function videoEmbed(raw: string | null | undefined): Video | null {
+  if (!raw || !/^https:\/\//.test(raw)) return null;
+  let u: URL;
+  try { u = new URL(raw); } catch { return null; }
+  const host = u.hostname.replace(/^(www|m)\./, '');
+  const id = (s: string | null | undefined) => (s && /^[\w-]{6,64}$/.test(s) ? s : null);
+  const parts = u.pathname.split('/').filter(Boolean);
+  if (host === 'youtube.com' || host === 'youtube-nocookie.com' || host === 'youtu.be') {
+    const v = host === 'youtu.be' ? id(parts[0]) : parts[0] === 'watch' ? id(u.searchParams.get('v')) : ['embed', 'shorts', 'live', 'v'].includes(parts[0]) ? id(parts[1]) : null;
+    if (!v) return null;
+    const start = Number.parseInt(u.searchParams.get('t') ?? u.searchParams.get('start') ?? '', 10);
+    return { kind: 'youtube', src: `https://www.youtube-nocookie.com/embed/${v}?rel=0&enablejsapi=1${start > 0 ? `&start=${start}` : ''}`, trackable: true };
+  }
+  if (host === 'vimeo.com' || host === 'player.vimeo.com') {
+    const nums = parts.filter((x) => /^\d{5,12}$/.test(x));
+    if (!nums.length) return null;
+    const v = nums[0], after = parts[parts.indexOf(v) + 1];
+    const h = u.searchParams.get('h') ?? (after && /^[0-9a-f]{6,20}$/.test(after) ? after : null);
+    return { kind: 'vimeo', src: `https://player.vimeo.com/video/${v}?dnt=1${h ? `&h=${h}` : ''}`, trackable: true };
+  }
+  if (host === 'loom.com' && ['share', 'embed'].includes(parts[0]) && id(parts[1])) return { kind: 'loom', src: `https://www.loom.com/embed/${parts[1]}`, trackable: false };
+  if (host === 'drive.google.com' && parts[0] === 'file' && parts[1] === 'd' && id(parts[2])) return { kind: 'drive', src: `https://drive.google.com/file/d/${parts[2]}/preview`, trackable: false };
+  if (/\.(mp4|m4v|webm|mov)$/i.test(u.pathname)) return { kind: 'file', src: u.toString(), trackable: true };
+  return null;
+}
+
+/** The lesson's video, uploaded file first. */
+export const lessonVideo = (l: Lesson): Video | null => (l.videoFileId ? { kind: 'upload', src: '', trackable: true } : videoEmbed(l.videoUrl));
+
+export type WatchEntry = { s: number[]; sec: number; dur: number; at: string };
+export type Watch = Record<string, WatchEntry>;
+export const watchPct = (w: WatchEntry | undefined) => (w ? Math.min(100, w.s.length) : 0);
+
+/** Lessons the watch requirement applies to: ones with a video whose player reports progress. */
+export function watchRequired(lessons: Lesson[], minWatchPct: number) {
+  return minWatchPct > 0 ? lessons.map((l, i) => (lessonVideo(l)?.trackable ? i : -1)).filter((i) => i >= 0) : [];
+}
+
+/** How much of the course's videos someone watched: overall percent (averaged across video lessons) and time. */
+export function watchSummary(lessons: Lesson[], watch: Watch | null | undefined) {
+  const vids = lessons.map((l, i) => (lessonVideo(l)?.trackable ? i : -1)).filter((i) => i >= 0);
+  const w = watch ?? {};
+  const pct = vids.length ? Math.round(vids.reduce((n, i) => n + watchPct(w[i]), 0) / vids.length) : null;
+  const seconds = Math.round(Object.values(w).reduce((n, x) => n + (x.sec || 0), 0));
+  return { videos: vids.length, pct, seconds, perLesson: vids.map((i) => ({ lesson: i, pct: watchPct(w[i]) })) };
+}
+
+/** Records a report from the player: the 1% pieces seen since the last report, and the seconds of real playback (capped per report). */
+export function mergeWatch(prev: WatchEntry | undefined, report: { segments: number[]; seconds: number; duration: number }, now = new Date()): WatchEntry {
+  const s = new Set(prev?.s ?? []);
+  for (const x of report.segments) if (Number.isInteger(x) && x >= 0 && x < SEGMENTS) s.add(x);
+  const sec = (prev?.sec ?? 0) + Math.max(0, Math.min(report.seconds, 120));
+  const dur = report.duration > 0 && report.duration < 6 * 3600 ? Math.round(report.duration) : prev?.dur ?? 0;
+  return { s: [...s].sort((a, b) => a - b), sec: Math.round(dur ? Math.min(sec, dur * 4) : sec), dur, at: now.toISOString() };
+}
+
+export const minutes = (sec: number) => (sec < 60 ? `${sec} sec` : sec < 3600 ? `${Math.round(sec / 60)} min` : `${Math.floor(sec / 3600)} hr ${Math.round((sec % 3600) / 60)} min`);
+
+/** VTT captions from a .vtt or .srt file's text; null if it isn't either. */
+export function toVtt(text: string): string | null {
+  const t = text.replace(/^﻿/, '').replace(/\r\n?/g, '\n').trim();
+  if (/^WEBVTT/.test(t)) return `${t}\n`;
+  if (/^\d+\n\d{2}:\d{2}:\d{2},\d{3} --> \d{2}:\d{2}:\d{2},\d{3}/.test(t)) return `WEBVTT\n\n${t.replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2')}\n`;
+  return null;
+}
 
 /** Grades a quiz. Unanswered questions count as wrong. Returns the percent score and which questions were missed. */
 export function grade(questions: Question[], answers: (number | null)[], passScore: number) {

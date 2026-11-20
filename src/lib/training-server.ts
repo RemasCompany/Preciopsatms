@@ -9,8 +9,10 @@ import { localDate } from './timeclock';
 import { dayLabel } from './schedule';
 import {
   AnswersBody, CourseBody, OPEN_STATUSES, RECERT_WINDOW_DAYS, REFRESHER_TRIGGERS, grade, recertDate,
-  type CourseInput, type Lesson, type Question, type Status,
+  lessonVideo, mergeWatch, watchPct, watchRequired,
+  type CourseInput, type Lesson, type Question, type Status, type Watch,
 } from './training';
+import { dropUnusedFiles, resolveLessonFiles } from './training-media';
 import { EQUIPMENT_TYPES } from './training';
 import { typeSpec } from './credentials';
 import { candidatesFor, isStateLicense, workState, wrongStateText } from './requirements';
@@ -28,15 +30,17 @@ const CHANNELS = z.array(z.enum(['sms', 'email'])).max(2).default([]);
 export function parseCourse(body: unknown) {
   const r = CourseBody.safeParse(body);
   if (!r.success) throw new HttpError(400, r.error.issues[0]?.message ?? 'Check the course and try again.');
-  return { ...r.data, prerequisite: r.data.prerequisite || null, description: r.data.description || null, lessons: r.data.lessons.map((l) => ({ title: l.title, body: l.body, videoUrl: l.videoUrl || null })) };
+  return { ...r.data, prerequisite: r.data.prerequisite || null, description: r.data.description || null, lessons: r.data.lessons.map((l): Lesson => ({ title: l.title, body: l.body, videoUrl: l.videoUrl || null, videoFileId: l.videoFileId || null, captionFileId: l.captionFileId || null })) };
 }
 
 export async function saveCourse(tdb: TenantDb, org: Organization, user: User, body: unknown, id?: string) {
-  const c = parseCourse(body);
+  const parsed = parseCourse(body);
+  const c = { ...parsed, lessons: await resolveLessonFiles(tdb, parsed.lessons) };
   if (id) {
     const old = await tdb.trainingCourse.findFirst({ where: { id } });
     if (!old) throw new HttpError(404, 'That course was deleted.');
     await tdb.trainingCourse.updateMany({ where: { id }, data: c });
+    await dropUnusedFiles(tdb, old.lessons as Lesson[], c.lessons);
   }
   const saved = id ? (await tdb.trainingCourse.findFirst({ where: { id } }))! : await tdb.trainingCourse.create({ data: c as never });
   await audit(org.id, user, 'training.course', `${id ? 'Updated' : 'Added'} the course “${c.title}”`, { targetType: 'trainingCourse', targetId: saved.id });
@@ -52,7 +56,7 @@ export async function removeCourse(tdb: TenantDb, org: Organization, user: User,
   await tdb.trainingEnrollment.updateMany({ where: { courseId: id, status: 'requested' }, data: { status: 'cancelled' } });
   const used = await tdb.trainingEnrollment.count({ where: { courseId: id } });
   if (used) await tdb.trainingCourse.updateMany({ where: { id }, data: { archived: true } });
-  else await tdb.trainingCourse.deleteMany({ where: { id } });
+  else { await tdb.trainingCourse.deleteMany({ where: { id } }); await dropUnusedFiles(tdb, c.lessons as Lesson[], []); }
   await audit(org.id, user, 'training.course', `${used ? 'Archived' : 'Deleted'} the course “${c.title}”`, { targetType: 'trainingCourse', targetId: id });
   return { archived: !!used };
 }
@@ -311,8 +315,11 @@ export async function workerTraining(orgId: string, candidateId: string) {
   return rows.map((e) => ({
     id: e.id, title: e.course.title, description: e.course.description, status: e.status as Status, reason: e.reason,
     dueDate: e.dueDate ? ymd(e.dueDate) : null, passScore: e.course.passScore, quizScore: e.quizScore, attempts: e.quizAttempts,
-    lessons: (e.course.lessons as Lesson[]).map((l) => ({ title: l.title, body: l.body, videoUrl: l.videoUrl ?? null })),
-    lessonsDone: e.lessonsDone,
+    lessons: (e.course.lessons as Lesson[]).map((l, i) => {
+      const v = lessonVideo(l);
+      return { title: l.title, body: l.body, videoUrl: l.videoUrl ?? null, video: v, captions: !!l.captionFileId && (v?.kind === 'upload' || v?.kind === 'file'), watched: watchPct((e.watch as Watch)[i]) };
+    }),
+    lessonsDone: e.lessonsDone, minWatchPct: watchRequired(e.course.lessons as Lesson[], e.course.minWatchPct).length ? e.course.minWatchPct : 0,
     questions: e.status === 'assigned' ? (e.course.questions as Question[]).map((q) => ({ q: q.q, choices: q.choices })) : [],
     expiresAt: e.expiresAt ? ymd(e.expiresAt) : null, certType: e.course.certType,
   }));
@@ -326,11 +333,38 @@ async function mine(link: Link, enrollmentId: string) {
   return { tdb, e };
 }
 
+/** Lessons whose video hasn't been watched far enough yet (when the course requires it). */
+const unwatched = (e: TrainingEnrollment & { course: TrainingCourse }) =>
+  watchRequired(e.course.lessons as Lesson[], e.course.minWatchPct).filter((i) => watchPct((e.watch as Watch)[i]) < e.course.minWatchPct);
+
 export async function markLesson(link: Link, enrollmentId: string, index: number) {
   const { tdb, e } = await mine(link, enrollmentId);
   if (!Number.isInteger(index) || index < 0 || index >= (e.course.lessons as Lesson[]).length) throw new HttpError(400, 'That lesson isn’t in this course.');
-  if (!e.lessonsDone.includes(index)) await tdb.trainingEnrollment.updateMany({ where: { id: e.id }, data: { lessonsDone: [...e.lessonsDone, index].sort((a, b) => a - b) } });
+  if (unwatched(e).includes(index)) throw new HttpError(409, `Watch at least ${e.course.minWatchPct}% of the video first. You’ve watched ${watchPct((e.watch as Watch)[index])}%.`);
+  if (!e.lessonsDone.includes(index)) await tdb.trainingEnrollment.updateMany({ where: { id: e.id }, data: { lessonsDone: [...e.lessonsDone, index].sort((a, b) => a - b), lastActivityAt: new Date() } });
   return { ok: true };
+}
+
+export const WatchBody = z.object({
+  lesson: z.number().int().min(0).max(29),
+  segments: z.array(z.number().int().min(0).max(99)).max(100),
+  seconds: z.number().min(0).max(3600),
+  duration: z.number().min(0).max(86400),
+});
+
+/** The player's progress report: which 1% pieces of the video were seen, and how long it played. */
+export async function recordWatch(link: Link, enrollmentId: string, body: unknown) {
+  const p = WatchBody.safeParse(body);
+  if (!p.success) throw new HttpError(400, 'Invalid input');
+  const tdb = tenantDb(link.organizationId);
+  const e = await tdb.trainingEnrollment.findFirst({ where: { id: enrollmentId, candidateId: link.candidateId, status: { in: OPEN_STATUSES } }, include: { course: true } });
+  if (!e) throw new HttpError(404, 'That training isn’t on your list.');
+  const l = (e.course.lessons as Lesson[])[p.data.lesson];
+  if (!l || !lessonVideo(l)?.trackable) throw new HttpError(400, 'That lesson has no video.');
+  const watch = { ...(e.watch as Watch) };
+  watch[p.data.lesson] = mergeWatch(watch[p.data.lesson], p.data);
+  await tdb.trainingEnrollment.updateMany({ where: { id: e.id }, data: { watch, lastActivityAt: new Date() } });
+  return { watched: watchPct(watch[p.data.lesson]) };
 }
 
 /** Grades the quiz on the server. Passing moves the worker on to the hands-on evaluation. */
@@ -339,9 +373,11 @@ export async function submitQuiz(link: Link, enrollmentId: string, body: unknown
   const { tdb, e } = await mine(link, enrollmentId);
   const lessons = e.course.lessons as Lesson[], questions = e.course.questions as Question[];
   if (e.lessonsDone.length < lessons.length) throw new HttpError(409, 'Finish every lesson before taking the quiz.');
+  const behind = unwatched(e);
+  if (behind.length) throw new HttpError(409, `Watch at least ${e.course.minWatchPct}% of every video before the quiz (lesson ${behind.map((i) => i + 1).join(', ')}).`);
   if (answers.length !== questions.length || answers.some((a) => a === null)) throw new HttpError(400, 'Answer every question.');
   const r = grade(questions, answers, e.course.passScore);
-  await tdb.trainingEnrollment.updateMany({ where: { id: e.id, status: 'assigned' }, data: { quizAttempts: { increment: 1 }, quizScore: Math.max(r.score, e.quizScore ?? 0), ...(r.passed ? { status: 'evaluation', quizPassedAt: new Date() } : {}) } });
+  await tdb.trainingEnrollment.updateMany({ where: { id: e.id, status: 'assigned' }, data: { lastActivityAt: new Date(), quizAttempts: { increment: 1 }, quizScore: Math.max(r.score, e.quizScore ?? 0), ...(r.passed ? { status: 'evaluation', quizPassedAt: new Date() } : {}) } });
   if (r.passed) await logActivity(link.organizationId, `${link.candidate.name} passed the ${e.course.title} quiz (${r.score}%) and is ready for a hands-on evaluation`);
   return { score: r.score, passed: r.passed, passScore: e.course.passScore, wrong: r.wrong };
 }

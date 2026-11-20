@@ -1,19 +1,21 @@
 'use client';
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import CourseVideoField from './CourseVideoField';
+import TrainingProgress, { type ProgressRow } from './TrainingProgress';
 import { useRecords } from './Records';
-import { REASON_LABEL, REFRESHER_TRIGGERS, STATUS_LABEL, MAX_RECERT_MONTHS, type Lesson, type Question, type Status } from '@/lib/training';
+import { REASON_LABEL, REFRESHER_TRIGGERS, STATUS_LABEL, MAX_RECERT_MONTHS, minutes, type Lesson, type Question, type Status } from '@/lib/training';
 
-type Course = { id: string; title: string; certType: string; prerequisite: string | null; description: string | null; recertMonths: number; passScore: number; lessons: Lesson[]; questions: Question[]; questionCount: number; checklist: string[]; signup: string };
+type Course = { id: string; title: string; certType: string; prerequisite: string | null; description: string | null; recertMonths: number; passScore: number; minWatchPct: number; lessons: Lesson[]; questions: Question[]; questionCount: number; checklist: string[]; signup: string };
 type Enrollment = {
   id: string; candidateId: string; name: string; course: string; certType: string; status: string; reason: string; trigger: string | null; dueDate: string | null; invited: boolean;
-  lessonsDone: number; lessons: number; quizScore: number | null; attempts: number; checklist: string[]; evaluatedAt: string | null; evaluator: string | null; expiresAt: string | null; requestNote?: string | null;
+  lessonsDone: number; lessons: number; watchPct: number | null; watchSeconds: number; quizScore: number | null; attempts: number; checklist: string[]; evaluatedAt: string | null; evaluator: string | null; expiresAt: string | null; requestNote?: string | null;
 };
 type Due = { credentialId: string; candidateId: string; name: string; certType: string; expiresAt: string; expired: boolean; courseId: string };
 type Operator = { id: string; candidateId: string; name: string; certType: string; expiresAt: string | null; verified: boolean; certificateId: string | null; onHold: boolean };
 type Job = { id: string; title: string; client: string | null; requiredCerts: string[] };
 type Template = { key: string; label: string; title: string; added: boolean };
-type Props = { today: string; isAdmin: boolean; canEdit: boolean; certTypes: string[]; trainable: string[]; external: string[]; templates: Template[]; courses: Course[]; enrollments: Enrollment[]; due: Due[]; operators: Operator[]; jobs: Job[]; people: { id: string; name: string; status: string | null }[] };
+type Props = { today: string; isAdmin: boolean; canEdit: boolean; certTypes: string[]; trainable: string[]; external: string[]; templates: Template[]; courses: Course[]; enrollments: Enrollment[]; due: Due[]; operators: Operator[]; jobs: Job[]; people: { id: string; name: string; status: string | null }[]; progress: ProgressRow[] };
 
 const fmt = (s: string | null) => (s ? new Date(`${s}T00:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) : '—');
 const PILL: Record<string, string> = { requested: 'a', assigned: 'a', evaluation: 'a', certified: 'g', failed: 'r', cancelled: '' };
@@ -88,7 +90,7 @@ export default function TrainingBoard(p: Props) {
               <tr key={e.id}>
                 <td><button className="link" onClick={() => open('candidates', e.candidateId)}><b>{e.name}</b></button>{e.reason !== 'initial' && <div className="muted">{REASON_LABEL[e.reason]}{e.trigger ? `: ${e.trigger}` : ''}</div>}</td>
                 <td>{e.course}</td>
-                <td>{e.lessonsDone} of {e.lessons} lessons{e.attempts ? ` · quiz ${e.quizScore}% (${e.attempts} tr${e.attempts === 1 ? 'y' : 'ies'})` : ''}{!e.invited && <div className="warn">Link not sent</div>}</td>
+                <td>{e.lessonsDone} of {e.lessons} lessons{e.watchPct !== null ? ` · videos ${e.watchPct}% watched${e.watchSeconds ? ` (${minutes(e.watchSeconds)})` : ''}` : ''}{e.attempts ? ` · quiz ${e.quizScore}% (${e.attempts} tr${e.attempts === 1 ? 'y' : 'ies'})` : ''}{!e.invited && <div className="warn">Link not sent</div>}</td>
                 <td className={e.dueDate && e.dueDate < p.today ? 'warnnum' : undefined}>{fmt(e.dueDate)}</td>
                 {edit && <td style={{ whiteSpace: 'nowrap' }}>
                   <button className="btn ghost sm" disabled={busy} onClick={() => call(`/api/training/enrollments/${e.id}`, 'PATCH', { action: 'resend', channels: ['sms', 'email'] }, (j) => (j.sent ? `Sent ${e.name} a new link.` : `Couldn’t reach ${e.name}.`))}>Resend link</button>{' '}
@@ -117,6 +119,8 @@ export default function TrainingBoard(p: Props) {
           }}>Assign recertification to all {p.due.length}</button></div>}
         </section>
       )}
+
+      {p.courses.length > 0 && <TrainingProgress courses={p.courses.map((c) => ({ id: c.id, title: c.title, minWatchPct: c.minWatchPct }))} rows={p.progress} open={(id) => open('candidates', id)} />}
 
       <Operators operators={p.operators} courses={p.courses} today={p.today} canEdit={edit} busy={busy} call={call} open={(id) => open('candidates', id)} />
 
@@ -272,11 +276,11 @@ function Operators({ operators, courses, today, canEdit, busy, call, open }: { o
 
 function Courses({ courses, certTypes, external, templates, isAdmin, canEdit, busy, call }: { courses: Course[]; certTypes: string[]; external: string[]; templates: Template[]; isAdmin: boolean; canEdit: boolean; busy: boolean; call: Call }) {
   const [editing, setEditing] = useState<(Course & { checklistText: string }) | null>(null);
-  const blank = (): Course & { checklistText: string } => ({ id: '', title: '', certType: certTypes[0], prerequisite: null, description: '', recertMonths: MAX_RECERT_MONTHS, passScore: 80, lessons: [{ title: '', body: '', videoUrl: '' }], questions: [{ q: '', choices: ['', '', '', ''], answer: 0 }], questionCount: 0, checklist: [], checklistText: '', signup: 'none' });
+  const blank = (): Course & { checklistText: string } => ({ id: '', title: '', certType: certTypes[0], prerequisite: null, description: '', recertMonths: MAX_RECERT_MONTHS, passScore: 80, minWatchPct: 0, lessons: [{ title: '', body: '', videoUrl: '' }], questions: [{ q: '', choices: ['', '', '', ''], answer: 0 }], questionCount: 0, checklist: [], checklistText: '', signup: 'none' });
   const save = async () => {
     if (!editing) return;
-    const body = { title: editing.title, certType: editing.certType, prerequisite: editing.prerequisite || null, description: editing.description || null, recertMonths: editing.recertMonths, passScore: editing.passScore,
-      lessons: editing.lessons.map((l) => ({ ...l, videoUrl: l.videoUrl || null })), questions: editing.questions.map((q) => ({ ...q, choices: q.choices.filter((c) => c.trim()) })),
+    const body = { title: editing.title, certType: editing.certType, prerequisite: editing.prerequisite || null, description: editing.description || null, recertMonths: editing.recertMonths, passScore: editing.passScore, minWatchPct: editing.minWatchPct,
+      lessons: editing.lessons.map((l) => ({ title: l.title, body: l.body, videoUrl: l.videoFileId ? null : l.videoUrl || null, videoFileId: l.videoFileId || null, captionFileId: l.captionFileId || null })), questions: editing.questions.map((q) => ({ ...q, choices: q.choices.filter((c) => c.trim()) })),
       checklist: editing.checklistText.split('\n').map((x) => x.trim()).filter(Boolean), signup: editing.signup };
     if (await call(editing.id ? `/api/training/courses/${editing.id}` : '/api/training/courses', editing.id ? 'PATCH' : 'POST', body, 'Course saved.')) setEditing(null);
   };
@@ -285,7 +289,7 @@ function Courses({ courses, certTypes, external, templates, isAdmin, canEdit, bu
     <section className="card"><h2 style={{ marginTop: 0 }}>Courses {isAdmin && canEdit && !editing && <button className="btn ghost sm" onClick={() => setEditing(blank())}>+ New course</button>}</h2>
       {!editing && (
         <div className="list">{courses.map((c) => (
-          <div key={c.id} className="li"><span className="x"><b>{c.title}</b><span className="muted">Issues “{c.certType}”{c.prerequisite ? ` · requires a current ${c.prerequisite}` : ''} · {c.lessons.length} lessons · {c.questionCount} quiz questions (pass {c.passScore}%) · recertify every {c.recertMonths} months{c.signup === 'open' ? ' · employees can sign up' : c.signup === 'approval' ? ' · employees can ask to take it' : ''}</span></span>
+          <div key={c.id} className="li"><span className="x"><b>{c.title}</b><span className="muted">Issues “{c.certType}”{c.prerequisite ? ` · requires a current ${c.prerequisite}` : ''} · {c.lessons.length} lessons{c.lessons.some((l) => l.videoUrl || l.videoFileId) ? ` (${c.lessons.filter((l) => l.videoUrl || l.videoFileId).length} with video)` : ''}{c.minWatchPct ? ` · watch ${c.minWatchPct}% before the quiz` : ''} · {c.questionCount} quiz questions (pass {c.passScore}%) · recertify every {c.recertMonths} months{c.signup === 'open' ? ' · employees can sign up' : c.signup === 'approval' ? ' · employees can ask to take it' : ''}</span></span>
             {isAdmin && canEdit && <span style={{ whiteSpace: 'nowrap' }}><button className="btn ghost sm" onClick={() => setEditing({ ...c, checklistText: c.checklist.join('\n') })}>Edit</button>{' '}
               <button className="btn ghost sm" disabled={busy} onClick={() => confirm(`Remove “${c.title}”? Courses with training records are archived, not deleted.`) && call(`/api/training/courses/${c.id}`, 'DELETE', undefined, (j) => (j.archived ? 'Course archived.' : 'Course deleted.'))}>Remove</button></span>}
           </div>
@@ -304,6 +308,8 @@ function Courses({ courses, certTypes, external, templates, isAdmin, canEdit, bu
           <div className="row" style={{ flexWrap: 'wrap' }}>
             <label>Recertify every (months)<input type="number" min={1} max={MAX_RECERT_MONTHS} value={editing.recertMonths} onChange={(e) => set({ recertMonths: Number(e.target.value) })} /></label>
             <label>Passing quiz score (%)<input type="number" min={50} max={100} value={editing.passScore} onChange={(e) => set({ passScore: Number(e.target.value) })} /></label>
+            <label>Watch the videos before the quiz<select value={editing.minWatchPct} onChange={(e) => set({ minWatchPct: Number(e.target.value) })}>
+              <option value={0}>Not required</option>{[50, 75, 90, 100].map((n) => <option key={n} value={n}>At least {n}% of each video</option>)}</select></label>
           </div>
           <label>Must already hold (issued outside the company)<select value={editing.prerequisite ?? ''} onChange={(e) => set({ prerequisite: e.target.value || null })}><option value="">Nothing</option>{external.map((t) => <option key={t}>{t}</option>)}</select></label>
           <label>Description<textarea rows={2} maxLength={2000} value={editing.description ?? ''} onChange={(e) => set({ description: e.target.value })} /></label>
@@ -314,7 +320,7 @@ function Courses({ courses, certTypes, external, templates, isAdmin, canEdit, bu
             <fieldset key={i}><legend>Lesson {i + 1}</legend>
               <label>Title<input value={l.title} maxLength={120} onChange={(e) => set({ lessons: editing.lessons.map((x, k) => (k === i ? { ...x, title: e.target.value } : x)) })} /></label>
               <label>Text<textarea rows={5} maxLength={8000} value={l.body} onChange={(e) => set({ lessons: editing.lessons.map((x, k) => (k === i ? { ...x, body: e.target.value } : x)) })} /></label>
-              <label>Video link (optional)<input value={l.videoUrl ?? ''} placeholder="https://…" onChange={(e) => set({ lessons: editing.lessons.map((x, k) => (k === i ? { ...x, videoUrl: e.target.value } : x)) })} /></label>
+              <CourseVideoField lesson={l} index={i} watchRequired={editing.minWatchPct > 0} onChange={(patch) => setEditing((ed) => (ed ? { ...ed, lessons: ed.lessons.map((x, k) => (k === i ? { ...x, ...patch } : x)) } : ed))} />
               {editing.lessons.length > 1 && <button className="btn ghost sm" onClick={() => set({ lessons: editing.lessons.filter((_, k) => k !== i) })}>Remove lesson</button>}
             </fieldset>
           ))}
