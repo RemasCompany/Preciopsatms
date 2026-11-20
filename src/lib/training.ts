@@ -81,7 +81,10 @@ export function videoEmbed(raw: string | null | undefined): Video | null {
   const id = (s: string | null | undefined) => (s && /^[\w-]{6,64}$/.test(s) ? s : null);
   const parts = u.pathname.split('/').filter(Boolean);
   if (host === 'youtube.com' || host === 'youtube-nocookie.com' || host === 'youtu.be') {
-    const v = host === 'youtu.be' ? id(parts[0]) : parts[0] === 'watch' ? id(u.searchParams.get('v')) : ['embed', 'shorts', 'live', 'v'].includes(parts[0]) ? id(parts[1]) : null;
+    const v = host === 'youtu.be' ? id(parts[0]) : parts[0] === 'watch' ? id(u.searchParams.get('v')) : ['embed', 'shorts', 'live', 'v'].includes(parts[0]) && parts[1] !== 'videoseries' ? id(parts[1]) : null;
+    const list = u.searchParams.get('list');
+    // A playlist plays as a series; it can't report how much of one video was watched.
+    if (!v && list && /^[\w-]{10,64}$/.test(list)) return { kind: 'youtube', src: `https://www.youtube-nocookie.com/embed/videoseries?list=${list}&rel=0`, trackable: false };
     if (!v) return null;
     const start = Number.parseInt(u.searchParams.get('t') ?? u.searchParams.get('start') ?? '', 10);
     return { kind: 'youtube', src: `https://www.youtube-nocookie.com/embed/${v}?rel=0&enablejsapi=1${start > 0 ? `&start=${start}` : ''}`, trackable: true };

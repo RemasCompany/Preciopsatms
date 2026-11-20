@@ -320,7 +320,7 @@ function Courses({ courses, certTypes, external, templates, isAdmin, canEdit, bu
             <fieldset key={i}><legend>Lesson {i + 1}</legend>
               <label>Title<input value={l.title} maxLength={120} onChange={(e) => set({ lessons: editing.lessons.map((x, k) => (k === i ? { ...x, title: e.target.value } : x)) })} /></label>
               <label>Text<textarea rows={5} maxLength={8000} value={l.body} onChange={(e) => set({ lessons: editing.lessons.map((x, k) => (k === i ? { ...x, body: e.target.value } : x)) })} /></label>
-              <CourseVideoField lesson={l} index={i} watchRequired={editing.minWatchPct > 0} onChange={(patch) => setEditing((ed) => (ed ? { ...ed, lessons: ed.lessons.map((x, k) => (k === i ? { ...x, ...patch } : x)) } : ed))} />
+              <CourseVideoField lesson={l} index={i} certType={editing.certType} watchRequired={editing.minWatchPct > 0} onChange={(patch) => setEditing((ed) => (ed ? { ...ed, lessons: ed.lessons.map((x, k) => (k === i ? { ...x, ...patch } : x)) } : ed))} />
               {editing.lessons.length > 1 && <button className="btn ghost sm" onClick={() => set({ lessons: editing.lessons.filter((_, k) => k !== i) })}>Remove lesson</button>}
             </fieldset>
           ))}

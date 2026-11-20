@@ -2,10 +2,11 @@
 import { useState } from 'react';
 import LessonVideo from './LessonVideo';
 import { VIDEO_LABEL, lessonVideo, videoEmbed, type Lesson } from '@/lib/training';
+import { suggestionsFor } from '@/lib/training-videos';
 
 /** One lesson's video in the course editor: a link (YouTube, Vimeo, Loom, Google Drive, a video file) or an upload, plus captions. */
-export default function CourseVideoField({ lesson, index, watchRequired, onChange }: {
-  lesson: Lesson; index: number; watchRequired: boolean; onChange: (patch: Partial<Lesson>) => void;
+export default function CourseVideoField({ lesson, index, watchRequired, certType, onChange }: {
+  lesson: Lesson; index: number; watchRequired: boolean; certType: string; onChange: (patch: Partial<Lesson>) => void;
 }) {
   const [progress, setProgress] = useState<number | null>(null);
   const [err, setErr] = useState('');
@@ -67,6 +68,7 @@ export default function CourseVideoField({ lesson, index, watchRequired, onChang
             </label>
           )}
           {progress !== null && <p role="status">Uploading… {progress}%</p>}
+          {!lesson.videoUrl && progress === null && <Suggestions certType={certType} lessonTitle={lesson.title} index={index} onUse={(url) => onChange({ videoUrl: url })} />}
         </>
       )}
       {preview && video && (video.kind !== 'upload' || lesson.videoFileId) && (
@@ -80,6 +82,43 @@ export default function CourseVideoField({ lesson, index, watchRequired, onChang
       {video && !captionsApply && <p className="muted" style={{ margin: '2px 0', fontSize: 13 }}>Captions for {VIDEO_LABEL[video.kind]} videos are added on {VIDEO_LABEL[video.kind]}; viewers turn them on in the player.</p>}
       {watchRequired && video && !video.trackable && <p className="warn" style={{ margin: '2px 0' }}>This video can’t be held to the watch requirement. Upload the file, or use YouTube or Vimeo, to require it.</p>}
       {err && <p className="error" role="alert">{err}</p>}
+    </div>
+  );
+}
+
+/** Videos found for this equipment (not reviewed by Preciops): preview, then choose one for the lesson. */
+function Suggestions({ certType, lessonTitle, index, onUse }: { certType: string; lessonTitle: string; index: number; onUse: (url: string) => void }) {
+  const list = suggestionsFor(certType, lessonTitle);
+  const [open, setOpen] = useState(false);
+  const [preview, setPreview] = useState<string | null>(null);
+  if (!list.length) return null;
+  const fitting = list.filter((s) => s.fits).length;
+  return (
+    <div style={{ marginTop: 6 }}>
+      <button type="button" className="linkish" aria-expanded={open} onClick={() => setOpen(!open)}>
+        {open ? 'Hide suggested videos' : `Suggested videos (${fitting ? `${fitting} for this lesson` : list.length})`}
+      </button>
+      {open && (
+        <div className="list" style={{ marginTop: 6 }} aria-label={`Suggested videos for lesson ${index + 1}`}>
+          <p className="muted" style={{ margin: '0 0 6px', fontSize: 13 }}>Found on YouTube; Preciops hasn’t reviewed them. Watch the whole video and make sure it matches your equipment and sites before using it. They play from YouTube (nothing is copied).</p>
+          {list.map((s) => {
+            const v = videoEmbed(s.url);
+            return (
+              <div key={s.url} className="li" style={{ display: 'block' }}>
+                <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', margin: 0, flexWrap: 'wrap' }}>
+                  <span className="x"><span><b>{s.title}</b>{s.fits && <span className="pill g" style={{ marginLeft: 6, display: 'inline-block' }}>Fits this lesson</span>}</span>
+                    <span className="muted" style={{ display: 'block', fontSize: 13 }}>{s.source}{v && !v.trackable ? ' · can’t report how much was watched' : ''}{s.note ? ` · ${s.note}` : ''}</span></span>
+                  <span style={{ whiteSpace: 'nowrap' }}>
+                    {v && <button type="button" className="btn ghost sm" onClick={() => setPreview(preview === s.url ? null : s.url)}>{preview === s.url ? 'Hide' : 'Preview'}</button>}{' '}
+                    <button type="button" className="btn sm" onClick={() => onUse(s.url)}>Use this video</button>
+                  </span>
+                </div>
+                {preview === s.url && v && <div style={{ marginTop: 6 }}><LessonVideo video={v} title={s.title} src={v.src} /></div>}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
