@@ -532,3 +532,13 @@ html:has(.lp) body { background: #f7f8f6; }
 @media (prefers-color-scheme: dark) { html:has(.lp) body { background: #0b141a; } }
 .lp { min-height: 100vh; font-size: 16px; }
 .lp .lp-banner { background: var(--accent-soft); color: var(--ink); border-bottom: 1px solid var(--line); padding: 12px 20px; text-align: center; font-weight: 600; margin: 0; }
+
+.lp .lp-topbar { background: var(--navy); color: #d6e3e8; font-size: 13.5px; }
+.lp .lp-topbar-in { display: flex; justify-content: flex-end; align-items: center; min-height: 34px; padding-top: 6px; padding-bottom: 6px; }
+.lp .lp-topbar a { color: #fff; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
+.lp .lp-topbar a:hover { color: var(--gold); }
+@media (max-width: 680px) { .lp .lp-topbar-in { justify-content: center; text-align: center; } }
+.lp .lp-cta-card .lp-cta-contact { margin: 22px auto 0; font-size: 15px; color: #b9cfd6; }
+.lp .lp-cta-card .lp-cta-contact a { color: #fff; font-weight: 600; }
+.lp .lp-footer-note { display: block; max-width: 220px; font-size: 13px; color: var(--ink-faint); margin-top: 4px; }
+.lp .lp-footer-bottom a { color: var(--ink-soft); }

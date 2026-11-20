@@ -7,6 +7,11 @@ export default function Home({ searchParams }: { searchParams?: { deleted?: stri
   const deleted = !!searchParams?.deleted;
   return (
     <div className="lp">
+      <div className="lp-topbar" role="note" aria-label="Contact">
+        <div className="lp-wrap lp-topbar-in">
+          <span>Questions about Preciops-ATMS? Email us at <a href="mailto:sales@preciopsatms.com">sales@preciopsatms.com</a></span>
+        </div>
+      </div>
       <header className="lp-site">
         <div className="lp-wrap lp-header-in">
           <a className="lp-brand" href="#top" aria-label="Preciops-ATMS home">
@@ -532,6 +537,7 @@ export default function Home({ searchParams }: { searchParams?: { deleted?: stri
                 <Link className="lp-btn lp-btn-ghost" href="/login">Sign in</Link>
                 <Link className="lp-btn lp-btn-ghost" href="/login?for=healthcare">Healthcare sign in</Link>
               </div>
+              <p className="lp-cta-contact">Questions, a demo, or Enterprise pricing? Email <a href="mailto:sales@preciopsatms.com">sales@preciopsatms.com</a></p>
             </div>
           </div>
         </div>
@@ -575,10 +581,15 @@ export default function Home({ searchParams }: { searchParams?: { deleted?: stri
               <Link href="/login?for=healthcare">Healthcare sign in</Link>
               <a href="mailto:sales@preciopsatms.com">Talk to sales</a>
             </div>
+            <div className="lp-footer-col">
+              <h4>Contact</h4>
+              <a href="mailto:sales@preciopsatms.com">sales@preciopsatms.com</a>
+              <span className="lp-footer-note">Sales, demos, pricing and account questions.</span>
+            </div>
           </div>
           <div className="lp-footer-bottom">
             <span>© {new Date().getFullYear()} Preciops-ATMS · Advanced Talent Management Systems</span>
-            <span className="lp-mono">preciopsatms.com</span>
+            <span>Contact: <a className="lp-mono" href="mailto:sales@preciopsatms.com">sales@preciopsatms.com</a></span>
           </div>
         </div>
       </footer>
